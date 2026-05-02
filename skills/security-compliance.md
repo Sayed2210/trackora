@@ -65,28 +65,60 @@ async verifyOTP(phone: string, otp: string): Promise<boolean> {
 }
 ```
 
-## RBAC Implementation
+## RBAC Implementation (MODULE_CONVENTIONS)
 
-### Decorators
+### Global Decorators & Guards
+Always import from `@common/decorators/` and `@common/guards/`:
+
 ```typescript
-// roles.decorator.ts
-export const ROLES_KEY = 'roles';
-export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+// In controllers
+import { Roles } from '@common/decorators/roles.decorator';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { RolesGuard } from '@common/guards/roles.guard';
+import { UserRole } from '@modules/users/entities/user.entity';
 
-// permissions.decorator.ts
-export const PERMISSIONS_KEY = 'permissions';
-export const Permissions = (...permissions: string[]) => 
-  SetMetadata(PERMISSIONS_KEY, permissions);
+@Controller('shipments')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class ShipmentController {
+  
+  @Get()
+  @Roles(UserRole.OPERATIONS_MANAGER, UserRole.FINANCE_ADMIN)
+  async findAll() { }
+
+  @Patch(':id/status')
+  @Roles(UserRole.COURIER, UserRole.OPERATIONS_MANAGER)
+  async updateStatus() { }
+  
+  @Patch(':id/status/override')
+  @Roles(UserRole.OPERATIONS_MANAGER)
+  @Permissions('shipments:update:status:override')
+  async overrideStatus() { }
+}
 ```
 
-### Guards
+### Decorator Definitions
 ```typescript
+// src/common/decorators/roles.decorator.ts
+import { SetMetadata } from '@nestjs/common';
+import { UserRole } from '@modules/users/entities/user.entity';
+
+export const ROLES_KEY = 'roles';
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+```
+
+### Guard Definitions
+```typescript
+// src/common/guards/roles.guard.ts
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { UserRole } from '@modules/users/entities/user.entity';
+
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>('roles', [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -94,48 +126,8 @@ export class RolesGuard implements CanActivate {
     if (!requiredRoles) return true;
     
     const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.includes(user.role);
+    return requiredRoles.includes(user.role as UserRole);
   }
-}
-
-@Injectable()
-export class PermissionsGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()]
-    );
-    
-    if (!requiredPermissions) return true;
-    
-    const { user } = context.switchToHttp().getRequest();
-    return requiredPermissions.every(p => user.permissions.includes(p));
-  }
-}
-```
-
-### Controller Usage
-```typescript
-@Controller('shipments')
-@UseGuards(JwtAuthGuard, RolesGuard)
-export class ShipmentController {
-  
-  @Get()
-  @Roles('OPERATIONS_MANAGER', 'FINANCE_ADMIN')
-  @Permissions('shipments:read:all')
-  async findAll() { }
-
-  @Patch(':id/status')
-  @Roles('COURIER', 'OPERATIONS_MANAGER')
-  @Permissions('shipments:update:status')
-  async updateStatus() { }
-  
-  @Patch(':id/status/override')
-  @Roles('OPERATIONS_MANAGER')
-  @Permissions('shipments:update:status:override')
-  async overrideStatus() { }
 }
 ```
 
@@ -279,4 +271,4 @@ export class AuditInterceptor implements NestInterceptor {
 
 ## Example Usage
 User: "I need to implement role-based access for the finance dashboard"
-→ Use this skill to create the RBAC decorators, guards, and permission matrix for finance operations.
+→ Use this skill to create the RBAC decorators, guards, and permission matrix for finance operations following MODULE_CONVENTIONS.

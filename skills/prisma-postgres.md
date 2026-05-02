@@ -59,6 +59,73 @@ model ShipmentStatusLog {
 }
 ```
 
+## Repository Pattern with Prisma
+
+All data access goes through repositories extending `AbstractRepository<T>`:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '@core/prisma/prisma.service';
+import { AbstractRepository } from '@common/database/abstract.repository';
+import { Shipment } from '../entities/shipment.entity';
+
+@Injectable()
+export class ShipmentsRepository extends AbstractRepository<Shipment> {
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
+
+  protected get delegate() {
+    return this.prisma.shipment;
+  }
+
+  protected get baseWhere() {
+    return { isActive: true };
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await this.delegate.update({ where: { id }, data: { isActive: false } });
+  }
+
+  async findByTrackingNumber(trackingNumber: string): Promise<Shipment | null> {
+    return this.delegate.findFirst({
+      where: { ...this.baseWhere, trackingNumber },
+    });
+  }
+}
+```
+
+### AbstractRepository Base Class
+```typescript
+// src/common/database/abstract.repository.ts
+export abstract class AbstractRepository<T> {
+  constructor(protected readonly prisma: PrismaService) {}
+
+  protected abstract get delegate(): any;
+  protected get baseWhere(): any { return {}; }
+
+  async findAll(): Promise<T[]> {
+    return this.delegate.findMany({ where: this.baseWhere });
+  }
+
+  async findById(id: string): Promise<T | null> {
+    return this.delegate.findFirst({ where: { ...this.baseWhere, id } });
+  }
+
+  async create(data: any): Promise<T> {
+    return this.delegate.create({ data });
+  }
+
+  async update(id: string, data: any): Promise<T> {
+    return this.delegate.update({ where: { id }, data });
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await this.delegate.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+}
+```
+
 ## Query Optimization
 
 ### Avoid N+1
@@ -163,6 +230,7 @@ npx prisma migrate status
 - [ ] Pagination on all list endpoints
 - [ ] Connection pooling (PgBouncer)
 - [ ] Read replicas for reporting queries
+- [ ] Repositories extend AbstractRepository<T> (no Prisma in services)
 
 ## Common Issues & Solutions
 
@@ -191,4 +259,4 @@ await prisma.$transaction(async (tx) => {
 
 ## Example Usage
 User: "I need to add a new field to track courier rating by customers"
-→ Use this skill to design the schema change, create a safe migration, and add appropriate indexes.
+→ Use this skill to design the schema change, create a safe migration, add appropriate indexes, and create the repository following MODULE_CONVENTIONS.
