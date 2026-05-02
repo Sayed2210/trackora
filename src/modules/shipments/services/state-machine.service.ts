@@ -1,5 +1,5 @@
 import { Injectable, ConflictException } from '@nestjs/common';
-import { ShipmentStatus } from '@prisma/client';
+import { ShipmentStatus } from '../entities/shipment.entity';
 
 const TRANSITION_MATRIX: Record<ShipmentStatus, ShipmentStatus[]> = {
   [ShipmentStatus.PENDING]: [

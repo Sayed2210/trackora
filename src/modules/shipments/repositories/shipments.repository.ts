@@ -1,8 +1,24 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable, MethodNotAllowedException } from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
-import { AbstractRepository } from '@common/database/abstract.repository';
+import {
+  AbstractRepository,
+  PrismaDelegate,
+} from '@common/database/abstract.repository';
 import { Shipment } from '../entities/shipment.entity';
+
+export interface ShipmentFilter {
+  status?: string | string[];
+  merchantId?: string;
+  assignedCourierId?: string;
+  zoneId?: string;
+  trackingNumber?: string;
+  createdAt?: { gte?: Date; lte?: Date };
+  OR?: Array<Record<string, unknown>>;
+}
+
+export interface ShipmentOrderBy {
+  createdAt?: 'asc' | 'desc';
+}
 
 @Injectable()
 export class ShipmentsRepository extends AbstractRepository<Shipment> {
@@ -10,8 +26,15 @@ export class ShipmentsRepository extends AbstractRepository<Shipment> {
     super(prisma);
   }
 
-  protected get delegate() {
+  protected get delegate(): PrismaDelegate<Shipment> {
     return this.prisma.shipment;
+  }
+
+  async softDelete(): Promise<void> {
+    await Promise.resolve();
+    throw new MethodNotAllowedException(
+      'Shipments do not support soft delete. Use status transitions instead.',
+    );
   }
 
   async findByTrackingNumber(trackingNumber: string): Promise<Shipment | null> {
@@ -19,15 +42,20 @@ export class ShipmentsRepository extends AbstractRepository<Shipment> {
   }
 
   async findWithFilters(
-    where: Prisma.ShipmentWhereInput,
+    where: ShipmentFilter,
     skip: number,
     take: number,
-    orderBy: Prisma.ShipmentOrderByWithRelationInput = { createdAt: 'desc' },
+    orderBy: ShipmentOrderBy = { createdAt: 'desc' },
   ): Promise<Shipment[]> {
-    return this.delegate.findMany({ where, skip, take, orderBy });
+    return this.delegate.findMany({
+      where,
+      skip,
+      take,
+      orderBy,
+    });
   }
 
-  async countWithFilters(where: Prisma.ShipmentWhereInput): Promise<number> {
+  async countWithFilters(where: ShipmentFilter): Promise<number> {
     return this.delegate.count({ where });
   }
 }

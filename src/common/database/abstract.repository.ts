@@ -1,7 +1,12 @@
 import { PrismaService } from '@core/prisma/prisma.service';
 
-interface PrismaDelegate<T> {
-  findMany: (args?: { where?: any }) => Promise<T[]>;
+export interface PrismaDelegate<T> {
+  findMany: (args?: {
+    where?: any;
+    skip?: number;
+    take?: number;
+    orderBy?: any;
+  }) => Promise<T[]>;
   findFirst: (args?: { where?: any }) => Promise<T | null>;
   findUnique: (args?: { where?: any }) => Promise<T | null>;
   create: (args: { data: any }) => Promise<T>;
@@ -44,12 +49,7 @@ export abstract class AbstractRepository<T> {
     await this.delegate.delete({ where: { id } });
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.delegate.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-  }
+  abstract softDelete(id: string): Promise<void>;
 
   async exists(where: Record<string, unknown>): Promise<boolean> {
     const count = await this.delegate.count({

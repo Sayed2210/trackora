@@ -2,24 +2,17 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
-import { UsersRepository } from '@modules/users/repositories/users.repository';
-import { UserRole } from '@modules/users/entities/user.entity';
-
-interface TokenPayload {
-  sub: string;
-  role: UserRole;
-  type: string;
-}
-
-interface RefreshTokenPayload {
-  sub: string;
-  type: string;
-}
+import { AuthRepository } from '../repositories/auth.repository';
+import {
+  UserRole,
+  TokenPayload,
+  RefreshTokenPayload,
+} from '../entities/auth.entity';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly usersRepository: UsersRepository,
+    private readonly authRepository: AuthRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -30,7 +23,7 @@ export class AuthService {
     name: string,
     role: UserRole,
   ) {
-    const existingUser = await this.usersRepository.findByPhone(phone);
+    const existingUser = await this.authRepository.findByPhone(phone);
 
     if (existingUser) {
       throw new UnauthorizedException('Phone number already registered');
@@ -38,7 +31,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const user = await this.usersRepository.create({
+    const user = await this.authRepository.create({
       phone,
       passwordHash: hashedPassword,
       name,
@@ -50,7 +43,7 @@ export class AuthService {
   }
 
   async login(phone: string, password: string) {
-    const user = await this.usersRepository.findByPhone(phone);
+    const user = await this.authRepository.findByPhone(phone);
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
@@ -79,7 +72,7 @@ export class AuthService {
         throw new UnauthorizedException('Invalid token type');
       }
 
-      const user = await this.usersRepository.findById(payload.sub);
+      const user = await this.authRepository.findById(payload.sub);
 
       if (!user || !user.isActive) {
         throw new UnauthorizedException('User not found or inactive');

@@ -8,7 +8,6 @@ import { ShipmentStatusLogsRepository } from '../repositories/shipment-status-lo
 import { StateMachineService } from './state-machine.service';
 import { TrackingNumberService } from './tracking-number.service';
 import { FraudDetectionService } from './fraud-detection.service';
-import { Prisma } from '@prisma/client';
 import {
   Shipment,
   ShipmentStatus,
@@ -74,7 +73,7 @@ export class ShipmentsService {
     page = 1,
     limit = 20,
   ): Promise<{ data: Shipment[]; total: number; page: number; limit: number }> {
-    const where: Prisma.ShipmentWhereInput = {};
+    const where: Record<string, unknown> = {};
 
     if (filters.status) {
       where.status = Array.isArray(filters.status)
@@ -144,12 +143,12 @@ export class ShipmentsService {
     );
 
     const previousStatus = shipment.status;
-    const updateData: Prisma.ShipmentUpdateInput = { status: dto.newStatus };
+    const updateData: Record<string, unknown> = { status: dto.newStatus };
 
     if (dto.notes) updateData.notes = dto.notes;
     if (dto.collectedCash !== undefined)
       updateData.collectedCash = dto.collectedCash;
-    if (dto.gpsLocation) updateData.geoLocation = dto.gpsLocation as Prisma.InputJsonValue;
+    if (dto.gpsLocation) updateData.geoLocation = dto.gpsLocation;
 
     if (dto.newStatus === ShipmentStatus.DELIVERED) {
       updateData.deliveredAt = new Date();

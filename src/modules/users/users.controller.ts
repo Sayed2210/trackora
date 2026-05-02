@@ -8,9 +8,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Roles } from '../auth/decorators';
+import { UsersService } from './services/users.service';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { UpdateUserDto } from './dtos/update-user.dto';
 
