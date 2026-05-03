@@ -8,7 +8,7 @@ export interface PrismaDelegate<T> {
     orderBy?: any;
   }) => Promise<T[]>;
   findFirst: (args?: { where?: any }) => Promise<T | null>;
-  findUnique: (args?: { where?: any }) => Promise<T | null>;
+  findUnique: (args: { where: any }) => Promise<T | null>;
   create: (args: { data: any }) => Promise<T>;
   update: (args: { where: { id: string }; data: any }) => Promise<T>;
   updateMany: (args: { where: any; data: any }) => Promise<any>;

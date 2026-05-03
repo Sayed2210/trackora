@@ -5,6 +5,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { AuthRepository } from '../repositories/auth.repository';
 import { UserRole } from '../entities/auth.entity';
+import { RedisService } from '@infrastructure/cache/redis.service';
 import * as bcrypt from 'bcryptjs';
 
 jest.mock('bcryptjs', () => ({
@@ -34,6 +35,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let repository: AuthRepository;
   let jwtService: JwtService;
+  let redis: RedisService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -69,12 +71,21 @@ describe('AuthService', () => {
             }),
           },
         },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn().mockResolvedValue(undefined),
+            del: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
     repository = module.get<AuthRepository>(AuthRepository);
     jwtService = module.get<JwtService>(JwtService);
+    redis = module.get<RedisService>(RedisService);
   });
 
   it('should be defined', () => {
@@ -147,6 +158,9 @@ describe('AuthService', () => {
         sub: mockUser.id,
         type: 'refresh',
       });
+      jest
+        .spyOn(redis, 'get')
+        .mockResolvedValueOnce('valid-refresh-token');
 
       const result = await service.refreshTokens('valid-refresh-token');
 

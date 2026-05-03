@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { RedisService } from '@infrastructure/cache/redis.service';
 import { AuthRepository } from '../repositories/auth.repository';
 import {
   UserRole,
@@ -15,6 +16,7 @@ export class AuthService {
     private readonly authRepository: AuthRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly redis: RedisService,
   ) {}
 
   async register(
@@ -72,6 +74,11 @@ export class AuthService {
         throw new UnauthorizedException('Invalid token type');
       }
 
+      const stored = await this.redis.get(`refresh_token:${payload.sub}`);
+      if (!stored || stored !== refreshToken) {
+        throw new UnauthorizedException('Refresh token revoked');
+      }
+
       const user = await this.authRepository.findById(payload.sub);
 
       if (!user || !user.isActive) {
@@ -84,7 +91,11 @@ export class AuthService {
     }
   }
 
-  private generateTokens(userId: string, role: UserRole) {
+  async logout(userId: string): Promise<void> {
+    await this.redis.del(`refresh_token:${userId}`);
+  }
+
+  private async generateTokens(userId: string, role: UserRole) {
     const accessToken = this.jwtService.sign<TokenPayload>({
       sub: userId,
       role,
@@ -102,6 +113,16 @@ export class AuthService {
           '7d',
         ) as `${number}d`,
       },
+    );
+
+    const refreshTtl = parseInt(
+      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d'),
+      10,
+    );
+    await this.redis.set(
+      `refresh_token:${userId}`,
+      refreshToken,
+      refreshTtl * 86400,
     );
 
     return {

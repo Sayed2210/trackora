@@ -4,12 +4,16 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { MerchantsRepository } from '../repositories/merchants.repository';
+import { WalletsService } from '@modules/wallets/services/wallets.service';
 import { Merchant, KycStatus } from '../entities/merchant.entity';
 import { CreateMerchantDto, UpdateFeesDto } from '../dtos/create-merchant.dto';
 
 @Injectable()
 export class MerchantsService {
-  constructor(private readonly merchantsRepository: MerchantsRepository) {}
+  constructor(
+    private readonly merchantsRepository: MerchantsRepository,
+    private readonly walletsService: WalletsService,
+  ) {}
 
   async create(dto: CreateMerchantDto, userId: string): Promise<Merchant> {
     const existing = await this.merchantsRepository.findByUserId(userId);
@@ -45,8 +49,19 @@ export class MerchantsService {
   }
 
   async updateKycStatus(id: string, status: KycStatus): Promise<Merchant> {
-    await this.findById(id);
-    return this.merchantsRepository.update(id, { kycStatus: status });
+    const merchant = await this.findById(id);
+    const updated = await this.merchantsRepository.update(id, {
+      kycStatus: status,
+    });
+
+    if (
+      status === KycStatus.APPROVED &&
+      merchant.kycStatus !== KycStatus.APPROVED
+    ) {
+      await this.walletsService.create(id);
+    }
+
+    return updated;
   }
 
   async updateFeeStructure(id: string, dto: UpdateFeesDto): Promise<Merchant> {
