@@ -75,6 +75,50 @@ export class ShipmentsController {
     );
   }
 
+  @Get('cursor')
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ShipmentStatus,
+    isArray: true,
+  })
+  @ApiQuery({ name: 'merchantId', required: false })
+  @ApiQuery({ name: 'courierId', required: false })
+  @ApiQuery({ name: 'zoneId', required: false })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'trackingNumber', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async findAllCursor(
+    @Query('status') status?: ShipmentStatus | ShipmentStatus[],
+    @Query('merchantId') merchantId?: string,
+    @Query('courierId') courierId?: string,
+    @Query('zoneId') zoneId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('trackingNumber') trackingNumber?: string,
+    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.shipmentsService.findAllCursor(
+      {
+        status,
+        merchantId,
+        courierId,
+        zoneId,
+        from: from ? new Date(from) : undefined,
+        to: to ? new Date(to) : undefined,
+        trackingNumber,
+        search,
+      },
+      cursor,
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
   @Get(':id')
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.shipmentsService.findById(id);

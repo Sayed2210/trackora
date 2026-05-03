@@ -58,4 +58,19 @@ export class ShipmentsRepository extends AbstractRepository<Shipment> {
   async countWithFilters(where: ShipmentFilter): Promise<number> {
     return this.delegate.count({ where });
   }
+
+  async findWithCursor(
+    where: ShipmentFilter,
+    cursorId: string | undefined,
+    limit: number,
+    orderBy: ShipmentOrderBy = { createdAt: 'desc' },
+  ): Promise<Shipment[]> {
+    return this.delegate.findMany({
+      where,
+      take: limit,
+      skip: cursorId ? 1 : 0,
+      cursor: cursorId ? { id: cursorId } : undefined,
+      orderBy,
+    });
+  }
 }

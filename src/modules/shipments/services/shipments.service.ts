@@ -68,11 +68,7 @@ export class ShipmentsService {
     return shipment;
   }
 
-  async findAll(
-    filters: ShipmentFilters,
-    page = 1,
-    limit = 20,
-  ): Promise<{ data: Shipment[]; total: number; page: number; limit: number }> {
+  private buildWhere(filters: ShipmentFilters): Record<string, unknown> {
     const where: Record<string, unknown> = {};
 
     if (filters.status) {
@@ -101,6 +97,15 @@ export class ShipmentsService {
       ];
     }
 
+    return where;
+  }
+
+  async findAll(
+    filters: ShipmentFilters,
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: Shipment[]; total: number; page: number; limit: number }> {
+    const where = this.buildWhere(filters);
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
       this.shipmentsRepository.findWithFilters(where, skip, limit),
@@ -108,6 +113,29 @@ export class ShipmentsService {
     ]);
 
     return { data, total, page, limit };
+  }
+
+  async findAllCursor(
+    filters: ShipmentFilters,
+    cursor?: string,
+    limit = 20,
+  ): Promise<{
+    data: Shipment[];
+    nextCursor: string | null;
+    limit: number;
+  }> {
+    const where = this.buildWhere(filters);
+    const data = await this.shipmentsRepository.findWithCursor(
+      where,
+      cursor,
+      limit + 1,
+    );
+
+    const hasMore = data.length > limit;
+    const results = hasMore ? data.slice(0, limit) : data;
+    const nextCursor = hasMore ? results[results.length - 1]?.id ?? null : null;
+
+    return { data: results, nextCursor, limit };
   }
 
   async findById(id: string): Promise<Shipment> {
