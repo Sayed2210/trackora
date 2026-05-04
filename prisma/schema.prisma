@@ -272,11 +272,14 @@ model Shipment {
 
   @@index([trackingNumber])
   @@index([merchantId, status])
+  @@index([merchantId, status, createdAt])
   @@index([assignedCourierId, status])
   @@index([zoneId, status, preferredDeliveryDate])
   @@index([status, createdAt])
+  @@index([status, deliveredAt])
   @@index([customerPhone])
   @@index([riskScore])
+  @@index([deliveredAt])
 }
 
 model ShipmentStatusLog {

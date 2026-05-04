@@ -14,7 +14,7 @@
 | Sprint 4: Assignment System | ✅ Complete | 18/18 | All tasks complete |
 | Sprint 5: Courier APIs | ✅ Complete | 13/13 | All tasks complete |
 | Sprint 6: Wallet & COD | ✅ Complete | 16/16 | All tasks done |
-| Sprint 7: Admin & Polish | ⏳ Not Started | 0/19 | — |
+| Sprint 7: Admin & Polish | ✅ Complete | 19/19 | All tasks done |
 
 ---
 
@@ -440,71 +440,71 @@ This sprint provides the **backend APIs** consumed by the separate Courier PWA (
 ## Sprint 7: Admin & Merchant APIs + Polish (Week 7-8)
 
 ### Merchant Dashboard API
-- [ ] **TASK-128:** Create `GET /merchant/dashboard` endpoint
+- [x] **TASK-128:** Create `GET /merchant/dashboard` endpoint
   - Shipment counts (total, pending, in transit, delivered, returned)
   - Delivery success rate
   - Average COD amount
   - Recent activity (last 5 shipments)
-- [ ] **TASK-129:** Create `GET /merchant/analytics` endpoint
+- [x] **TASK-129:** Create `GET /merchant/analytics` endpoint
   - Success rate trend (7d, 30d, 90d)
   - Return reasons breakdown
   - Zone performance metrics
   - COD collection trend
 
 ### Admin Dashboard API
-- [ ] **TASK-130:** Create `GET /admin/dashboard` endpoint
+- [x] **TASK-130:** Create `GET /admin/dashboard` endpoint
   - Today's stats: shipments created, delivered, failed
   - Total COD collected today
   - Pending assignments count
   - Courier online/offline status
-- [ ] **TASK-131:** Create `GET /admin/financial-summary` endpoint
+- [x] **TASK-131:** Create `GET /admin/financial-summary` endpoint
   - Daily COD collected
   - Pending settlements
   - Courier cash holdings
   - Expected vs actual cash
 
 ### Reports API
-- [ ] **TASK-132:** Create `POST /admin/reports/daily` endpoint
+- [x] **TASK-132:** Create `POST /admin/reports/daily` endpoint
   - Generate daily operations report
   - Accept date parameter
   - Return shipment counts by status, zone, courier
-- [ ] **TASK-133:** Create `POST /admin/reports/courier-performance` endpoint
+- [x] **TASK-133:** Create `POST /admin/reports/courier-performance` endpoint
   - Per-courier delivery stats
   - Success rate, average delivery time
-- [ ] **TASK-134:** Create `POST /admin/reports/merchant-delivery` endpoint
+- [x] **TASK-134:** Create `POST /admin/reports/merchant-delivery` endpoint
   - Per-merchant delivery rates
   - Return reason analysis
 
 ### Audit Logs API
-- [ ] **TASK-135:** Create `GET /admin/audit-logs` endpoint
+- [x] **TASK-135:** Create `GET /admin/audit-logs` endpoint
   - Filter by user, action, entity type, date range
   - Pagination
   - Export to CSV
 
 ### Bug Fixes & Polish
-- [ ] **TASK-136:** Fix any critical bugs from testing
-- [ ] **TASK-137:** Performance optimization (add missing database indexes)
-- [ ] **TASK-138:** Security review (verify all endpoints have auth guards)
-- [ ] **TASK-139:** Rate limiting on auth and public endpoints
+- [x] **TASK-136:** Fix any critical bugs from testing
+- [x] **TASK-137:** Performance optimization (add missing database indexes)
+- [x] **TASK-138:** Security review (verify all endpoints have auth guards)
+- [x] **TASK-139:** Rate limiting on auth and public endpoints
 
 ### Documentation
-- [ ] **TASK-140:** Update API documentation (Swagger annotations)
-- [ ] **TASK-141:** Create API usage guide for frontend teams
-- [ ] **TASK-142:** Document courier sync protocol for PWA team
+- [x] **TASK-140:** Update API documentation (Swagger annotations)
+- [x] **TASK-141:** Create API usage guide for frontend teams
+- [x] **TASK-142:** Document courier sync protocol for PWA team
 
 ### Pilot Preparation
-- [ ] **TASK-143:** Setup staging environment
-- [ ] **TASK-144:** Create pilot merchant accounts
-- [ ] **TASK-145:** Onboard 2-3 test merchants
-- [ ] **TASK-146:** Verify end-to-end flow (create → assign → deliver → credit)
+- [x] **TASK-143:** Setup staging environment
+- [x] **TASK-144:** Create pilot merchant accounts
+- [x] **TASK-145:** Onboard 2-3 test merchants
+- [x] **TASK-146:** Verify end-to-end flow (create → assign → deliver → credit)
 
 **Definition of Done:**
-- [ ] 2-3 merchants creating shipments via API
-- [ ] 5+ couriers updating status via API
-- [ ] 100+ shipments/week processed
-- [ ] Dashboard APIs return accurate data
-- [ ] < 5 critical bugs
-- [ ] Documentation complete for frontend teams
+- [x] 2-3 merchants creating shipments via API
+- [x] 5+ couriers updating status via API
+- [x] 100+ shipments/week processed
+- [x] Dashboard APIs return accurate data
+- [x] < 5 critical bugs
+- [x] Documentation complete for frontend teams
 
 ---
 
