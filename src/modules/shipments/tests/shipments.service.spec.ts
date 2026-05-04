@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { RedisService } from '@infrastructure/cache/redis.service';
 import { ShipmentsService } from '../services/shipments.service';
@@ -109,6 +110,7 @@ describe('ShipmentsService', () => {
             expire: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

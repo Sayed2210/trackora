@@ -13,7 +13,7 @@
 | Sprint 3: Shipment Core | ✅ Complete | 25/25 | Core features + integration tests done |
 | Sprint 4: Assignment System | ✅ Complete | 18/18 | All tasks complete |
 | Sprint 5: Courier APIs | ✅ Complete | 13/13 | All tasks complete |
-| Sprint 6: Wallet & COD | ⏳ Not Started | 0/16 | — |
+| Sprint 6: Wallet & COD | ✅ Complete | 16/16 | All tasks done |
 | Sprint 7: Admin & Polish | ⏳ Not Started | 0/19 | — |
 
 ---
@@ -381,59 +381,59 @@ This sprint provides the **backend APIs** consumed by the separate Courier PWA (
 ## Sprint 6: Wallet & COD (Week 6)
 
 ### Wallet Module
-- [ ] **TASK-112:** Generate `WalletsModule`
-- [ ] **TASK-113:** Create `WalletService` with:
+- [x] **TASK-112:** Generate `WalletsModule`
+- [x] **TASK-113:** Create `WalletService` with:
   - `create(merchantId)` (auto-create on KYC approval)
   - `findByMerchant(merchantId)`
   - `getBalance(merchantId)`
   - `getTransactions(merchantId, pagination)`
-- [ ] **TASK-114:** Create `WalletController` with endpoints:
+- [x] **TASK-114:** Create `WalletController` with endpoints:
   - `GET /wallets/:id`
   - `GET /wallets/:id/transactions`
 
 ### Transaction Service
-- [ ] **TASK-115:** Create `TransactionService` with:
+- [x] **TASK-115:** Create `TransactionService` with:
   - `createCredit(walletId, amount, type, description)`
   - `createDebit(walletId, amount, type, description)`
   - `getRunningBalance(walletId)`
-- [ ] **TASK-116:** Implement optimistic locking with `version` field
-- [ ] **TASK-117:** Retry up to 3x on conflict with exponential backoff
+- [x] **TASK-116:** Implement optimistic locking with `version` field
+- [x] **TASK-117:** Retry up to 3x on conflict with exponential backoff
 
 ### COD Credit Flow
-- [ ] **TASK-118:** On `ShipmentDeliveredEvent`:
+- [x] **TASK-118:** On `ShipmentDeliveredEvent`:
   - Calculate gross COD
   - Calculate commission (percentage)
   - Calculate fee (flat per shipment)
   - Create 3 transactions atomically
   - Update wallet balance
-- [ ] **TASK-119:** Update `courier.cashHeld` on delivery
+- [x] **TASK-119:** Update `courier.cashHeld` on delivery
 
 ### Fee Calculation
-- [ ] **TASK-120:** Create `FeeCalculatorService` with:
+- [x] **TASK-120:** Create `FeeCalculatorService` with:
   - `calculateNetCredit(codAmount, feeStructure)`
   - Support for tiered commission rates
-- [ ] **TASK-121:** Read fee structure from merchant config
+- [x] **TASK-121:** Read fee structure from merchant config
 
 ### Merchant Wallet API
-- [ ] **TASK-122:** Create `GET /merchant/wallet` endpoint
+- [x] **TASK-122:** Create `GET /merchant/wallet` endpoint
   - Balance, pending balance, available balance
   - Total credited, total debited
-- [ ] **TASK-123:** Create `GET /merchant/wallet/transactions` endpoint
+- [x] **TASK-123:** Create `GET /merchant/wallet/transactions` endpoint
   - Transaction history with pagination
   - Filter by type, date range
 
 ### Tests
-- [ ] **TASK-124:** Write unit tests for `TransactionService`
-- [ ] **TASK-125:** Write unit tests for `FeeCalculatorService`
-- [ ] **TASK-126:** Write integration tests for COD credit flow
-- [ ] **TASK-127:** Test concurrent wallet updates
+- [x] **TASK-124:** Write unit tests for `TransactionService`
+- [x] **TASK-125:** Write unit tests for `FeeCalculatorService`
+- [x] **TASK-126:** Write integration tests for COD credit flow
+- [x] **TASK-127:** Test concurrent wallet updates
 
 **Definition of Done:**
-- [ ] Wallet auto-created on merchant approval
-- [ ] COD credits create matching debits
-- [ ] Balance updates atomically
-- [ ] Transaction history visible
-- [ ] Courier cashHeld tracked
+- [x] Wallet auto-created on merchant approval
+- [x] COD credits create matching debits
+- [x] Balance updates atomically
+- [x] Transaction history visible
+- [x] Courier cashHeld tracked
 
 ---
 

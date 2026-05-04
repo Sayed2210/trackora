@@ -14,7 +14,7 @@ import { UpdateTaskStatusDto } from '../dtos/update-task-status.dto';
 import { CourierDepositDto } from '../dtos/courier-deposit.dto';
 import { SyncAction, SyncUpdatesDto } from '../dtos/sync-updates.dto';
 
-interface Task {
+export interface Task {
   shipmentId: string;
   trackingNumber: string;
   customerName: string;
@@ -27,7 +27,7 @@ interface Task {
   notes?: string | null;
 }
 
-interface SyncResult {
+export interface SyncResult {
   processed: number;
   failed: number;
   conflicts: Array<{

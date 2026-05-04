@@ -25,7 +25,7 @@ interface AssignmentFilters {
   to?: Date;
 }
 
-interface AssignmentResult {
+export interface AssignmentResult {
   data: Assignment[];
   total: number;
   page: number;

@@ -6,6 +6,7 @@ import { ShipmentStatusLogsRepository } from '../repositories/shipment-status-lo
 import { StateMachineService } from '../services/state-machine.service';
 import { TrackingNumberService } from '../services/tracking-number.service';
 import { FraudDetectionService } from '../services/fraud-detection.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { RedisService } from '@infrastructure/cache/redis.service';
 import { ShipmentStatus, ShipmentType } from '../entities/shipment.entity';
@@ -72,6 +73,7 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
         },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

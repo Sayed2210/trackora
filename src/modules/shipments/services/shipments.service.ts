@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { RedisService } from '@infrastructure/cache/redis.service';
 import { ShipmentsRepository } from '../repositories/shipments.repository';
@@ -43,6 +44,7 @@ export class ShipmentsService {
     private readonly stateMachine: StateMachineService,
     private readonly trackingNumberService: TrackingNumberService,
     private readonly fraudDetection: FraudDetectionService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(dto: CreateShipmentDto, merchantId: string): Promise<Shipment> {
@@ -275,6 +277,18 @@ export class ShipmentsService {
           (dto as unknown as Record<string, unknown>).signatureUrl || null,
       },
     });
+
+    // Emit COD delivered event for wallet processing
+    if (dto.newStatus === ShipmentStatus.DELIVERED) {
+      this.eventEmitter.emit('shipment.delivered', {
+        shipmentId: id,
+        merchantId: shipment.merchantId,
+        courierId: shipment.assignedCourierId || undefined,
+        codAmount: Number(shipment.codAmount),
+        collectedCash: dto.collectedCash || 0,
+        type: shipment.type,
+      });
+    }
 
     return updated;
   }

@@ -5,11 +5,13 @@ import {
   Param,
   Patch,
   Body,
+  Query,
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { MerchantsService } from '../services/merchants.service';
+import { WalletsService } from '@modules/wallets/services/wallets.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
@@ -22,7 +24,10 @@ import { UpdateFeesDto } from '../dtos/update-fees.dto';
 @Controller('merchants')
 @UseGuards(JwtAuthGuard)
 export class MerchantsController {
-  constructor(private readonly merchantsService: MerchantsService) {}
+  constructor(
+    private readonly merchantsService: MerchantsService,
+    private readonly walletsService: WalletsService,
+  ) {}
 
   @Post()
   async create(@Body() dto: CreateMerchantDto) {
@@ -50,5 +55,30 @@ export class MerchantsController {
     @Body() dto: UpdateFeesDto,
   ) {
     return this.merchantsService.updateFeeStructure(id, dto);
+  }
+
+  @Get(':id/wallet')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.FINANCE_ADMIN, UserRole.MERCHANT)
+  async getWallet(@Param('id', ParseUUIDPipe) id: string) {
+    return this.walletsService.getBalance(id);
+  }
+
+  @Get(':id/wallet/transactions')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.FINANCE_ADMIN, UserRole.MERCHANT)
+  async getWalletTransactions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('type') type?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.walletsService.getTransactions(id, {
+      type: type as import('@prisma/client').TransactionType,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
   }
 }

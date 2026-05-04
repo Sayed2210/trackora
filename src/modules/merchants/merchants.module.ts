@@ -2,16 +2,11 @@ import { Module } from '@nestjs/common';
 import { MerchantsRepository } from './repositories/merchants.repository';
 import { MerchantsService } from './services/merchants.service';
 import { MerchantsController } from './controllers/merchants.controller';
-import { WalletsService } from '@modules/wallets/services/wallets.service';
-import { WalletsRepository } from '@modules/wallets/repositories/wallets.repository';
+import { WalletsModule } from '@modules/wallets/wallets.module';
 
 @Module({
-  providers: [
-    MerchantsRepository,
-    MerchantsService,
-    WalletsService,
-    WalletsRepository,
-  ],
+  imports: [WalletsModule],
+  providers: [MerchantsRepository, MerchantsService],
   controllers: [MerchantsController],
   exports: [MerchantsService],
 })
