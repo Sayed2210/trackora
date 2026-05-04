@@ -2,7 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
+import { PrismaService } from '@core/prisma/prisma.service';
+import { RedisService } from '@infrastructure/cache/redis.service';
 import { ShipmentsRepository } from '../repositories/shipments.repository';
 import { ShipmentStatusLogsRepository } from '../repositories/shipment-status-logs.repository';
 import { StateMachineService } from './state-machine.service';
@@ -29,7 +32,12 @@ interface ShipmentFilters {
 
 @Injectable()
 export class ShipmentsService {
+  private readonly OTP_MAX_ATTEMPTS = 3;
+  private readonly OTP_ATTEMPT_TTL = 86400; // 24 hours
+
   constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
     private readonly shipmentsRepository: ShipmentsRepository,
     private readonly statusLogsRepository: ShipmentStatusLogsRepository,
     private readonly stateMachine: StateMachineService,
@@ -133,7 +141,9 @@ export class ShipmentsService {
 
     const hasMore = data.length > limit;
     const results = hasMore ? data.slice(0, limit) : data;
-    const nextCursor = hasMore ? results[results.length - 1]?.id ?? null : null;
+    const nextCursor = hasMore
+      ? (results[results.length - 1]?.id ?? null)
+      : null;
 
     return { data: results, nextCursor, limit };
   }
@@ -178,14 +188,28 @@ export class ShipmentsService {
       updateData.collectedCash = dto.collectedCash;
     if (dto.gpsLocation) updateData.geoLocation = dto.gpsLocation;
 
+    // Generate OTP when going OUT_FOR_DELIVERY for COD shipments
+    if (
+      dto.newStatus === ShipmentStatus.OUT_FOR_DELIVERY &&
+      shipment.type === ShipmentType.COD
+    ) {
+      updateData.customerOtp = this.generateOtp();
+    }
+
     if (dto.newStatus === ShipmentStatus.DELIVERED) {
       updateData.deliveredAt = new Date();
-      if (shipment.type === ShipmentType.COD && !dto.collectedCash) {
-        throw new ForbiddenException(
-          'COD amount must be collected for delivery',
-        );
+
+      if (shipment.type === ShipmentType.COD) {
+        if (!dto.collectedCash) {
+          throw new ForbiddenException(
+            'COD amount must be collected for delivery',
+          );
+        }
+        // Verify OTP
+        await this.verifyDeliveryOtp(id, shipment.customerOtp, dto.otp);
       }
     }
+
     if (dto.newStatus === ShipmentStatus.RETURNED) {
       updateData.returnedAt = new Date();
       if (dto.returnReason) updateData.returnReason = dto.returnReason;
@@ -197,7 +221,43 @@ export class ShipmentsService {
       updateData.deliveryAttempts = { increment: 1 };
     }
 
-    const updated = await this.shipmentsRepository.update(id, updateData);
+    // Use Prisma transaction for shipment + courier updates
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedShipment = await tx.shipment.update({
+        where: { id },
+        data: updateData,
+      });
+
+      // Update courier stats and cash on terminal statuses
+      if (shipment.assignedCourierId) {
+        if (dto.newStatus === ShipmentStatus.DELIVERED) {
+          const courierUpdate: Record<string, unknown> = {
+            totalDelivered: { increment: 1 },
+          };
+          if (shipment.type === ShipmentType.COD && dto.collectedCash) {
+            courierUpdate.cashHeld = {
+              increment: dto.collectedCash,
+            };
+          }
+          await tx.courier.update({
+            where: { id: shipment.assignedCourierId },
+            data: courierUpdate,
+          });
+        } else if (dto.newStatus === ShipmentStatus.FAILED) {
+          await tx.courier.update({
+            where: { id: shipment.assignedCourierId },
+            data: { totalFailed: { increment: 1 } },
+          });
+        } else if (dto.newStatus === ShipmentStatus.RETURNED) {
+          await tx.courier.update({
+            where: { id: shipment.assignedCourierId },
+            data: { totalReturned: { increment: 1 } },
+          });
+        }
+      }
+
+      return updatedShipment;
+    });
 
     await this.statusLogsRepository.create({
       shipmentId: id,
@@ -210,10 +270,49 @@ export class ShipmentsService {
         otp: dto.otp || null,
         collectedCash: dto.collectedCash || null,
         gpsLocation: dto.gpsLocation || null,
+        photoUrl: (dto as unknown as Record<string, unknown>).photoUrl || null,
+        signatureUrl:
+          (dto as unknown as Record<string, unknown>).signatureUrl || null,
       },
     });
 
     return updated;
+  }
+
+  private generateOtp(): string {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  private async verifyDeliveryOtp(
+    shipmentId: string,
+    expectedOtp: string | null,
+    providedOtp?: string,
+  ): Promise<void> {
+    if (!expectedOtp) {
+      throw new BadRequestException('No OTP configured for this shipment');
+    }
+    if (!providedOtp) {
+      throw new BadRequestException('OTP is required for COD delivery');
+    }
+
+    const attemptKey = `shipment_otp_attempts:${shipmentId}`;
+    const attempts = parseInt((await this.redis.get(attemptKey)) || '0', 10);
+
+    if (attempts >= this.OTP_MAX_ATTEMPTS) {
+      throw new ForbiddenException(
+        'Maximum OTP attempts exceeded. Contact admin for override.',
+      );
+    }
+
+    await this.redis.increment(attemptKey);
+    await this.redis.expire(attemptKey, this.OTP_ATTEMPT_TTL);
+
+    if (expectedOtp !== providedOtp) {
+      const remaining = this.OTP_MAX_ATTEMPTS - (attempts + 1);
+      throw new BadRequestException(
+        `Invalid OTP. ${remaining} attempts remaining.`,
+      );
+    }
   }
 
   async getTimeline(id: string) {

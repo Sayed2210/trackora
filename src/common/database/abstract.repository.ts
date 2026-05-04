@@ -6,11 +6,13 @@ export interface PrismaDelegate<T> {
     skip?: number;
     take?: number;
     orderBy?: any;
+    include?: any;
+    cursor?: any;
   }) => Promise<T[]>;
-  findFirst: (args?: { where?: any }) => Promise<T | null>;
-  findUnique: (args: { where: any }) => Promise<T | null>;
-  create: (args: { data: any }) => Promise<T>;
-  update: (args: { where: { id: string }; data: any }) => Promise<T>;
+  findFirst: (args?: { where?: any; include?: any }) => Promise<T | null>;
+  findUnique: (args: { where: any; include?: any }) => Promise<T | null>;
+  create: (args: { data: any; include?: any }) => Promise<T>;
+  update: (args: { where: { id: string }; data: any; include?: any }) => Promise<T>;
   updateMany: (args: { where: any; data: any }) => Promise<any>;
   delete: (args: { where: { id: string } }) => Promise<T>;
   count: (args?: { where?: any }) => Promise<number>;

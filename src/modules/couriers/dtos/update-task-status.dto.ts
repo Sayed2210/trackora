@@ -1,17 +1,20 @@
 import {
-  IsString,
-  IsOptional,
   IsEnum,
   IsNumber,
   IsObject,
+  IsOptional,
+  IsString,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { ShipmentStatus, ReturnReason } from '../entities/shipment.entity';
+import {
+  ShipmentStatus,
+  ReturnReason,
+} from '@modules/shipments/entities/shipment.entity';
 
-export class UpdateShipmentStatusDto {
+export class UpdateTaskStatusDto {
   @ApiProperty({ enum: ShipmentStatus })
   @IsEnum(ShipmentStatus)
-  newStatus!: ShipmentStatus;
+  status!: ShipmentStatus;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -31,11 +34,6 @@ export class UpdateShipmentStatusDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  reason?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
   photoUrl?: string;
 
   @ApiProperty({ required: false })
@@ -46,7 +44,7 @@ export class UpdateShipmentStatusDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsObject()
-  gpsLocation?: Record<string, unknown>;
+  gpsLocation?: { lat: number; lng: number };
 
   @ApiProperty({ required: false, enum: ReturnReason })
   @IsOptional()

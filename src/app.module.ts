@@ -9,6 +9,7 @@ import { CouriersModule } from '@modules/couriers/couriers.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { ShipmentsModule } from '@modules/shipments/shipments.module';
 import { WalletsModule } from '@modules/wallets/wallets.module';
+import { AssignmentsModule } from '@modules/assignments/assignments.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { WalletsModule } from '@modules/wallets/wallets.module';
     AuthModule,
     ShipmentsModule,
     WalletsModule,
+    AssignmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

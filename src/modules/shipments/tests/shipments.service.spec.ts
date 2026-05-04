@@ -1,9 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { PrismaService } from '@core/prisma/prisma.service';
+import { RedisService } from '@infrastructure/cache/redis.service';
 import { ShipmentsService } from '../services/shipments.service';
 import { ShipmentsRepository } from '../repositories/shipments.repository';
 import { ShipmentStatusLogsRepository } from '../repositories/shipment-status-logs.repository';
@@ -85,6 +88,27 @@ describe('ShipmentsService', () => {
             generateUnique: jest.fn().mockResolvedValue('TRK-240502-9999'),
           },
         },
+        {
+          provide: PrismaService,
+          useValue: {
+            $transaction: jest.fn((fn) =>
+              fn({
+                shipment: {
+                  update: jest.fn().mockResolvedValue(mockShipment),
+                },
+                courier: { update: jest.fn().mockResolvedValue({}) },
+              }),
+            ),
+          },
+        },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn().mockResolvedValue('0'),
+            increment: jest.fn().mockResolvedValue(1),
+            expire: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -140,7 +164,6 @@ describe('ShipmentsService', () => {
 
       const result = await service.updateStatus('ship-1', dto);
       expect(result).toEqual(mockShipment);
-      expect(shipmentsRepo.update).toHaveBeenCalled();
       expect(logsRepo.create).toHaveBeenCalled();
     });
 
@@ -158,10 +181,12 @@ describe('ShipmentsService', () => {
       jest.spyOn(shipmentsRepo, 'findById').mockResolvedValueOnce({
         ...mockShipment,
         status: ShipmentStatus.OUT_FOR_DELIVERY,
+        customerOtp: '1234',
       } as any);
 
       const dto: UpdateShipmentStatusDto = {
         newStatus: ShipmentStatus.DELIVERED,
+        otp: '1234',
       };
 
       await expect(service.updateStatus('ship-1', dto)).rejects.toThrow(
