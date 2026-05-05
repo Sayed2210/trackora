@@ -118,15 +118,47 @@ When asked to implement code:
 trackora/
 ├── docs/               # Architecture & specification documents
 ├── prisma/
-│   └── schema.prisma   # Complete database schema
+│   ├── schema.prisma   # Complete database schema
+│   └── migrations/     # Prisma migration files
 ├── src/
-│   ├── core/           # Config, database, events, exceptions
+│   ├── core/           # Config, database (Prisma), events, exceptions
+│   ├── common/         # Shared utilities: base interfaces, guards, interceptors, decorators, pipes
+│   ├── infrastructure/ # Cross-cutting: cache (Redis), queue (BullMQ), email, database config
 │   ├── modules/        # Business modules (auth, shipments, wallet, etc.)
-│   ├── shared/         # Enums, DTOs, interfaces, utils
+│   │   └── <feature>/
+│   │       ├── entities/
+│   │       ├── repositories/
+│   │       ├── services/
+│   │       ├── controllers/
+│   │       ├── dtos/
+│   │       └── tests/
 │   └── main.ts
 ├── test/               # E2E tests
 └── AGENTS.md           # This file
 ```
+
+---
+
+## Module Conventions
+
+All feature modules follow the structure defined in `MODULE_CONVENTIONS.md` in the project root.
+
+### Path Aliases
+- `@/*` → `src/*`
+- `@common/*` → `src/common/*`
+- `@modules/*` → `src/modules/*`
+- `@infrastructure/*` → `src/infrastructure/*`
+- `@config/*` → `src/config/*`
+- `@core/*` → `src/core/*`
+
+### Architecture Rules
+- **Entities**: Re-export Prisma-generated types (e.g., `export type Shipment = PrismaShipment`) or define interfaces extending `BaseEntity`.
+- **Repositories**: Extend `AbstractRepository<T>` from `@common/database/abstract.repository`. Implement `softDelete(id)` per entity.
+- **IDs**: UUID v4. Use `ParseUUIDPipe` in controller params.
+- **Soft Delete**: Use `deletedAt` field (`Date | null`) + repository `softDelete()` method.
+
+> **Important Correction:** `MODULE_CONVENTIONS.md` references TypeORM patterns (`@DeleteDateColumn`, `BaseEntity` class).  
+> **This project uses Prisma**, not TypeORM. `AbstractRepository` wraps Prisma delegates, `BaseEntity` is a plain interface, and migrations live in `prisma/migrations/`. Always write Prisma-compatible code.
 
 ---
 
@@ -178,8 +210,9 @@ If I am unsure about:
 - **Dispatch logic** → Refer to DISPATCH_ALGORITHM.md
 - **Offline sync** → Refer to PWA_OFFLINE.md
 - **Fraud rules** → Refer to FRAUD_DETECTION.md
+- **Module structure / path aliases / repository pattern** → Refer to MODULE_CONVENTIONS.md (remember: Prisma, not TypeORM)
 
 ---
 
-*Last updated: 2024-05-02*
-*Version: 1.0*
+*Last updated: 2026-05-03*
+*Version: 1.1*

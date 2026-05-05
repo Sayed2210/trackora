@@ -272,11 +272,14 @@ model Shipment {
 
   @@index([trackingNumber])
   @@index([merchantId, status])
+  @@index([merchantId, status, createdAt])
   @@index([assignedCourierId, status])
   @@index([zoneId, status, preferredDeliveryDate])
   @@index([status, createdAt])
+  @@index([status, deliveredAt])
   @@index([customerPhone])
   @@index([riskScore])
+  @@index([deliveredAt])
 }
 
 model ShipmentStatusLog {
@@ -426,6 +429,7 @@ model BlacklistedPhone {
 model Notification {
   id        String           @id @default(uuid())
   userId    String
+  shipmentId String?
   type      NotificationType
   title     String
   body      String           @db.Text
@@ -434,7 +438,8 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
-  user User @relation("NotificationRecipient", fields: [userId], references: [id])
+  user     User     @relation("NotificationRecipient", fields: [userId], references: [id])
+  shipment Shipment? @relation(fields: [shipmentId], references: [id])
 
   @@index([userId, isRead, createdAt])
 }
