@@ -6,6 +6,13 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // CORS
+  app.enableCors({
+    origin: ['http://localhost:4200'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
   // API versioning
   app.enableVersioning({
     type: VersioningType.URI,
