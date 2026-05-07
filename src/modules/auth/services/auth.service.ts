@@ -57,7 +57,21 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.generateTokens(user.id, user.role);
+    const tokens = await this.generateTokens(user.id, user.role);
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        phoneVerified: user.phoneVerified,
+        emailVerified: user.emailVerified,
+      },
+      ...tokens,
+    };
   }
 
   async refreshTokens(refreshToken: string) {

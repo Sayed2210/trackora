@@ -123,7 +123,7 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should return tokens for valid credentials', async () => {
+    it('should return tokens and user for valid credentials', async () => {
       jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValueOnce(true);
 
@@ -131,6 +131,9 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
+      expect(result).toHaveProperty('user');
+      expect(result.user.id).toBe(mockUser.id);
+      expect(result.user).not.toHaveProperty('passwordHash');
     });
 
     it('should throw for invalid phone', async () => {

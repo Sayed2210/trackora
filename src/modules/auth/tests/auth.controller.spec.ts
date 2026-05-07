@@ -76,7 +76,20 @@ describe('AuthController', () => {
 
   describe('login', () => {
     it('should call authService.login with credentials', async () => {
-      mockAuthService.login.mockResolvedValue(mockTokens);
+      const mockLoginResponse = {
+        user: {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          name: 'Test User',
+          phone: '01000000001',
+          email: 'test@example.com',
+          role: UserRole.MERCHANT,
+          avatarUrl: null,
+          phoneVerified: expect.any(Date),
+          emailVerified: null,
+        },
+        ...mockTokens,
+      };
+      mockAuthService.login.mockResolvedValue(mockLoginResponse);
 
       const dto = { phone: '01000000001', password: 'password123' };
       const result = await controller.login(dto as any);
@@ -85,7 +98,7 @@ describe('AuthController', () => {
         '01000000001',
         'password123',
       );
-      expect(result).toEqual(mockTokens);
+      expect(result).toEqual(mockLoginResponse);
     });
   });
 
