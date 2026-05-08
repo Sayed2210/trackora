@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ExecutionContext } from '@nestjs/common';
 import request from 'supertest';
 import { MerchantsController } from '../controllers/merchants.controller';
 import { MerchantsService } from '../services/merchants.service';
 import { WalletsService } from '@modules/wallets/services/wallets.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { RolesGuard } from '@common/guards/roles.guard';
 import { KycStatus } from '../entities/merchant.entity';
+import { UserRole } from '@modules/users/entities/user.entity';
 
 const mockMerchantsService = {
   create: jest.fn(),
@@ -19,7 +21,13 @@ const mockWalletsService = {
   getTransactions: jest.fn(),
 };
 
-const mockGuard = { canActivate: jest.fn(() => true) };
+const mockAuthGuard = {
+  canActivate: jest.fn((context: ExecutionContext) => {
+    const request = context.switchToHttp().getRequest();
+    request.user = { userId: 'mock-user-id', role: UserRole.SUPER_ADMIN };
+    return true;
+  }),
+};
 
 const TEST_UUID = '123e4567-e89b-12d3-a456-426614174001';
 
@@ -38,18 +46,26 @@ describe('MerchantsController (integration)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleRef: TestingModule = await Test.createTestingModule({
+const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [MerchantsController],
       providers: [
         { provide: MerchantsService, useValue: mockMerchantsService },
         { provide: WalletsService, useValue: mockWalletsService },
+        {
+          provide: 'APP_GUARD',
+          useValue: mockAuthGuard,
+        },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(mockGuard)
-      .compile();
+    }).compile();
 
     app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new (require('@nestjs/common').ValidationPipe)({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
   });
 
@@ -74,7 +90,7 @@ describe('MerchantsController (integration)', () => {
       expect(res.body).toEqual(mockMerchant);
       expect(mockMerchantsService.create).toHaveBeenCalledWith(
         expect.objectContaining(dto),
-        'temp-user-id',
+        'mock-user-id',
       );
     });
   });

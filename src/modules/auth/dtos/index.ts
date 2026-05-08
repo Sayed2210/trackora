@@ -1,6 +1,7 @@
-import { IsString, IsNotEmpty, MinLength, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { UserRole } from '../entities/auth.entity';
+
+const REGISTERABLE_ROLES = ['MERCHANT', 'COURIER'] as const;
 
 export class RegisterDto {
   @ApiProperty()
@@ -18,9 +19,9 @@ export class RegisterDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ enum: UserRole })
-  @IsEnum(UserRole)
-  role: UserRole;
+  @ApiProperty({ enum: REGISTERABLE_ROLES })
+  @IsIn(REGISTERABLE_ROLES)
+  role: typeof REGISTERABLE_ROLES[number];
 }
 
 export class LoginDto {

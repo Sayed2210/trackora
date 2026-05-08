@@ -8,11 +8,9 @@ import {
   Body,
   Query,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ZonesService } from '../services/zones.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { ZoneLevel } from '../entities/zone.entity';
@@ -23,7 +21,6 @@ import { ListZonesDto } from '../dtos/list-zones.dto';
 @ApiTags('Zones')
 @ApiBearerAuth()
 @Controller('zones')
-@UseGuards(JwtAuthGuard)
 export class ZonesController {
   constructor(private readonly zonesService: ZonesService) {}
 

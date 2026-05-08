@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ExecutionContext } from '@nestjs/common';
 import request from 'supertest';
 import { CouriersController } from '../controllers/couriers.controller';
 import { CouriersService } from '../services/couriers.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { VehicleType } from '../entities/courier.entity';
+import { UserRole } from '@modules/users/entities/user.entity';
 
 const mockCouriersService = {
   create: jest.fn(),
@@ -13,7 +13,13 @@ const mockCouriersService = {
   updateAvailability: jest.fn(),
 };
 
-const mockGuard = { canActivate: jest.fn(() => true) };
+const mockAuthGuard = {
+  canActivate: jest.fn((context: ExecutionContext) => {
+    const request = context.switchToHttp().getRequest();
+    request.user = { userId: 'mock-user-id', role: UserRole.SUPER_ADMIN };
+    return true;
+  }),
+};
 
 const TEST_UUID = '123e4567-e89b-12d3-a456-426614174000';
 
@@ -35,11 +41,11 @@ describe('CouriersController (integration)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [CouriersController],
-      providers: [{ provide: CouriersService, useValue: mockCouriersService }],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(mockGuard)
-      .compile();
+      providers: [
+        { provide: CouriersService, useValue: mockCouriersService },
+        { provide: 'APP_GUARD', useValue: mockAuthGuard },
+      ],
+    }).compile();
 
     app = moduleRef.createNestApplication();
     await app.init();
@@ -70,7 +76,7 @@ describe('CouriersController (integration)', () => {
       expect(res.body).toEqual(mockCourier);
       expect(mockCouriersService.create).toHaveBeenCalledWith(
         expect.objectContaining(dto),
-        'temp-user-id',
+        'mock-user-id',
       );
     });
   });

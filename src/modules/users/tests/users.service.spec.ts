@@ -23,9 +23,6 @@ const mockUser: User = {
   phoneVerified: new Date(),
   createdAt: new Date(),
   updatedAt: new Date(),
-  deletedAt: null,
-  merchant: null,
-  courier: null,
 };
 
 describe('UsersService', () => {
