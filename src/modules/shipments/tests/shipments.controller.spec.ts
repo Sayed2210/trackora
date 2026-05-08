@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { ShipmentsController } from '../controllers/shipments.controller';
 import { ShipmentsService } from '../services/shipments.service';
+import { BulkUploadService } from '../services/bulk-upload.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { ShipmentStatus, ShipmentType } from '../entities/shipment.entity';
 
@@ -14,6 +15,10 @@ const mockShipmentsService = {
   findByTrackingNumber: jest.fn(),
   getTimeline: jest.fn(),
   updateStatus: jest.fn(),
+};
+
+const mockBulkUploadService = {
+  processFile: jest.fn(),
 };
 
 const mockGuard = { canActivate: jest.fn(() => true) };
@@ -42,6 +47,7 @@ describe('ShipmentsController (integration)', () => {
       controllers: [ShipmentsController],
       providers: [
         { provide: ShipmentsService, useValue: mockShipmentsService },
+        { provide: BulkUploadService, useValue: mockBulkUploadService },
       ],
     })
       .overrideGuard(JwtAuthGuard)

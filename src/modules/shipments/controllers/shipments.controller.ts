@@ -8,9 +8,14 @@ import {
   Query,
   ParseUUIDPipe,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { ShipmentsService } from '../services/shipments.service';
+import { BulkUploadService } from '../services/bulk-upload.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
@@ -23,12 +28,26 @@ import { UpdateShipmentStatusDto } from '../dtos/update-shipment-status.dto';
 @Controller('shipments')
 @UseGuards(JwtAuthGuard)
 export class ShipmentsController {
-  constructor(private readonly shipmentsService: ShipmentsService) {}
+  constructor(
+    private readonly shipmentsService: ShipmentsService,
+    private readonly bulkUploadService: BulkUploadService,
+  ) {}
 
   @Post()
   @Roles(UserRole.MERCHANT)
   async create(@Body() dto: CreateShipmentDto) {
     return this.shipmentsService.create(dto, 'temp-merchant-id');
+  }
+
+  @Post('bulk-upload')
+  @Roles(UserRole.MERCHANT)
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkUpload(@UploadedFile() file: { buffer: Buffer } | undefined) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    return this.bulkUploadService.processFile(file.buffer, 'temp-merchant-id');
   }
 
   @Get()
