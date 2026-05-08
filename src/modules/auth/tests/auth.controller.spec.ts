@@ -2,8 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from '../controllers/auth.controller';
 import { AuthService } from '../services/auth.service';
 import { OtpService } from '../services/otp.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
-import { UserRole } from '../entities/auth.entity';
+import { UserRole } from '@modules/users/entities/user.entity';
 
 const mockAuthService = {
   register: jest.fn(),
@@ -16,8 +15,6 @@ const mockOtpService = {
   sendOtp: jest.fn(),
   verifyOtp: jest.fn(),
 };
-
-const mockGuard = { canActivate: jest.fn(() => true) };
 
 const mockTokens = {
   accessToken: 'access-token',
@@ -35,10 +32,7 @@ describe('AuthController', () => {
         { provide: AuthService, useValue: mockAuthService },
         { provide: OtpService, useValue: mockOtpService },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(mockGuard)
-      .compile();
+    }).compile();
 
     controller = module.get<AuthController>(AuthController);
   });
@@ -129,13 +123,13 @@ describe('AuthController', () => {
   });
 
   describe('sendOtp', () => {
-    it('should call otpService.sendOtp and return code', async () => {
+    it('should call otpService.sendOtp and return success message', async () => {
       mockOtpService.sendOtp.mockResolvedValue('1234');
 
       const result = await controller.sendOtp('01000000001');
 
       expect(mockOtpService.sendOtp).toHaveBeenCalledWith('01000000001');
-      expect(result).toEqual({ message: 'OTP sent', code: '1234' });
+      expect(result).toEqual({ message: 'OTP sent' });
     });
   });
 

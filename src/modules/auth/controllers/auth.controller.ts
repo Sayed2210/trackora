@@ -4,6 +4,7 @@ import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { OtpService } from '../services/otp.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { Public } from '@common/decorators/public.decorator';
 import { RegisterDto, LoginDto, RefreshTokenDto } from '../dtos';
 
 interface RequestWithUser extends Request {
@@ -19,23 +20,21 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Public()
   @ApiOperation({ summary: 'Register new user' })
   async register(@Body() dto: RegisterDto) {
-    return this.authService.register(
-      dto.phone,
-      dto.password,
-      dto.name,
-      dto.role,
-    );
+    return this.authService.register(dto.phone, dto.password, dto.name, dto.role);
   }
 
   @Post('login')
+  @Public()
   @ApiOperation({ summary: 'Login with phone and password' })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto.phone, dto.password);
   }
 
   @Post('refresh')
+  @Public()
   @ApiOperation({ summary: 'Refresh access token' })
   async refreshTokens(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshTokens(dto.refreshToken);
@@ -44,20 +43,21 @@ export class AuthController {
   @Post('logout')
   @ApiOperation({ summary: 'Logout user' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
   async logout(@Req() req: RequestWithUser) {
     await this.authService.logout(req.user.userId);
     return { message: 'Logged out successfully' };
   }
 
   @Post('otp/send')
+  @Public()
   @ApiOperation({ summary: 'Send OTP to phone' })
   async sendOtp(@Body('phone') phone: string) {
-    const code = await this.otpService.sendOtp(phone);
-    return { message: 'OTP sent', code };
+    await this.otpService.sendOtp(phone);
+    return { message: 'OTP sent' };
   }
 
   @Post('otp/verify')
+  @Public()
   @ApiOperation({ summary: 'Verify OTP' })
   async verifyOtp(@Body('phone') phone: string, @Body('code') code: string) {
     const valid = await this.otpService.verifyOtp(phone, code);

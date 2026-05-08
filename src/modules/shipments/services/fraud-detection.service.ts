@@ -25,9 +25,6 @@ export class FraudDetectionService {
     if (signals.codAmountHigh) score += 25;
     if (signals.customerNameShort) score += 15;
 
-    // Random baseline noise (0-10)
-    score += Math.floor(Math.random() * 10);
-
     return Math.min(score, 100);
   }
 

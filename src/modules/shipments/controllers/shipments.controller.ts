@@ -7,26 +7,29 @@ import {
   Body,
   Query,
   ParseUUIDPipe,
-  UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
+import { Request } from 'express';
 import { ShipmentsService } from '../services/shipments.service';
 import { BulkUploadService } from '../services/bulk-upload.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { ShipmentStatus } from '../entities/shipment.entity';
 import { CreateShipmentDto } from '../dtos/create-shipment.dto';
 import { UpdateShipmentStatusDto } from '../dtos/update-shipment-status.dto';
 
+interface RequestWithUser extends Request {
+  user: { userId: string; role: UserRole };
+}
+
 @ApiTags('Shipments')
 @ApiBearerAuth()
 @Controller('shipments')
-@UseGuards(JwtAuthGuard)
 export class ShipmentsController {
   constructor(
     private readonly shipmentsService: ShipmentsService,
@@ -35,19 +38,22 @@ export class ShipmentsController {
 
   @Post()
   @Roles(UserRole.MERCHANT)
-  async create(@Body() dto: CreateShipmentDto) {
-    return this.shipmentsService.create(dto, 'temp-merchant-id');
+  async create(@Body() dto: CreateShipmentDto, @Req() req: RequestWithUser) {
+    return this.shipmentsService.create(dto, req.user.userId);
   }
 
   @Post('bulk-upload')
   @Roles(UserRole.MERCHANT)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file'))
-  async bulkUpload(@UploadedFile() file: { buffer: Buffer } | undefined) {
+  async bulkUpload(
+    @UploadedFile() file: { buffer: Buffer } | undefined,
+    @Req() req: RequestWithUser,
+  ) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
-    return this.bulkUploadService.processFile(file.buffer, 'temp-merchant-id');
+    return this.bulkUploadService.processFile(file.buffer, req.user.userId);
   }
 
   @Get()
@@ -158,7 +164,13 @@ export class ShipmentsController {
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateShipmentStatusDto,
+    @Req() req: RequestWithUser,
   ) {
-    return this.shipmentsService.updateStatus(id, dto);
+    return this.shipmentsService.updateStatus(
+      id,
+      dto,
+      req.user.userId,
+      req.user.role,
+    );
   }
 }

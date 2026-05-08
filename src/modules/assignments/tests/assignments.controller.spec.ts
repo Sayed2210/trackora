@@ -10,10 +10,15 @@ import { CreateAssignmentDto } from '../dtos/create-assignment.dto';
 import { ReassignAssignmentDto } from '../dtos/reassign-assignment.dto';
 import { CancelAssignmentDto } from '../dtos/cancel-assignment.dto';
 import { QueryAssignmentsDto } from '../dtos/query-assignments.dto';
+import { UserRole } from '@modules/users/entities/user.entity';
 
 describe('AssignmentsController (integration)', () => {
   let controller: AssignmentsController;
   let service: AssignmentsService;
+
+  const mockReq = {
+    user: { userId: 'mock-user-id', role: UserRole.OPERATIONS_MANAGER },
+  } as any;
 
   const mockAssignment = {
     id: 'assignment-1',
@@ -58,11 +63,11 @@ describe('AssignmentsController (integration)', () => {
         errors: [],
       });
 
-      const result = await controller.create(dto);
+      const result = await controller.create(dto, mockReq);
 
       expect(service.createManualAssignments).toHaveBeenCalledWith(
         dto,
-        'temp-user-id',
+        'mock-user-id',
       );
       expect(result.assignments).toHaveLength(1);
       expect(result.errors).toHaveLength(0);
@@ -118,13 +123,13 @@ describe('AssignmentsController (integration)', () => {
         courierId: 'courier-2',
       } as any);
 
-      const result = await controller.reassign('assignment-1', dto);
+      const result = await controller.reassign('assignment-1', dto, mockReq);
 
       expect(service.reassign).toHaveBeenCalledWith(
         'assignment-1',
         'courier-2',
         'Overloaded',
-        'temp-user-id',
+        'mock-user-id',
       );
       expect(result.courierId).toBe('courier-2');
     });

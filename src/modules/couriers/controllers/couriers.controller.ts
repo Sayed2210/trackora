@@ -6,27 +6,30 @@ import {
   Patch,
   Body,
   ParseUUIDPipe,
-  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { CouriersService } from '../services/couriers.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { CreateCourierDto } from '../dtos/create-courier.dto';
 import { UpdateZonesDto } from '../dtos/update-zones.dto';
 
+interface RequestWithUser extends Request {
+  user: { userId: string; role: UserRole };
+}
+
 @ApiTags('Couriers')
 @ApiBearerAuth()
 @Controller('couriers')
-@UseGuards(JwtAuthGuard)
 export class CouriersController {
   constructor(private readonly couriersService: CouriersService) {}
 
   @Post()
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
-  async create(@Body() dto: CreateCourierDto) {
-    return this.couriersService.create(dto, 'temp-user-id');
+  async create(@Body() dto: CreateCourierDto, @Req() req: RequestWithUser) {
+    return this.couriersService.create(dto, req.user.userId);
   }
 
   @Get(':id')

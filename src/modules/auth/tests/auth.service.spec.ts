@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { AuthRepository } from '../repositories/auth.repository';
 import { UserRole } from '../entities/auth.entity';
@@ -26,9 +26,6 @@ const mockUser = {
   phoneVerified: new Date(),
   createdAt: new Date(),
   updatedAt: new Date(),
-  deletedAt: null,
-  merchant: null,
-  courier: null,
 };
 
 describe('AuthService', () => {
@@ -100,7 +97,7 @@ describe('AuthService', () => {
         '01000000002',
         'password123',
         'New User',
-        UserRole.MERCHANT,
+        'MERCHANT',
       );
 
       expect(result).toHaveProperty('accessToken');
@@ -116,9 +113,31 @@ describe('AuthService', () => {
           '01000000001',
           'password123',
           'New User',
-          UserRole.MERCHANT,
+          'MERCHANT',
         ),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should reject SUPER_ADMIN role registration', async () => {
+      await expect(
+        service.register(
+          '01000000002',
+          'password123',
+          'Hacker',
+          'SUPER_ADMIN',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject OPERATIONS_MANAGER role registration', async () => {
+      await expect(
+        service.register(
+          '01000000002',
+          'password123',
+          'Hacker',
+          'OPERATIONS_MANAGER',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

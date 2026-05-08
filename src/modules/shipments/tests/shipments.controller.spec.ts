@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ExecutionContext } from '@nestjs/common';
 import request from 'supertest';
 import { ShipmentsController } from '../controllers/shipments.controller';
 import { ShipmentsService } from '../services/shipments.service';
 import { BulkUploadService } from '../services/bulk-upload.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { ShipmentStatus, ShipmentType } from '../entities/shipment.entity';
+import { UserRole } from '@modules/users/entities/user.entity';
 
 const mockShipmentsService = {
   create: jest.fn(),
@@ -21,7 +21,13 @@ const mockBulkUploadService = {
   processFile: jest.fn(),
 };
 
-const mockGuard = { canActivate: jest.fn(() => true) };
+const mockAuthGuard = {
+  canActivate: jest.fn((context: ExecutionContext) => {
+    const request = context.switchToHttp().getRequest();
+    request.user = { userId: 'mock-merchant-id', role: UserRole.MERCHANT };
+    return true;
+  }),
+};
 
 const TEST_UUID = '123e4567-e89b-12d3-a456-426614174002';
 
@@ -48,11 +54,9 @@ describe('ShipmentsController (integration)', () => {
       providers: [
         { provide: ShipmentsService, useValue: mockShipmentsService },
         { provide: BulkUploadService, useValue: mockBulkUploadService },
+        { provide: 'APP_GUARD', useValue: mockAuthGuard },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(mockGuard)
-      .compile();
+    }).compile();
 
     app = moduleRef.createNestApplication();
     await app.init();
@@ -88,7 +92,7 @@ describe('ShipmentsController (integration)', () => {
       expect(res.body).toEqual(mockShipment);
       expect(mockShipmentsService.create).toHaveBeenCalledWith(
         expect.objectContaining(dto),
-        'temp-merchant-id',
+        'mock-merchant-id',
       );
     });
   });
@@ -220,6 +224,8 @@ describe('ShipmentsController (integration)', () => {
       expect(mockShipmentsService.updateStatus).toHaveBeenCalledWith(
         TEST_UUID,
         expect.objectContaining({ newStatus: ShipmentStatus.PICKED_UP }),
+        'mock-merchant-id',
+        UserRole.MERCHANT,
       );
     });
   });

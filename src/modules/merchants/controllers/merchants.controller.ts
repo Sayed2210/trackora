@@ -7,22 +7,25 @@ import {
   Body,
   Query,
   ParseUUIDPipe,
-  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { MerchantsService } from '../services/merchants.service';
 import { WalletsService } from '@modules/wallets/services/wallets.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { KycStatus } from '../entities/merchant.entity';
 import { CreateMerchantDto } from '../dtos/create-merchant.dto';
 import { UpdateFeesDto } from '../dtos/update-fees.dto';
 
+interface RequestWithUser extends Request {
+  user: { userId: string; role: UserRole };
+}
+
 @ApiTags('Merchants')
 @ApiBearerAuth()
 @Controller('merchants')
-@UseGuards(JwtAuthGuard)
 export class MerchantsController {
   constructor(
     private readonly merchantsService: MerchantsService,
@@ -30,8 +33,9 @@ export class MerchantsController {
   ) {}
 
   @Post()
-  async create(@Body() dto: CreateMerchantDto) {
-    return this.merchantsService.create(dto, 'temp-user-id');
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
+  async create(@Body() dto: CreateMerchantDto, @Req() req: RequestWithUser) {
+    return this.merchantsService.create(dto, req.user.userId);
   }
 
   @Get(':id')

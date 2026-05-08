@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { RedisService } from '@infrastructure/cache/redis.service';
 import { ShipmentsRepository } from '../repositories/shipments.repository';
@@ -195,7 +196,13 @@ export class ShipmentsService {
       dto.newStatus === ShipmentStatus.OUT_FOR_DELIVERY &&
       shipment.type === ShipmentType.COD
     ) {
-      updateData.customerOtp = this.generateOtp();
+      const plainOtp = this.generateOtp();
+      updateData.customerOtp = await bcrypt.hash(plainOtp, 10);
+      await this.redis.set(
+        `shipment_otp_plain:${id}`,
+        plainOtp,
+        86400,
+      );
     }
 
     if (dto.newStatus === ShipmentStatus.DELIVERED) {
@@ -207,7 +214,13 @@ export class ShipmentsService {
             'COD amount must be collected for delivery',
           );
         }
-        // Verify OTP
+        const codAmount = Number(shipment.codAmount);
+        const tolerance = Math.max(codAmount * 0.05, 1);
+        if (Math.abs(Number(dto.collectedCash) - codAmount) > tolerance) {
+          throw new BadRequestException(
+            `Collected cash (${dto.collectedCash}) does not match COD amount (${shipment.codAmount}). Difference exceeds 5% tolerance.`,
+          );
+        }
         await this.verifyDeliveryOtp(id, shipment.customerOtp, dto.otp);
       }
     }
@@ -299,10 +312,10 @@ export class ShipmentsService {
 
   private async verifyDeliveryOtp(
     shipmentId: string,
-    expectedOtp: string | null,
+    hashedOtp: string | null,
     providedOtp?: string,
   ): Promise<void> {
-    if (!expectedOtp) {
+    if (!hashedOtp) {
       throw new BadRequestException('No OTP configured for this shipment');
     }
     if (!providedOtp) {
@@ -321,7 +334,8 @@ export class ShipmentsService {
     await this.redis.increment(attemptKey);
     await this.redis.expire(attemptKey, this.OTP_ATTEMPT_TTL);
 
-    if (expectedOtp !== providedOtp) {
+    const isValid = await bcrypt.compare(providedOtp, hashedOtp);
+    if (!isValid) {
       const remaining = this.OTP_MAX_ATTEMPTS - (attempts + 1);
       throw new BadRequestException(
         `Invalid OTP. ${remaining} attempts remaining.`,

@@ -1,14 +1,20 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { RedisService } from '@infrastructure/cache/redis.service';
 import { AuthRepository } from '../repositories/auth.repository';
 import {
-  UserRole,
   TokenPayload,
   RefreshTokenPayload,
+  UserRole,
 } from '../entities/auth.entity';
+
+const REGISTERABLE_ROLES = ['MERCHANT', 'COURIER'] as const;
 
 @Injectable()
 export class AuthService {
@@ -23,8 +29,14 @@ export class AuthService {
     phone: string,
     password: string,
     name: string,
-    role: UserRole,
+    role: string,
   ) {
+    if (!REGISTERABLE_ROLES.includes(role as typeof REGISTERABLE_ROLES[number])) {
+      throw new BadRequestException(
+        `Registration is only allowed for roles: ${REGISTERABLE_ROLES.join(', ')}`,
+      );
+    }
+
     const existingUser = await this.authRepository.findByPhone(phone);
 
     if (existingUser) {
@@ -75,12 +87,16 @@ export class AuthService {
   }
 
   async refreshTokens(refreshToken: string) {
+    const jwtSecret = this.configService.get<string>('JWT_SECRET');
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not defined');
+    }
+
     try {
       const payload = this.jwtService.verify<RefreshTokenPayload>(
         refreshToken,
         {
-          secret:
-            this.configService.get<string>('JWT_SECRET') || 'fallback-secret',
+          secret: jwtSecret,
         },
       );
 

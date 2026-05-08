@@ -4,18 +4,15 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { MerchantDashboardService } from '../services/merchant-dashboard.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 
 @ApiTags('Merchant Dashboard')
 @ApiBearerAuth()
 @Controller('merchant')
-@UseGuards(JwtAuthGuard)
 export class MerchantDashboardController {
   constructor(
     private readonly merchantDashboardService: MerchantDashboardService,
