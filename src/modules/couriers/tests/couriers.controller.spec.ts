@@ -35,9 +35,7 @@ describe('CouriersController (integration)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [CouriersController],
-      providers: [
-        { provide: CouriersService, useValue: mockCouriersService },
-      ],
+      providers: [{ provide: CouriersService, useValue: mockCouriersService }],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue(mockGuard)
@@ -101,10 +99,9 @@ describe('CouriersController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(updated);
-      expect(mockCouriersService.updateZones).toHaveBeenCalledWith(
-        TEST_UUID,
-        ['CAI-03'],
-      );
+      expect(mockCouriersService.updateZones).toHaveBeenCalledWith(TEST_UUID, [
+        'CAI-03',
+      ]);
     });
   });
 

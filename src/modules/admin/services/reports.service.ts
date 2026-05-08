@@ -191,7 +191,10 @@ export class ReportsService {
       const reasonMap = new Map<string, number>();
       for (const s of m.shipments) {
         if (s.returnReason) {
-          reasonMap.set(s.returnReason, (reasonMap.get(s.returnReason) || 0) + 1);
+          reasonMap.set(
+            s.returnReason,
+            (reasonMap.get(s.returnReason) || 0) + 1,
+          );
         }
       }
       const returnReasons = Array.from(reasonMap.entries()).map(

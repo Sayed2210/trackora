@@ -159,7 +159,9 @@ describe('MerchantsController (integration)', () => {
       mockWalletsService.getTransactions.mockResolvedValue(txs);
 
       const res = await request(app.getHttpServer())
-        .get(`/merchants/${TEST_UUID}/wallet/transactions?type=COD_CREDIT&from=2024-05-01&to=2024-05-31&page=1&limit=10`)
+        .get(
+          `/merchants/${TEST_UUID}/wallet/transactions?type=COD_CREDIT&from=2024-05-01&to=2024-05-31&page=1&limit=10`,
+        )
         .expect(200);
 
       expect(res.body).toEqual(txs);

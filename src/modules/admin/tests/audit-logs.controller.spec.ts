@@ -17,9 +17,7 @@ describe('AuditLogsController (integration)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [AuditLogsController],
-      providers: [
-        { provide: AuditLogService, useValue: mockAuditLogService },
-      ],
+      providers: [{ provide: AuditLogService, useValue: mockAuditLogService }],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue(mockGuard)
@@ -74,7 +72,9 @@ describe('AuditLogsController (integration)', () => {
       mockAuditLogService.findAll.mockResolvedValue(logs);
 
       const res = await request(app.getHttpServer())
-        .get('/admin/audit-logs?userId=user-1&action=UPDATE&entityType=Shipment&entityId=ship-1&from=2024-05-01&to=2024-05-31&page=2&limit=10')
+        .get(
+          '/admin/audit-logs?userId=user-1&action=UPDATE&entityType=Shipment&entityId=ship-1&from=2024-05-01&to=2024-05-31&page=2&limit=10',
+        )
         .expect(200);
 
       expect(res.body).toEqual(logs);

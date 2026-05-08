@@ -15,20 +15,28 @@ export class AuditLogService {
     to?: Date;
     page?: number;
     limit?: number;
-  }): Promise<{ data: AuditLog[]; total: number; page: number; limit: number }> {
+  }): Promise<{
+    data: AuditLog[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const page = options.page ?? 1;
     const limit = options.limit ?? 20;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
     if (options.userId) where.userId = options.userId;
-    if (options.action) where.action = { contains: options.action, mode: 'insensitive' };
+    if (options.action)
+      where.action = { contains: options.action, mode: 'insensitive' };
     if (options.entityType) where.entityType = options.entityType;
     if (options.entityId) where.entityId = options.entityId;
     if (options.from || options.to) {
       where.createdAt = {};
-      if (options.from) (where.createdAt as Record<string, Date>).gte = options.from;
-      if (options.to) (where.createdAt as Record<string, Date>).lte = options.to;
+      if (options.from)
+        (where.createdAt as Record<string, Date>).gte = options.from;
+      if (options.to)
+        (where.createdAt as Record<string, Date>).lte = options.to;
     }
 
     const [data, total] = await Promise.all([

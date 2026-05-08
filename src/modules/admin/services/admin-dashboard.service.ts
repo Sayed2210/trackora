@@ -96,34 +96,36 @@ export class AdminDashboardService {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const [
-      dailyCod,
-      pendingSettlements,
-      totalCashHeld,
-      expectedCash,
-    ] = await Promise.all([
-      this.prisma.shipment.aggregate({
-        where: {
-          type: ShipmentType.COD,
-          status: ShipmentStatus.DELIVERED,
-          deliveredAt: { gte: startOfDay },
-        },
-        _sum: { collectedCash: true },
-      }),
-      this.prisma.payout.count({
-        where: { status: { in: ['PENDING', 'APPROVED', 'PROCESSING'] } },
-      }),
-      this.prisma.courier.aggregate({
-        _sum: { cashHeld: true },
-      }),
-      this.prisma.shipment.aggregate({
-        where: {
-          type: ShipmentType.COD,
-          status: { in: [ShipmentStatus.DELIVERED, ShipmentStatus.PICKED_UP, ShipmentStatus.OUT_FOR_DELIVERY] },
-        },
-        _sum: { codAmount: true },
-      }),
-    ]);
+    const [dailyCod, pendingSettlements, totalCashHeld, expectedCash] =
+      await Promise.all([
+        this.prisma.shipment.aggregate({
+          where: {
+            type: ShipmentType.COD,
+            status: ShipmentStatus.DELIVERED,
+            deliveredAt: { gte: startOfDay },
+          },
+          _sum: { collectedCash: true },
+        }),
+        this.prisma.payout.count({
+          where: { status: { in: ['PENDING', 'APPROVED', 'PROCESSING'] } },
+        }),
+        this.prisma.courier.aggregate({
+          _sum: { cashHeld: true },
+        }),
+        this.prisma.shipment.aggregate({
+          where: {
+            type: ShipmentType.COD,
+            status: {
+              in: [
+                ShipmentStatus.DELIVERED,
+                ShipmentStatus.PICKED_UP,
+                ShipmentStatus.OUT_FOR_DELIVERY,
+              ],
+            },
+          },
+          _sum: { codAmount: true },
+        }),
+      ]);
 
     const actual = Number(totalCashHeld._sum.cashHeld ?? 0);
     const expected = Number(expectedCash._sum.codAmount ?? 0);

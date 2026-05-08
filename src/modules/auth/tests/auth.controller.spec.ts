@@ -62,7 +62,7 @@ describe('AuthController', () => {
         role: UserRole.MERCHANT,
       };
 
-      const result = await controller.register(dto as any);
+      const result = await controller.register(dto);
 
       expect(mockAuthService.register).toHaveBeenCalledWith(
         '01000000001',
@@ -92,7 +92,7 @@ describe('AuthController', () => {
       mockAuthService.login.mockResolvedValue(mockLoginResponse);
 
       const dto = { phone: '01000000001', password: 'password123' };
-      const result = await controller.login(dto as any);
+      const result = await controller.login(dto);
 
       expect(mockAuthService.login).toHaveBeenCalledWith(
         '01000000001',
@@ -107,9 +107,11 @@ describe('AuthController', () => {
       mockAuthService.refreshTokens.mockResolvedValue(mockTokens);
 
       const dto = { refreshToken: 'refresh-token' };
-      const result = await controller.refreshTokens(dto as any);
+      const result = await controller.refreshTokens(dto);
 
-      expect(mockAuthService.refreshTokens).toHaveBeenCalledWith('refresh-token');
+      expect(mockAuthService.refreshTokens).toHaveBeenCalledWith(
+        'refresh-token',
+      );
       expect(result).toEqual(mockTokens);
     });
   });

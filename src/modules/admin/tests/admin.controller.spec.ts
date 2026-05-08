@@ -84,56 +84,63 @@ describe('AdminController (integration)', () => {
         .expect(201);
 
       expect(res.body).toEqual(report);
-      expect(mockReportsService.generateDailyReport).toHaveBeenCalledWith('2024-05-01');
+      expect(mockReportsService.generateDailyReport).toHaveBeenCalledWith(
+        '2024-05-01',
+      );
     });
   });
 
   describe('POST /admin/reports/courier-performance', () => {
     it('should generate courier performance report with date range', async () => {
       const report = { couriers: [] };
-      mockReportsService.generateCourierPerformanceReport.mockResolvedValue(report);
+      mockReportsService.generateCourierPerformanceReport.mockResolvedValue(
+        report,
+      );
 
       const res = await request(app.getHttpServer())
-        .post('/admin/reports/courier-performance?from=2024-05-01&to=2024-05-31')
+        .post(
+          '/admin/reports/courier-performance?from=2024-05-01&to=2024-05-31',
+        )
         .expect(201);
 
       expect(res.body).toEqual(report);
-      expect(mockReportsService.generateCourierPerformanceReport).toHaveBeenCalledWith(
-        new Date('2024-05-01'),
-        new Date('2024-05-31'),
-      );
+      expect(
+        mockReportsService.generateCourierPerformanceReport,
+      ).toHaveBeenCalledWith(new Date('2024-05-01'), new Date('2024-05-31'));
     });
 
     it('should generate report without date range', async () => {
       const report = { couriers: [] };
-      mockReportsService.generateCourierPerformanceReport.mockResolvedValue(report);
+      mockReportsService.generateCourierPerformanceReport.mockResolvedValue(
+        report,
+      );
 
       const res = await request(app.getHttpServer())
         .post('/admin/reports/courier-performance')
         .expect(201);
 
       expect(res.body).toEqual(report);
-      expect(mockReportsService.generateCourierPerformanceReport).toHaveBeenCalledWith(
-        undefined,
-        undefined,
-      );
+      expect(
+        mockReportsService.generateCourierPerformanceReport,
+      ).toHaveBeenCalledWith(undefined, undefined);
     });
   });
 
   describe('POST /admin/reports/merchant-delivery', () => {
     it('should generate merchant delivery report', async () => {
       const report = { merchants: [] };
-      mockReportsService.generateMerchantDeliveryReport.mockResolvedValue(report);
+      mockReportsService.generateMerchantDeliveryReport.mockResolvedValue(
+        report,
+      );
 
       const res = await request(app.getHttpServer())
         .post('/admin/reports/merchant-delivery')
         .expect(201);
 
       expect(res.body).toEqual(report);
-      expect(mockReportsService.generateMerchantDeliveryReport).toHaveBeenCalledWith(
-        undefined,
-        undefined,
-      );
+      expect(
+        mockReportsService.generateMerchantDeliveryReport,
+      ).toHaveBeenCalledWith(undefined, undefined);
     });
   });
 });

@@ -105,7 +105,11 @@ describe('UsersService', () => {
     });
 
     it('should hash password if provided', async () => {
-      const data = { name: 'New User', phone: '01000000002', passwordHash: 'plain' };
+      const data = {
+        name: 'New User',
+        phone: '01000000002',
+        passwordHash: 'plain',
+      };
       await service.create(data);
       expect(bcrypt.hash).toHaveBeenCalledWith('plain', 12);
       expect(repository.create).toHaveBeenCalledWith(
@@ -128,9 +132,9 @@ describe('UsersService', () => {
 
     it('should throw NotFoundException for missing user', async () => {
       jest.spyOn(repository, 'findById').mockResolvedValueOnce(null);
-      await expect(service.update('missing-id', { name: 'Test' })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.update('missing-id', { name: 'Test' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -151,7 +155,10 @@ describe('UsersService', () => {
   describe('validateCredentials', () => {
     it('should return user for valid credentials', async () => {
       (bcrypt.compare as jest.Mock).mockResolvedValueOnce(true);
-      const result = await service.validateCredentials('01000000001', 'password123');
+      const result = await service.validateCredentials(
+        '01000000001',
+        'password123',
+      );
       expect(result).toEqual(mockUser);
       expect(bcrypt.compare).toHaveBeenCalledWith(
         'password123',
@@ -161,7 +168,10 @@ describe('UsersService', () => {
 
     it('should return null for invalid phone', async () => {
       jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce(null);
-      const result = await service.validateCredentials('01099999999', 'password');
+      const result = await service.validateCredentials(
+        '01099999999',
+        'password',
+      );
       expect(result).toBeNull();
     });
 
@@ -175,8 +185,11 @@ describe('UsersService', () => {
       jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce({
         ...mockUser,
         passwordHash: null,
-      } as any);
-      const result = await service.validateCredentials('01000000001', 'password');
+      });
+      const result = await service.validateCredentials(
+        '01000000001',
+        'password',
+      );
       expect(result).toBeNull();
     });
   });

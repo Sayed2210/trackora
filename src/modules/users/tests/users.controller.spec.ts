@@ -30,9 +30,7 @@ describe('UsersController (integration)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [
-        { provide: UsersService, useValue: mockUsersService },
-      ],
+      providers: [{ provide: UsersService, useValue: mockUsersService }],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue(mockGuard)
@@ -54,9 +52,7 @@ describe('UsersController (integration)', () => {
     it('should return all users', async () => {
       mockUsersService.findAll.mockResolvedValue([mockUser]);
 
-      const res = await request(app.getHttpServer())
-        .get('/users')
-        .expect(200);
+      const res = await request(app.getHttpServer()).get('/users').expect(200);
 
       expect(res.body).toEqual([mockUser]);
       expect(mockUsersService.findAll).toHaveBeenCalled();

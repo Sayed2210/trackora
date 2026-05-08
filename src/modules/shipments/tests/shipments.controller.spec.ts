@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -187,7 +186,9 @@ describe('ShipmentsController (integration)', () => {
 
   describe('GET /shipments/:id/timeline', () => {
     it('should return shipment timeline', async () => {
-      const timeline = [{ status: 'PENDING', createdAt: new Date().toISOString() }];
+      const timeline = [
+        { status: 'PENDING', createdAt: new Date().toISOString() },
+      ];
       mockShipmentsService.getTimeline.mockResolvedValue(timeline);
 
       const res = await request(app.getHttpServer())

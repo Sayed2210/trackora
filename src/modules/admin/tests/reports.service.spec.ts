@@ -42,7 +42,9 @@ describe('ReportsService', () => {
         { status: 'DELIVERED', zoneId: 'z1', assignedCourierId: 'c1' },
         { status: 'PENDING', zoneId: 'z1', assignedCourierId: null },
       ]);
-      mockPrisma.zone.findMany.mockResolvedValue([{ id: 'z1', nameAr: 'Maadi' }]);
+      mockPrisma.zone.findMany.mockResolvedValue([
+        { id: 'z1', nameAr: 'Maadi' },
+      ]);
       mockPrisma.courier.findMany.mockResolvedValue([
         { id: 'c1', user: { name: 'Ahmed' }, assignments: [] },
       ]);

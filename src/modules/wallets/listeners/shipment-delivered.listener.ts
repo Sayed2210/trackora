@@ -48,9 +48,7 @@ export class ShipmentDeliveredListener {
     }
   }
 
-  private async processCodCredit(
-    event: ShipmentDeliveredEvent,
-  ): Promise<void> {
+  private async processCodCredit(event: ShipmentDeliveredEvent): Promise<void> {
     const { shipmentId, merchantId, codAmount } = event;
 
     // Fetch merchant fee structure

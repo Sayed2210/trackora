@@ -67,7 +67,12 @@ export class WalletsService {
       from?: Date;
       to?: Date;
     } = {},
-  ): Promise<{ data: Transaction[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    data: Transaction[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const wallet = await this.walletsRepository.findByMerchantId(merchantId);
     if (!wallet) {
       throw new NotFoundException('Wallet not found for merchant');

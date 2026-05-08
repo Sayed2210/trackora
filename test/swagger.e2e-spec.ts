@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -128,14 +132,12 @@ describe('Swagger & API Automation Tests (e2e)', () => {
     });
 
     it('POST /v1/auth/register should register a new user', async () => {
-      const res = await request(httpServer)
-        .post('/v1/auth/register')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          name: testName,
-          role: 'MERCHANT',
-        });
+      const res = await request(httpServer).post('/v1/auth/register').send({
+        phone: testPhone,
+        password: testPassword,
+        name: testName,
+        role: 'MERCHANT',
+      });
 
       // 201 if new (returns tokens), 401 if already exists (UnauthorizedException)
       expect([201, 401]).toContain(res.status);
@@ -146,12 +148,10 @@ describe('Swagger & API Automation Tests (e2e)', () => {
     });
 
     it('POST /v1/auth/login should return tokens', async () => {
-      const res = await request(httpServer)
-        .post('/v1/auth/login')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-        });
+      const res = await request(httpServer).post('/v1/auth/login').send({
+        phone: testPhone,
+        password: testPassword,
+      });
 
       expect(res.status).toBe(201);
       expect(res.body).toHaveProperty('accessToken');
@@ -161,12 +161,10 @@ describe('Swagger & API Automation Tests (e2e)', () => {
     });
 
     it('POST /v1/auth/login with wrong password should return 401', async () => {
-      const res = await request(httpServer)
-        .post('/v1/auth/login')
-        .send({
-          phone: testPhone,
-          password: 'wrongpassword',
-        });
+      const res = await request(httpServer).post('/v1/auth/login').send({
+        phone: testPhone,
+        password: 'wrongpassword',
+      });
       expect(res.status).toBe(401);
     });
 
@@ -231,9 +229,7 @@ describe('Swagger & API Automation Tests (e2e)', () => {
     });
 
     it('POST /v1/shipments without token should return 401', async () => {
-      const res = await request(httpServer)
-        .post('/v1/shipments')
-        .send({});
+      const res = await request(httpServer).post('/v1/shipments').send({});
       expect(res.status).toBe(401);
     });
 

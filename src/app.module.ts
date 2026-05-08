@@ -12,6 +12,7 @@ import { ShipmentsModule } from '@modules/shipments/shipments.module';
 import { WalletsModule } from '@modules/wallets/wallets.module';
 import { AssignmentsModule } from '@modules/assignments/assignments.module';
 import { AdminModule } from '@modules/admin/admin.module';
+import { ZonesModule } from '@modules/zones/zones.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AdminModule } from '@modules/admin/admin.module';
     WalletsModule,
     AssignmentsModule,
     AdminModule,
+    ZonesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

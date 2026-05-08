@@ -12,7 +12,11 @@ export interface PrismaDelegate<T> {
   findFirst: (args?: { where?: any; include?: any }) => Promise<T | null>;
   findUnique: (args: { where: any; include?: any }) => Promise<T | null>;
   create: (args: { data: any; include?: any }) => Promise<T>;
-  update: (args: { where: { id: string }; data: any; include?: any }) => Promise<T>;
+  update: (args: {
+    where: { id: string };
+    data: any;
+    include?: any;
+  }) => Promise<T>;
   updateMany: (args: { where: any; data: any }) => Promise<any>;
   delete: (args: { where: { id: string } }) => Promise<T>;
   count: (args?: { where?: any }) => Promise<number>;

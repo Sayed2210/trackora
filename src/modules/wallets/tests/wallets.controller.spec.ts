@@ -90,7 +90,9 @@ describe('WalletsController (integration)', () => {
 
   describe('GET /wallets/:id/transactions', () => {
     it('should return transactions with pagination', async () => {
-      mockPrisma.wallet.findUnique.mockResolvedValue({ id: '11111111-1111-1111-1111-111111111111' });
+      mockPrisma.wallet.findUnique.mockResolvedValue({
+        id: '11111111-1111-1111-1111-111111111111',
+      });
       const txs = [
         { id: 'tx-1', type: TransactionType.COD_CREDIT, amount: 100 },
       ];
@@ -98,7 +100,9 @@ describe('WalletsController (integration)', () => {
       mockPrisma.transaction.count.mockResolvedValue(1);
 
       const response = await request(app.getHttpServer())
-        .get('/wallets/11111111-1111-1111-1111-111111111111/transactions?page=1&limit=10')
+        .get(
+          '/wallets/11111111-1111-1111-1111-111111111111/transactions?page=1&limit=10',
+        )
         .expect(200);
 
       expect(response.body.data).toEqual(txs);

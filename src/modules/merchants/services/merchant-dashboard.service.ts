@@ -25,7 +25,11 @@ export interface MerchantDashboardData {
 export interface MerchantAnalyticsData {
   successRateTrend: Array<{ date: string; rate: number }>;
   returnReasons: Array<{ reason: string; count: number }>;
-  zonePerformance: Array<{ zoneName: string; delivered: number; returned: number }>;
+  zonePerformance: Array<{
+    zoneName: string;
+    delivered: number;
+    returned: number;
+  }>;
   codCollectionTrend: Array<{ date: string; totalCod: number }>;
 }
 
@@ -34,55 +38,48 @@ export class MerchantDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getDashboard(merchantId: string): Promise<MerchantDashboardData> {
-    const [
-      total,
-      pending,
-      inTransit,
-      delivered,
-      returned,
-      avgCod,
-      recent,
-    ] = await Promise.all([
-      this.prisma.shipment.count({ where: { merchantId } }),
-      this.prisma.shipment.count({
-        where: { merchantId, status: ShipmentStatus.PENDING },
-      }),
-      this.prisma.shipment.count({
-        where: {
-          merchantId,
-          status: {
-            in: [
-              ShipmentStatus.PICKED_UP,
-              ShipmentStatus.IN_WAREHOUSE,
-              ShipmentStatus.OUT_FOR_DELIVERY,
-            ],
+    const [total, pending, inTransit, delivered, returned, avgCod, recent] =
+      await Promise.all([
+        this.prisma.shipment.count({ where: { merchantId } }),
+        this.prisma.shipment.count({
+          where: { merchantId, status: ShipmentStatus.PENDING },
+        }),
+        this.prisma.shipment.count({
+          where: {
+            merchantId,
+            status: {
+              in: [
+                ShipmentStatus.PICKED_UP,
+                ShipmentStatus.IN_WAREHOUSE,
+                ShipmentStatus.OUT_FOR_DELIVERY,
+              ],
+            },
           },
-        },
-      }),
-      this.prisma.shipment.count({
-        where: { merchantId, status: ShipmentStatus.DELIVERED },
-      }),
-      this.prisma.shipment.count({
-        where: { merchantId, status: ShipmentStatus.RETURNED },
-      }),
-      this.prisma.shipment.aggregate({
-        where: { merchantId, type: ShipmentType.COD },
-        _avg: { codAmount: true },
-      }),
-      this.prisma.shipment.findMany({
-        where: { merchantId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          trackingNumber: true,
-          status: true,
-          customerName: true,
-          codAmount: true,
-          createdAt: true,
-        },
-      }),
-    ]);
+        }),
+        this.prisma.shipment.count({
+          where: { merchantId, status: ShipmentStatus.DELIVERED },
+        }),
+        this.prisma.shipment.count({
+          where: { merchantId, status: ShipmentStatus.RETURNED },
+        }),
+        this.prisma.shipment.aggregate({
+          where: { merchantId, type: ShipmentType.COD },
+          _avg: { codAmount: true },
+        }),
+        this.prisma.shipment.findMany({
+          where: { merchantId },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            trackingNumber: true,
+            status: true,
+            customerName: true,
+            codAmount: true,
+            createdAt: true,
+          },
+        }),
+      ]);
 
     const completed = delivered + returned;
     const successRate = completed > 0 ? (delivered / completed) * 100 : 0;

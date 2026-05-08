@@ -187,9 +187,9 @@ describe('TransactionsService', () => {
     it('should throw NotFoundException for missing wallet', async () => {
       mockWalletFindUniqueOuter.mockResolvedValue(null);
 
-      await expect(
-        service.getRunningBalance('wallet-missing'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getRunningBalance('wallet-missing')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

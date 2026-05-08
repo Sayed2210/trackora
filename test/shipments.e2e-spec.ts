@@ -150,9 +150,11 @@ describe('ShipmentsController (e2e)', () => {
   // Track whether findByTrackingNumber should return null (for uniqueness check)
   // or the mock shipment (for lookup by known tracking number)
   const mockShipmentsRepository = {
-    create: jest.fn().mockImplementation((data) =>
-      Promise.resolve({ ...mockShipment, ...data }),
-    ),
+    create: jest
+      .fn()
+      .mockImplementation((data) =>
+        Promise.resolve({ ...mockShipment, ...data }),
+      ),
     findById: jest.fn().mockImplementation((id) => {
       if (id === SHIPMENT_ID) return Promise.resolve(mockShipment);
       return Promise.resolve(null);
@@ -166,9 +168,11 @@ describe('ShipmentsController (e2e)', () => {
     findWithFilters: jest.fn().mockResolvedValue([mockShipment]),
     countWithFilters: jest.fn().mockResolvedValue(1),
     findWithCursor: jest.fn().mockResolvedValue([mockShipment]),
-    update: jest.fn().mockImplementation((id, data) =>
-      Promise.resolve({ ...mockShipment, ...data }),
-    ),
+    update: jest
+      .fn()
+      .mockImplementation((id, data) =>
+        Promise.resolve({ ...mockShipment, ...data }),
+      ),
   };
 
   const mockStatusLogsRepository = {
@@ -457,9 +461,7 @@ describe('ShipmentsController (e2e)', () => {
     });
 
     it('should reject unauthenticated request', async () => {
-      await request(app.getHttpServer())
-        .get('/shipments/cursor')
-        .expect(401);
+      await request(app.getHttpServer()).get('/shipments/cursor').expect(401);
     });
   });
 

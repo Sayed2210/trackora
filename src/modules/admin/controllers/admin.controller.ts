@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminDashboardService } from '../services/admin-dashboard.service';
 import { ReportsService } from '../services/reports.service';
@@ -16,7 +10,11 @@ import { UserRole } from '@modules/users/entities/user.entity';
 @ApiBearerAuth()
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.FINANCE_ADMIN)
+@Roles(
+  UserRole.SUPER_ADMIN,
+  UserRole.OPERATIONS_MANAGER,
+  UserRole.FINANCE_ADMIN,
+)
 export class AdminController {
   constructor(
     private readonly adminDashboardService: AdminDashboardService,

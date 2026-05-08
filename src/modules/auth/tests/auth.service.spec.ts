@@ -161,9 +161,7 @@ describe('AuthService', () => {
         sub: mockUser.id,
         type: 'refresh',
       });
-      jest
-        .spyOn(redis, 'get')
-        .mockResolvedValueOnce('valid-refresh-token');
+      jest.spyOn(redis, 'get').mockResolvedValueOnce('valid-refresh-token');
 
       const result = await service.refreshTokens('valid-refresh-token');
 

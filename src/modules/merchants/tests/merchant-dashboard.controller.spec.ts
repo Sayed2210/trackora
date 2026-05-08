@@ -69,7 +69,10 @@ describe('MerchantDashboardController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(analytics);
-      expect(mockDashboardService.getAnalytics).toHaveBeenCalledWith(TEST_UUID, 30);
+      expect(mockDashboardService.getAnalytics).toHaveBeenCalledWith(
+        TEST_UUID,
+        30,
+      );
     });
 
     it('should return analytics with custom days', async () => {
@@ -81,7 +84,10 @@ describe('MerchantDashboardController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(analytics);
-      expect(mockDashboardService.getAnalytics).toHaveBeenCalledWith(TEST_UUID, 7);
+      expect(mockDashboardService.getAnalytics).toHaveBeenCalledWith(
+        TEST_UUID,
+        7,
+      );
     });
   });
 });
