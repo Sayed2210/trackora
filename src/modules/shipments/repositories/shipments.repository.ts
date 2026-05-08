@@ -41,6 +41,16 @@ export class ShipmentsRepository extends AbstractRepository<Shipment> {
     return this.delegate.findUnique({ where: { trackingNumber } });
   }
 
+  async findExistingTrackingNumbers(
+    trackingNumbers: string[],
+  ): Promise<string[]> {
+    const shipments = await this.prisma.shipment.findMany({
+      where: { trackingNumber: { in: trackingNumbers } },
+      select: { trackingNumber: true },
+    });
+    return shipments.map((s) => s.trackingNumber);
+  }
+
   async findWithFilters(
     where: ShipmentFilter,
     skip: number,
