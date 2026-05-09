@@ -76,6 +76,15 @@ export class ShipmentsService {
       metadata: { riskScore, source: 'creation' },
     });
 
+    this.eventEmitter.emit('shipment.created', {
+      shipmentId: shipment.id,
+      trackingNumber: shipment.trackingNumber,
+      merchantId,
+      status: ShipmentStatus.PENDING,
+      codAmount: Number(shipment.codAmount),
+      type: shipment.type,
+    });
+
     return shipment;
   }
 
@@ -302,6 +311,18 @@ export class ShipmentsService {
         type: shipment.type,
       });
     }
+
+    this.eventEmitter.emit('shipment.status_changed', {
+      shipmentId: id,
+      trackingNumber: shipment.trackingNumber,
+      merchantId: shipment.merchantId,
+      courierId: shipment.assignedCourierId || undefined,
+      previousStatus,
+      newStatus: dto.newStatus,
+      codAmount: Number(shipment.codAmount),
+      type: shipment.type,
+      updatedAt: new Date().toISOString(),
+    });
 
     return updated;
   }

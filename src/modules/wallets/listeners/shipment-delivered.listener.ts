@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { FeeCalculatorService } from '../services/fee-calculator.service';
 import { TransactionType, ShipmentType } from '@prisma/client';
@@ -22,6 +22,7 @@ export class ShipmentDeliveredListener {
   constructor(
     private readonly prisma: PrismaService,
     private readonly feeCalculatorService: FeeCalculatorService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @OnEvent('shipment.delivered')
@@ -168,6 +169,15 @@ export class ShipmentDeliveredListener {
           this.logger.log(
             `Atomic COD credit completed for shipment ${shipmentId}, wallet ${wallet.id}: balance=${newBalance}`,
           );
+
+          this.eventEmitter.emit('wallet.balance_updated', {
+            walletId: wallet.id,
+            merchantId,
+            balance: newBalance,
+            transactionType: 'COD_CREDIT',
+            amount: netCredit,
+            runningBalance: newBalance,
+          });
         });
 
         return;

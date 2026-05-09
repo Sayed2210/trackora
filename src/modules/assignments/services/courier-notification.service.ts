@@ -11,6 +11,8 @@ interface AssignmentCreatedEvent {
 
 interface AssignmentCancelledEvent {
   assignmentId: string;
+  shipmentId: string;
+  courierId: string;
   reason: string;
 }
 
@@ -84,23 +86,31 @@ export class CourierNotificationService {
     );
 
     try {
-      const assignment = await this.prisma.assignment.findUnique({
-        where: { id: event.assignmentId },
-        include: { courier: { include: { user: true } }, shipment: true },
-      });
+      const [courier, shipment] = await Promise.all([
+        this.prisma.courier.findUnique({
+          where: { id: event.courierId },
+          include: { user: true },
+        }),
+        this.prisma.shipment.findUnique({
+          where: { id: event.shipmentId },
+        }),
+      ]);
 
-      if (!assignment) return;
+      if (!courier || !shipment) {
+        this.logger.warn('Courier or shipment not found for cancellation notification');
+        return;
+      }
 
       await this.prisma.notification.create({
         data: {
-          userId: assignment.courier.userId,
-          shipmentId: assignment.shipmentId,
-          type: 'SHIPMENT_ASSIGNED',
+          userId: courier.userId,
+          shipmentId: shipment.id,
+          type: 'SHIPMENT_STATUS_UPDATE',
           title: 'تم إلغاء الطلب',
-          body: `تم إلغاء شحنة ${assignment.shipment.trackingNumber}. السبب: ${event.reason}`,
+          body: `تم إلغاء شحنة ${shipment.trackingNumber}. السبب: ${event.reason}`,
           data: {
             assignmentId: event.assignmentId,
-            trackingNumber: assignment.shipment.trackingNumber,
+            trackingNumber: shipment.trackingNumber,
           },
         },
       });

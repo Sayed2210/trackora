@@ -231,6 +231,8 @@ export class AssignmentsService {
       // Emit events
       this.eventEmitter.emit('assignment.cancelled', {
         assignmentId: currentAssignment.id,
+        shipmentId: currentAssignment.shipmentId,
+        courierId: currentAssignment.courierId,
         reason: 'Reassigned',
       });
 
@@ -276,8 +278,10 @@ export class AssignmentsService {
       return updated;
     });
 
-    this.eventEmitter.emit('assignment.cancelled', {
+this.eventEmitter.emit('assignment.cancelled', {
       assignmentId: cancelled.id,
+      shipmentId: assignment.shipmentId,
+      courierId: assignment.courierId,
       reason: reason || 'Cancelled by admin',
     });
 
