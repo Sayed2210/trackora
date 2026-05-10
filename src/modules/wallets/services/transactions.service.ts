@@ -148,7 +148,12 @@ export class TransactionsService {
       from?: Date;
       to?: Date;
     } = {},
-  ): Promise<{ data: Transaction[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    data: Transaction[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const page = options.page ?? 1;
     const limit = options.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -157,8 +162,10 @@ export class TransactionsService {
     if (options.type) where.type = options.type;
     if (options.from || options.to) {
       where.createdAt = {};
-      if (options.from) (where.createdAt as Record<string, Date>).gte = options.from;
-      if (options.to) (where.createdAt as Record<string, Date>).lte = options.to;
+      if (options.from)
+        (where.createdAt as Record<string, Date>).gte = options.from;
+      if (options.to)
+        (where.createdAt as Record<string, Date>).lte = options.to;
     }
 
     const [data, total] = await Promise.all([

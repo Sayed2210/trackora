@@ -97,17 +97,17 @@ describe('OtpService', () => {
     it('should throw if OTP expired or not found', async () => {
       (redis.getJson as jest.Mock).mockResolvedValueOnce(null);
 
-      await expect(
-        service.verifyOtp('01012345678', '1234'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.verifyOtp('01012345678', '1234')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw "OTP expired or not found" message', async () => {
       (redis.getJson as jest.Mock).mockResolvedValueOnce(null);
 
-      await expect(
-        service.verifyOtp('01012345678', '1234'),
-      ).rejects.toThrow('OTP expired or not found');
+      await expect(service.verifyOtp('01012345678', '1234')).rejects.toThrow(
+        'OTP expired or not found',
+      );
     });
 
     it('should throw if OTP already used', async () => {
@@ -117,12 +117,12 @@ describe('OtpService', () => {
         verified: true,
       });
 
-      await expect(
-        service.verifyOtp('01012345678', '1234'),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.verifyOtp('01012345678', '1234'),
-      ).rejects.toThrow('OTP already used');
+      await expect(service.verifyOtp('01012345678', '1234')).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.verifyOtp('01012345678', '1234')).rejects.toThrow(
+        'OTP already used',
+      );
     });
 
     it('should throw on max attempts exceeded', async () => {
@@ -132,12 +132,12 @@ describe('OtpService', () => {
         verified: false,
       });
 
-      await expect(
-        service.verifyOtp('01012345678', '9999'),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.verifyOtp('01012345678', '9999'),
-      ).rejects.toThrow('Maximum attempts exceeded');
+      await expect(service.verifyOtp('01012345678', '9999')).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.verifyOtp('01012345678', '9999')).rejects.toThrow(
+        'Maximum attempts exceeded',
+      );
       expect(redis.del).toHaveBeenCalledWith('otp:01012345678');
     });
 
@@ -147,12 +147,12 @@ describe('OtpService', () => {
         .mockResolvedValueOnce({ code: '1234', attempts: 0, verified: false })
         .mockResolvedValueOnce({ code: '1234', attempts: 0, verified: false });
 
-      await expect(
-        service.verifyOtp('01012345678', '9999'),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.verifyOtp('01012345678', '9999'),
-      ).rejects.toThrow('2 attempts remaining');
+      await expect(service.verifyOtp('01012345678', '9999')).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.verifyOtp('01012345678', '9999')).rejects.toThrow(
+        '2 attempts remaining',
+      );
 
       expect(redis.setJson).toHaveBeenCalledWith(
         'otp:01012345678',
@@ -168,9 +168,9 @@ describe('OtpService', () => {
         verified: false,
       });
 
-      await expect(
-        service.verifyOtp('01012345678', '9999'),
-      ).rejects.toThrow('1 attempts remaining');
+      await expect(service.verifyOtp('01012345678', '9999')).rejects.toThrow(
+        '1 attempts remaining',
+      );
     });
 
     it('should block after 3 failed attempts', async () => {
@@ -180,9 +180,9 @@ describe('OtpService', () => {
         attempts: 0,
         verified: false,
       });
-      await expect(
-        service.verifyOtp('01012345678', '0000'),
-      ).rejects.toThrow('2 attempts remaining');
+      await expect(service.verifyOtp('01012345678', '0000')).rejects.toThrow(
+        '2 attempts remaining',
+      );
 
       // Attempt 2: wrong code (attempts=1 -> 2)
       (redis.getJson as jest.Mock).mockResolvedValueOnce({
@@ -190,9 +190,9 @@ describe('OtpService', () => {
         attempts: 1,
         verified: false,
       });
-      await expect(
-        service.verifyOtp('01012345678', '0000'),
-      ).rejects.toThrow('1 attempts remaining');
+      await expect(service.verifyOtp('01012345678', '0000')).rejects.toThrow(
+        '1 attempts remaining',
+      );
 
       // Attempt 3: wrong code (attempts=2 -> 3, then 0 remaining)
       (redis.getJson as jest.Mock).mockResolvedValueOnce({
@@ -200,9 +200,9 @@ describe('OtpService', () => {
         attempts: 2,
         verified: false,
       });
-      await expect(
-        service.verifyOtp('01012345678', '0000'),
-      ).rejects.toThrow('0 attempts remaining');
+      await expect(service.verifyOtp('01012345678', '0000')).rejects.toThrow(
+        '0 attempts remaining',
+      );
     });
   });
 

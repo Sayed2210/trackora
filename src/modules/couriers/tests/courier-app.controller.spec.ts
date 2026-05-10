@@ -1,15 +1,29 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
+import { ExecutionContext } from '@nestjs/common';
 import { CourierAppController } from '../controllers/courier-app.controller';
 import { CourierAppService } from '../services/courier-app.service';
 import { ShipmentStatus } from '@modules/shipments/entities/shipment.entity';
 import { UpdateTaskStatusDto } from '../dtos/update-task-status.dto';
 import { CourierDepositDto } from '../dtos/courier-deposit.dto';
 import { SyncUpdatesDto } from '../dtos/sync-updates.dto';
+import { UserRole } from '@modules/users/entities/user.entity';
+
+const mockAuthGuard = {
+  canActivate: jest.fn((context: ExecutionContext) => {
+    const request = context.switchToHttp().getRequest();
+    request.user = { userId: 'mock-courier-id', role: UserRole.COURIER };
+    return true;
+  }),
+};
 
 describe('CourierAppController (integration)', () => {
   let controller: CourierAppController;
   let service: CourierAppService;
+
+  const mockReq = {
+    user: { userId: 'mock-courier-id', role: UserRole.COURIER },
+  } as any;
 
   const mockTask = {
     shipmentId: 'ship-1',
@@ -37,6 +51,7 @@ describe('CourierAppController (integration)', () => {
             syncUpdates: jest.fn(),
           },
         },
+        { provide: 'APP_GUARD', useValue: mockAuthGuard },
       ],
     }).compile();
 
@@ -45,12 +60,12 @@ describe('CourierAppController (integration)', () => {
   });
 
   describe('TASK-107: Courier Task Endpoints', () => {
-    it('should call getTasks with courier id', async () => {
+    it('should call getTasks with courier id from req.user', async () => {
       jest.spyOn(service, 'getTasks').mockResolvedValue([mockTask]);
 
-      const result = await controller.getTasks();
+      const result = await controller.getTasks(mockReq);
 
-      expect(service.getTasks).toHaveBeenCalledWith('temp-courier-id');
+      expect(service.getTasks).toHaveBeenCalledWith('mock-courier-id');
       expect(result).toHaveLength(1);
       expect(result[0].trackingNumber).toBe('TRK-240502-1234');
     });
@@ -68,10 +83,10 @@ describe('CourierAppController (integration)', () => {
         status: ShipmentStatus.DELIVERED,
       } as any);
 
-      const result = await controller.updateTaskStatus('ship-1', dto);
+      const result = await controller.updateTaskStatus('ship-1', dto, mockReq);
 
       expect(service.updateTaskStatus).toHaveBeenCalledWith(
-        'temp-courier-id',
+        'mock-courier-id',
         'ship-1',
         dto,
       );
@@ -83,10 +98,10 @@ describe('CourierAppController (integration)', () => {
     it('should call getTaskById with correct params', async () => {
       jest.spyOn(service, 'getTaskById').mockResolvedValue(mockTask);
 
-      const result = await controller.getTaskById('ship-1');
+      const result = await controller.getTaskById('ship-1', mockReq);
 
       expect(service.getTaskById).toHaveBeenCalledWith(
-        'temp-courier-id',
+        'mock-courier-id',
         'ship-1',
       );
       expect(result.shipmentId).toBe('ship-1');
@@ -106,9 +121,9 @@ describe('CourierAppController (integration)', () => {
         amount: 1500,
       } as any);
 
-      const result = await controller.logDeposit(dto);
+      const result = await controller.logDeposit(dto, mockReq);
 
-      expect(service.logDeposit).toHaveBeenCalledWith('temp-courier-id', dto);
+      expect(service.logDeposit).toHaveBeenCalledWith('mock-courier-id', dto);
       expect(result.amount).toBe(1500);
     });
   });
@@ -133,15 +148,15 @@ describe('CourierAppController (integration)', () => {
         conflicts: [],
       });
 
-      const result = await controller.syncUpdates(dto);
+      const result = await controller.syncUpdates(dto, mockReq);
 
-      expect(service.syncUpdates).toHaveBeenCalledWith('temp-courier-id', dto);
+      expect(service.syncUpdates).toHaveBeenCalledWith('mock-courier-id', dto);
       expect(result.processed).toBe(1);
     });
   });
 
   describe('TASK-107: Performance', () => {
-    it('should call getPerformance with courier id', async () => {
+    it('should call getPerformance with courier id from req.user', async () => {
       jest.spyOn(service, 'getPerformance').mockResolvedValue({
         score: 87,
         totalDelivered: 245,
@@ -152,9 +167,9 @@ describe('CourierAppController (integration)', () => {
         weeklyTrend: [],
       } as any);
 
-      const result = await controller.getPerformance();
+      const result = await controller.getPerformance(mockReq);
 
-      expect(service.getPerformance).toHaveBeenCalledWith('temp-courier-id');
+      expect(service.getPerformance).toHaveBeenCalledWith('mock-courier-id');
       expect(result.score).toBe(87);
       expect(result.successRate).toBe(93.5);
     });

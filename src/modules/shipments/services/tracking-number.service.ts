@@ -36,4 +36,41 @@ export class TrackingNumberService {
       'Unable to generate unique tracking number after max attempts',
     );
   }
+
+  async generateBatch(count: number): Promise<string[]> {
+    const candidates = new Set<string>();
+    const result: string[] = [];
+    let safety = 0;
+    const maxSafety = count * 20;
+
+    while (result.length < count && safety < maxSafety) {
+      const candidate = this.generate();
+      if (!candidates.has(candidate)) {
+        candidates.add(candidate);
+      }
+      safety++;
+    }
+
+    const existing = await this.shipmentsRepository.findExistingTrackingNumbers(
+      Array.from(candidates),
+    );
+    const existingSet = new Set(existing);
+
+    for (const candidate of candidates) {
+      if (!existingSet.has(candidate)) {
+        result.push(candidate);
+      }
+      if (result.length >= count) break;
+    }
+
+    // Fill any remaining gaps one-by-one
+    while (result.length < count) {
+      const unique = await this.generateUnique();
+      if (!existingSet.has(unique)) {
+        result.push(unique);
+      }
+    }
+
+    return result;
+  }
 }

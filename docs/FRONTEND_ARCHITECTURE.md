@@ -423,87 +423,459 @@ export class ShipmentRepository {
 
 ---
 
-## 7. Real-Time Layer
+## 7. Real-Time Layer (Socket.IO)
 
-### 7.1 Abstract Transport Interface
+### 7.1 Architecture Overview
+
+The backend exposes a Socket.IO gateway at namespace `/ws` with JWT authentication at the handshake level. The frontend uses `socket.io-client` directly (no Angular wrapper) paired with RxJS for typed event streams.
+
+### 7.2 Backend Contract
+
+**Connection:** `wss://api.trackora.com/ws`  
+**Auth:** Bearer JWT via `io({ auth: { token: 'Bearer <jwt>' } })`  
+**Auto-joined rooms** (server assigns on connect based on JWT role):
+
+| Room | Who |
+|------|-----|
+| `merchant:{merchantId}` | Merchant users |
+| `courier:{courierId}` | Courier users |
+| `admin:dashboard` | SUPER_ADMIN, OPERATIONS_MANAGER, FINANCE_ADMIN |
+| `user:{userId}` | All authenticated users |
+
+**Server → Client events:**
+
+| Event | Target Room | Payload |
+|---|---|---|
+| `connection:established` | Direct | `{ userId, role }` |
+| `error` | Direct | `{ message }` |
+| `shipment:status_updated` | merchant, courier, shipment | `{ shipmentId, trackingNumber, previousStatus, newStatus, codAmount, type, updatedAt }` |
+| `shipment:created` | merchant | `{ shipmentId, trackingNumber, status, codAmount, type }` |
+| `assignment:created` | courier | `{ assignmentId, shipmentId, trackingNumber, customerName, addressText, codAmount, assignmentType }` |
+| `assignment:cancelled` | courier | `{ assignmentId, trackingNumber, reason }` |
+| `wallet:balance_updated` | merchant | `{ walletId, merchantId, balance, transactionType, amount, runningBalance }` |
+| `admin:stats_updated` | admin:dashboard | `{ activeShipments, deliveredToday, failedToday, couriersAvailable, codCollectedToday }` |
+| `subscribed` | Direct | `{ room }` |
+| `unsubscribed` | Direct | `{ room }` |
+| `sync:missed:complete` | Direct | `{ count }` |
+
+**Client → Server events:**
+
+| Event | Payload | Purpose |
+|---|---|---|
+| `subscribe:tracking` | `{ trackingNumber }` | Join `shipment:{trackingNumber}` room |
+| `unsubscribe:tracking` | `{ trackingNumber }` | Leave tracking room |
+| `sync:missed` | `{ lastEventId, rooms? }` | Replay events since last disconnect |
+
+### 7.3 TypeScript Event Interfaces
 
 ```typescript
-export interface RealTimeTransport {
-  connect(): void;
-  disconnect(): void;
-  on<T>(event: string, handler: (data: T) => void): void;
-  off<T>(event: string, handler: (data: T) => void): void;
+// libs/shared/domain/src/lib/realtime-events.ts
+
+export interface ShipmentStatusChangedEvent {
+  shipmentId: string;
+  trackingNumber: string;
+  merchantId: string;
+  courierId?: string;
+  previousStatus: ShipmentStatus;
+  newStatus: ShipmentStatus;
+  codAmount: number;
+  type: ShipmentType;
+  updatedAt: string;
+}
+
+export interface ShipmentCreatedEvent {
+  shipmentId: string;
+  trackingNumber: string;
+  merchantId: string;
+  status: ShipmentStatus;
+  codAmount: number;
+  type: ShipmentType;
+}
+
+export interface AssignmentCreatedEvent {
+  assignmentId: string;
+  shipmentId: string;
+  trackingNumber: string;
+  customerName: string;
+  addressText: string;
+  codAmount: string;
+  assignmentType: string;
+}
+
+export interface AssignmentCancelledEvent {
+  assignmentId: string;
+  trackingNumber: string;
+  reason: string;
+}
+
+export interface WalletBalanceUpdatedEvent {
+  walletId: string;
+  merchantId: string;
+  balance: number;
+  transactionType: string;
+  amount: number;
+  runningBalance: number;
+}
+
+export interface AdminStatsUpdatedEvent {
+  activeShipments: number;
+  deliveredToday: number;
+  failedToday: number;
+  couriersAvailable: number;
+  codCollectedToday: number;
 }
 ```
 
-### 7.2 SSE Implementation (Immediate)
+### 7.4 Core Service: WebSocketService
 
 ```typescript
-@Injectable()
-export class SseTransport implements RealTimeTransport {
-  private eventSource: EventSource | null = null;
-  private handlers = new Map<string, Set<Function>>();
+// libs/core/realtime/src/lib/websocket.service.ts
+import { Injectable, OnDestroy } from '@angular/core';
+import { io, Socket } from 'socket.io-client';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { AuthService } from '@trackora/core/auth';
+
+@Injectable({ providedIn: 'root' })
+export class WebSocketService implements OnDestroy {
+  private socket: Socket | null = null;
+  private readonly _status$ = new BehaviorSubject<'connected' | 'disconnected' | 'reconnecting'>('disconnected');
+  readonly status$ = this._status$.asObservable();
+
+  private lastEventId: string | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly auth: AuthService) {}
 
   connect(): void {
-    this.eventSource = new EventSource('/api/v1/events/stream', { withCredentials: true });
-    this.eventSource.onmessage = (msg) => {
-      const { event, data } = JSON.parse(msg.data);
-      this.handlers.get(event)?.forEach(h => h(data));
-    };
+    if (this.socket?.connected) return;
+
+    const token = this.auth.getAccessToken();
+    if (!token) {
+      console.warn('[WS] No token available, skipping connection');
+      return;
+    }
+
+    this.socket = io('/ws', {
+      transports: ['websocket'],
+      auth: { token: `Bearer ${token}` },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+    });
+
+    this.socket.on('connect', () => {
+      this._status$.next('connected');
+      this.requestMissedEvents();
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      this._status$.next('disconnected');
+      if (reason === 'io server disconnect') {
+        // Server forced disconnect — may need token refresh
+        this.handleServerDisconnect();
+      }
+    });
+
+    this.socket.on('reconnecting', () => {
+      this._status$.next('reconnecting');
+    });
+
+    this.socket.on('connection:established', ({ userId, role }) => {
+      console.log(`[WS] Connected as ${role} (${userId})`);
+    });
+
+    this.socket.on('error', ({ message }) => {
+      console.error('[WS] Server error:', message);
+      if (message === 'Invalid or expired token') {
+        this.refreshAndReconnect();
+      }
+    });
   }
 
   disconnect(): void {
-    this.eventSource?.close();
-    this.eventSource = null;
+    this.socket?.disconnect();
+    this.socket = null;
+    this._status$.next('disconnected');
+  }
+
+  emit(event: string, data: unknown): void {
+    this.socket?.emit(event, data);
   }
 
   on<T>(event: string, handler: (data: T) => void): void {
-    if (!this.handlers.has(event)) this.handlers.set(event, new Set());
-    this.handlers.get(event)!.add(handler);
+    this.socket?.on(event, handler as (data: unknown) => void);
   }
 
   off<T>(event: string, handler: (data: T) => void): void {
-    this.handlers.get(event)?.delete(handler);
+    this.socket?.off(event, handler as (data: unknown) => void);
+  }
+
+  subscribeToTracking(trackingNumber: string): void {
+    this.emit('subscribe:tracking', { trackingNumber });
+  }
+
+  unsubscribeFromTracking(trackingNumber: string): void {
+    this.emit('unsubscribe:tracking', { trackingNumber });
+  }
+
+  private requestMissedEvents(): void {
+    if (!this.lastEventId) return;
+    this.emit('sync:missed', { lastEventId });
+  }
+
+  private handleServerDisconnect(): void {
+    this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+  }
+
+  private async refreshAndReconnect(): Promise<void> {
+    try {
+      await this.auth.refreshToken();
+      this.connect();
+    } catch {
+      this.auth.logout();
+    }
+  }
+
+  updateLastEventId(eventId: string): void {
+    this.lastEventId = eventId;
+    localStorage.setItem('ws:lastEventId', eventId);
+  }
+
+  ngOnDestroy(): void {
+    this.disconnect();
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
   }
 }
 ```
 
-### 7.3 WebSocket Implementation (Future-Ready)
-
-Stubbed implementation that can be swapped in when backend adds WebSocket gateway:
+### 7.5 Typed Event Service: WebSocketEventsService
 
 ```typescript
-@Injectable()
-export class WebSocketTransport implements RealTimeTransport {
-  private socket: WebSocket | null = null;
-  // Implements same interface as SseTransport
-}
-```
+// libs/core/realtime/src/lib/websocket-events.service.ts
+import { Injectable } from '@angular/core';
+import { Observable, fromEventPattern } from 'rxjs';
+import { shareReplay, map } from 'rxjs/operators';
+import { WebSocketService } from './websocket.service';
+import {
+  ShipmentStatusChangedEvent,
+  ShipmentCreatedEvent,
+  AssignmentCreatedEvent,
+  AssignmentCancelledEvent,
+  WalletBalanceUpdatedEvent,
+  AdminStatsUpdatedEvent,
+} from '@trackora/shared/domain';
 
-### 7.4 Unified Realtime Service
-
-```typescript
 @Injectable({ providedIn: 'root' })
-export class RealtimeService {
-  constructor(@Inject(REALTIME_TRANSPORT) private transport: RealTimeTransport) {}
+export class WebSocketEventsService {
+  private readonly _shipmentStatusUpdated$: Observable<ShipmentStatusChangedEvent>;
+  private readonly _shipmentCreated$: Observable<ShipmentCreatedEvent>;
+  private readonly _assignmentCreated$: Observable<AssignmentCreatedEvent>;
+  private readonly _assignmentCancelled$: Observable<AssignmentCancelledEvent>;
+  private readonly _walletBalanceUpdated$: Observable<WalletBalanceUpdatedEvent>;
+  private readonly _adminStatsUpdated$: Observable<AdminStatsUpdatedEvent>;
 
-  subscribe<T>(event: string, handler: (data: T) => void): () => void {
-    this.transport.on(event, handler);
-    return () => this.transport.off(event, handler);
+  constructor(private readonly ws: WebSocketService) {
+    this._shipmentStatusUpdated$ = this.createEvent$('shipment:status_updated');
+    this._shipmentCreated$ = this.createEvent$('shipment:created');
+    this._assignmentCreated$ = this.createEvent$('assignment:created');
+    this._assignmentCancelled$ = this.createEvent$('assignment:cancelled');
+    this._walletBalanceUpdated$ = this.createEvent$('wallet:balance_updated');
+    this._adminStatsUpdated$ = this.createEvent$('admin:stats_updated');
+  }
+
+  get shipmentStatusUpdated$(): Observable<ShipmentStatusChangedEvent> {
+    return this._shipmentStatusUpdated$;
+  }
+
+  get shipmentCreated$(): Observable<ShipmentCreatedEvent> {
+    return this._shipmentCreated$;
+  }
+
+  get assignmentCreated$(): Observable<AssignmentCreatedEvent> {
+    return this._assignmentCreated$;
+  }
+
+  get assignmentCancelled$(): Observable<AssignmentCancelledEvent> {
+    return this._assignmentCancelled$;
+  }
+
+  get walletBalanceUpdated$(): Observable<WalletBalanceUpdatedEvent> {
+    return this._walletBalanceUpdated$;
+  }
+
+  get adminStatsUpdated$(): Observable<AdminStatsUpdatedEvent> {
+    return this._adminStatsUpdated$;
+  }
+
+  get connectionStatus$(): Observable<'connected' | 'disconnected' | 'reconnecting'> {
+    return this.ws.status$;
+  }
+
+  subscribeToTracking(trackingNumber: string): void {
+    this.ws.subscribeToTracking(trackingNumber);
+  }
+
+  unsubscribeFromTracking(trackingNumber: string): void {
+    this.ws.unsubscribeFromTracking(trackingNumber);
+  }
+
+  private createEvent$<T>(eventName: string): Observable<T> {
+    return fromEventPattern<T>(
+      (handler) => this.ws.on(eventName, handler),
+      (handler) => this.ws.off(eventName, handler)
+    ).pipe(shareReplay({ bufferSize: 1, refCount: true }));
   }
 }
 ```
 
-### 7.5 Event Consumption Matrix
+### 7.6 Connection Lifecycle Hook
 
-| Event | Consumers | Action |
-|-------|-----------|--------|
-| `shipment:assigned` | Courier app | Add new task to task list |
-| `shipment:status_changed` | Admin dispatch board, Merchant dashboard | Refresh data, show toast |
-| `assignment:created` | Admin dispatch board | Add to unassigned list |
-| `wallet:credited` | Merchant wallet | Show toast, refresh balance |
-| `payout:approved` | Merchant payouts | Update status badge |
-| `courier:alert` | Admin dashboard | Show cash risk alert |
+```typescript
+// libs/core/realtime/src/lib/websocket-connection.guard.ts
+import { Injectable } from '@angular/core';
+import { CanActivateFn } from '@angular/router';
+import { inject } from '@angular/core';
+import { WebSocketService } from './websocket.service';
+import { AuthService } from '@trackora/core/auth';
+
+export const websocketConnectionGuard: CanActivateFn = () => {
+  const ws = inject(WebSocketService);
+  const auth = inject(AuthService);
+
+  if (auth.isAuthenticated()) {
+    ws.connect();
+  }
+
+  auth.user$.subscribe((user) => {
+    if (user) ws.connect();
+    else ws.disconnect();
+  });
+
+  return true;
+};
+```
+
+### 7.7 Platform-Specific Consumption
+
+**Merchant Dashboard:**
+
+| Component / Page | Subscribes To | UI Effect |
+|---|---|---|
+| Shipment List | `shipmentStatusUpdated$` | Animate status badge, toast notification |
+| Shipment Detail | `subscribeToTracking(trackingNumber)` → `shipmentStatusUpdated$` | Live timeline updates |
+| Wallet Page | `walletBalanceUpdated$` | Flash balance, update transaction list |
+| Notifications Bell | All events filtered to `user:{userId}` | Increment badge counter |
+
+**Courier PWA:**
+
+| Component / Page | Subscribes To | UI Effect |
+|---|---|---|
+| Task List | `assignmentCreated$`, `assignmentCancelled$` | New task slides in, cancelled greys out |
+| Active Delivery | `shipmentStatusUpdated$` | Live status update |
+| Notification Popup | `assignmentCreated$` | Vibrate + sound + Arabic toast "طلب توصيل جديد" |
+| Offline Queue | `connectionStatus$` | Show offline banner, queue updates |
+
+**Admin Dashboard:**
+
+| Component / Page | Subscribes To | UI Effect |
+|---|---|---|
+| Dashboard Stats | `adminStatsUpdated$` | Animate counters |
+| Live Map | `shipmentStatusUpdated$` | Move pins, update colors |
+| Monitor | All events | Real-time event log |
+
+### 7.8 Offline / Reconnection Strategy (Courier PWA)
+
+```
+Offline detected (navigator.onLine = false)
+  → Show "Offline Mode" banner
+  → Queue status updates in Dexie
+  → Socket.IO auto-attempts reconnect with backoff
+
+Back online (connection:established fired)
+  → Emit sync:missed with lastEventId from localStorage
+  → Replay queued status updates via HTTP POST /shipments/:id/status
+  → Dismiss "Offline Mode" banner
+```
+
+Store `lastEventId` in `localStorage` — every received event updates this value. On reconnect, send `sync:missed` to fill the gap.
+
+### 7.9 Connection Status UI
+
+```typescript
+// libs/shared/ui/src/lib/connection-indicator/connection-indicator.component.ts
+import { Component, inject } from '@angular/core';
+import { WebSocketEventsService } from '@trackora/core/realtime';
+import { MatSnackBar } from '@angular/material/snack-bar';
+
+@Component({
+  selector: 'app-connection-indicator',
+  standalone: true,
+  template: `
+    <div class="indicator" [class]="status">
+      <span class="dot"></span>
+      <span class="label">{{ label }}</span>
+    </div>
+  `,
+  styles: [`
+    .indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .connected .dot { background: #22C55E; }
+    .reconnecting .dot { background: #F59E0B; animation: pulse 1s infinite; }
+    .disconnected .dot { background: #EF4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  `]
+})
+export class ConnectionIndicatorComponent {
+  private readonly ws = inject(WebSocketEventsService);
+  private readonly snackBar = inject(MatSnackBar);
+
+  status: 'connected' | 'reconnecting' | 'disconnected' = 'disconnected';
+  label = '';
+
+  constructor() {
+    this.ws.connectionStatus$.subscribe((s) => {
+      this.status = s;
+      this.label = s === 'connected' ? 'متصل' : s === 'reconnecting' ? 'جاري الاتصال...' : 'غير متصل';
+      if (s === 'disconnected') {
+        this.snackBar.open('انقطع الاتصال بالخادم', 'إغلاق', { duration: 5000 });
+      }
+    });
+  }
+}
+```
+
+### 7.10 Package Dependencies
+
+```bash
+npm install socket.io-client
+npm install -D @types/socket.io-client
+```
+
+### 7.11 Service Worker Config
+
+Add to `ngsw-config.json`:
+
+```json
+{
+  "externalUrls": [
+    "https://api.trackora.com/ws"
+  ]
+}
+```
+
+The service worker should NOT cache WebSocket traffic — only ensure the PWA shell loads offline.
+
+### 7.12 Event Consumption Matrix
+
+| Event | Merchant | Courier | Admin |
+|-------|----------|---------|-------|
+| `shipment:status_updated` | Toast + refresh list | Refresh active task | Update map + dispatch board |
+| `shipment:created` | Flash new row | — | — |
+| `assignment:created` | — | Vibrate + new task card | Remove from unassigned |
+| `assignment:cancelled` | — | Grey out task | Return to unassigned |
+| `wallet:balance_updated` | Flash balance | — | — |
+| `admin:stats_updated` | — | — | Animate KPI counters |
 
 ---
 

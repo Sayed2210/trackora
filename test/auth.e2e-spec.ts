@@ -163,7 +163,7 @@ describe('AuthController (e2e)', () => {
   });
 
   describe('POST /auth/login', () => {
-    it('should login with valid credentials and return tokens', async () => {
+    it('should login with valid credentials and return tokens and user', async () => {
       mockAuthRepository.findByPhone.mockResolvedValueOnce(mockUser);
 
       const response = await request(app.getHttpServer())
@@ -176,6 +176,9 @@ describe('AuthController (e2e)', () => {
 
       expect(response.body).toHaveProperty('accessToken');
       expect(response.body).toHaveProperty('refreshToken');
+      expect(response.body).toHaveProperty('user');
+      expect(response.body.user.id).toBe(mockUser.id);
+      expect(response.body.user).not.toHaveProperty('passwordHash');
     });
 
     it('should reject invalid phone', async () => {

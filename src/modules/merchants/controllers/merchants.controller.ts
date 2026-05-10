@@ -7,22 +7,25 @@ import {
   Body,
   Query,
   ParseUUIDPipe,
-  UseGuards,
+  Req,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Request } from 'express';
 import { MerchantsService } from '../services/merchants.service';
 import { WalletsService } from '@modules/wallets/services/wallets.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { KycStatus } from '../entities/merchant.entity';
 import { CreateMerchantDto } from '../dtos/create-merchant.dto';
 import { UpdateFeesDto } from '../dtos/update-fees.dto';
 
+interface RequestWithUser extends Request {
+  user: { userId: string; role: UserRole };
+}
+
 @ApiTags('Merchants')
 @ApiBearerAuth()
 @Controller('merchants')
-@UseGuards(JwtAuthGuard)
 export class MerchantsController {
   constructor(
     private readonly merchantsService: MerchantsService,
@@ -30,8 +33,31 @@ export class MerchantsController {
   ) {}
 
   @Post()
-  async create(@Body() dto: CreateMerchantDto) {
-    return this.merchantsService.create(dto, 'temp-user-id');
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
+  async create(@Body() dto: CreateMerchantDto, @Req() req: RequestWithUser) {
+    return this.merchantsService.create(dto, req.user.userId);
+  }
+
+  @Get()
+  @ApiQuery({ name: 'kycStatus', required: false, enum: KycStatus })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async findAll(
+    @Query('kycStatus') kycStatus?: KycStatus,
+    @Query('isActive') isActive?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.merchantsService.findAll({
+      kycStatus,
+      isActive: isActive !== undefined ? isActive === 'true' : undefined,
+      search,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
   }
 
   @Get(':id')

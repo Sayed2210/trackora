@@ -7,11 +7,11 @@ import {
   Body,
   Query,
   ParseUUIDPipe,
-  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AssignmentsService } from '../services/assignments.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import {
@@ -23,18 +23,20 @@ import { ReassignAssignmentDto } from '../dtos/reassign-assignment.dto';
 import { CancelAssignmentDto } from '../dtos/cancel-assignment.dto';
 import { QueryAssignmentsDto } from '../dtos/query-assignments.dto';
 
+interface RequestWithUser extends Request {
+  user: { userId: string; role: UserRole };
+}
+
 @ApiTags('Assignments')
 @ApiBearerAuth()
 @Controller('assignments')
-@UseGuards(JwtAuthGuard)
 export class AssignmentsController {
   constructor(private readonly assignmentsService: AssignmentsService) {}
 
   @Post()
   @Roles(UserRole.OPERATIONS_MANAGER, UserRole.SUPER_ADMIN)
-  async create(@Body() dto: CreateAssignmentDto) {
-    // TODO: Extract assignedByUserId from auth context
-    return this.assignmentsService.createManualAssignments(dto, 'temp-user-id');
+  async create(@Body() dto: CreateAssignmentDto, @Req() req: RequestWithUser) {
+    return this.assignmentsService.createManualAssignments(dto, req.user.userId);
   }
 
   @Get()
@@ -71,12 +73,13 @@ export class AssignmentsController {
   async reassign(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReassignAssignmentDto,
+    @Req() req: RequestWithUser,
   ) {
     return this.assignmentsService.reassign(
       id,
       dto.newCourierId,
       dto.reason,
-      'temp-user-id',
+      req.user.userId,
     );
   }
 
