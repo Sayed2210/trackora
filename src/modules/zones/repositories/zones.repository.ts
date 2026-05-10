@@ -45,7 +45,13 @@ export class ZonesRepository extends AbstractRepository<Zone> {
   async findMany(
     where: ZoneFilter,
     orderBy: { nameAr: 'asc' | 'desc' } = { nameAr: 'asc' },
+    skip?: number,
+    take?: number,
   ): Promise<Zone[]> {
-    return this.delegate.findMany({ where, orderBy });
+    return this.delegate.findMany({ where, orderBy, skip, take });
+  }
+
+  async count(where: ZoneFilter): Promise<number> {
+    return this.delegate.count({ where });
   }
 }
