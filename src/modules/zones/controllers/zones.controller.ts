@@ -16,7 +16,7 @@ import { UserRole } from '@modules/users/entities/user.entity';
 import { ZoneLevel } from '../entities/zone.entity';
 import { CreateZoneDto } from '../dtos/create-zone.dto';
 import { UpdateZoneDto } from '../dtos/update-zone.dto';
-import { ListZonesDto } from '../dtos/list-zones.dto';
+// import { ListZonesDto } from '../dtos/list-zones.dto';
 
 @ApiTags('Zones')
 @ApiBearerAuth()
@@ -35,17 +35,23 @@ export class ZonesController {
   @ApiQuery({ name: 'parentId', required: false })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
   @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   async findAll(
     @Query('level') level?: ZoneLevel,
     @Query('parentId') parentId?: string,
     @Query('isActive') isActive?: string,
     @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.zonesService.findAll({
       level,
       parentId,
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
       search,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
     });
   }
 

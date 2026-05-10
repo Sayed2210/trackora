@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsInt, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { ZoneLevel } from '../entities/zone.entity';
 
 export class ListZonesDto {
@@ -22,4 +23,18 @@ export class ListZonesDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiProperty({ required: false, type: Number, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiProperty({ required: false, type: Number, default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
 }

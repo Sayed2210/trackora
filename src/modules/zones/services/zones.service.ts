@@ -29,7 +29,11 @@ export class ZonesService {
     return this.zonesRepository.create({ ...dto });
   }
 
-  async findAll(query: ListZonesDto): Promise<Zone[]> {
+  async findAll(query: ListZonesDto): Promise<{ data: Zone[]; total: number; page: number; limit: number }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
     const where: Record<string, unknown> = {};
 
     if (query.level !== undefined) {
@@ -49,7 +53,12 @@ export class ZonesService {
       ];
     }
 
-    return this.zonesRepository.findMany(where);
+    const [data, total] = await Promise.all([
+      this.zonesRepository.findMany(where, { nameAr: 'asc' }, skip, limit),
+      this.zonesRepository.count(where),
+    ]);
+
+    return { data, total, page, limit };
   }
 
   async findById(id: string): Promise<Zone> {
