@@ -3,6 +3,12 @@ import { PrismaService } from '@core/prisma/prisma.service';
 import { AbstractRepository } from '@common/database/abstract.repository';
 import { Merchant, KycStatus } from '../entities/merchant.entity';
 
+export interface MerchantFilter {
+  kycStatus?: KycStatus;
+  isActive?: boolean;
+  OR?: Array<Record<string, unknown>>;
+}
+
 @Injectable()
 export class MerchantsRepository extends AbstractRepository<Merchant> {
   constructor(prisma: PrismaService) {
@@ -33,5 +39,18 @@ export class MerchantsRepository extends AbstractRepository<Merchant> {
 
   async findActiveMerchants(): Promise<Merchant[]> {
     return this.delegate.findMany({ where: this.baseWhere });
+  }
+
+  async findMany(
+    where: MerchantFilter,
+    orderBy: { createdAt: 'asc' | 'desc' } = { createdAt: 'desc' },
+    skip?: number,
+    take?: number,
+  ): Promise<Merchant[]> {
+    return this.delegate.findMany({ where, orderBy, skip, take });
+  }
+
+  async count(where: MerchantFilter): Promise<number> {
+    return this.delegate.count({ where });
   }
 }
