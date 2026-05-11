@@ -42,6 +42,7 @@ describe('AuthService', () => {
           provide: AuthRepository,
           useValue: {
             findByPhone: jest.fn(),
+            findByPhoneWithAccounts: jest.fn(),
             findById: jest.fn(),
             create: jest.fn().mockResolvedValue(mockUser),
           },
@@ -143,7 +144,11 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('should return tokens and user for valid credentials', async () => {
-      jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce(mockUser);
+      jest.spyOn(repository, 'findByPhoneWithAccounts').mockResolvedValueOnce({
+        ...mockUser,
+        merchant: { id: 'merchant-1' },
+        courier: null,
+      } as any);
       (bcrypt.compare as jest.Mock).mockResolvedValueOnce(true);
 
       const result = await service.login('01000000001', 'password123');
@@ -152,11 +157,15 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('refreshToken');
       expect(result).toHaveProperty('user');
       expect(result.user.id).toBe(mockUser.id);
+      expect(result.user.merchantId).toBe('merchant-1');
+      expect(result.user.courierId).toBeUndefined();
       expect(result.user).not.toHaveProperty('passwordHash');
     });
 
     it('should throw for invalid phone', async () => {
-      jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce(null);
+      jest
+        .spyOn(repository, 'findByPhoneWithAccounts')
+        .mockResolvedValueOnce(null);
 
       await expect(service.login('01000000001', 'password123')).rejects.toThrow(
         UnauthorizedException,
@@ -164,7 +173,11 @@ describe('AuthService', () => {
     });
 
     it('should throw for invalid password', async () => {
-      jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce(mockUser);
+      jest.spyOn(repository, 'findByPhoneWithAccounts').mockResolvedValueOnce({
+        ...mockUser,
+        merchant: null,
+        courier: null,
+      } as any);
       (bcrypt.compare as jest.Mock).mockResolvedValueOnce(false);
 
       await expect(

@@ -8,6 +8,7 @@ import { UserRole } from '@modules/users/entities/user.entity';
 
 const mockCouriersService = {
   create: jest.fn(),
+  findAll: jest.fn(),
   findById: jest.fn(),
   updateZones: jest.fn(),
   updateAvailability: jest.fn(),
@@ -82,6 +83,28 @@ describe('CouriersController (integration)', () => {
   });
 
   describe('GET /couriers/:id', () => {
+    it('should return paginated couriers', async () => {
+      const result = {
+        data: [mockCourier],
+        meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      };
+      mockCouriersService.findAll.mockResolvedValue(result);
+
+      const res = await request(app.getHttpServer())
+        .get('/couriers?search=ahmed&isActive=true&isAvailable=false&zoneCode=CAI-01&page=1&limit=20')
+        .expect(200);
+
+      expect(res.body).toEqual(JSON.parse(JSON.stringify(result)));
+      expect(mockCouriersService.findAll).toHaveBeenCalledWith({
+        search: 'ahmed',
+        isActive: true,
+        isAvailable: false,
+        zoneCode: 'CAI-01',
+        page: 1,
+        limit: 20,
+      });
+    });
+
     it('should return courier by id', async () => {
       mockCouriersService.findById.mockResolvedValue(mockCourier);
 

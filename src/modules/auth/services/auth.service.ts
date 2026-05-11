@@ -7,7 +7,10 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { RedisService } from '@infrastructure/cache/redis.service';
-import { AuthRepository } from '../repositories/auth.repository';
+import {
+  AuthRepository,
+  AuthUserWithAccounts,
+} from '../repositories/auth.repository';
 import {
   TokenPayload,
   RefreshTokenPayload,
@@ -57,7 +60,7 @@ export class AuthService {
   }
 
   async login(phone: string, password: string) {
-    const user = await this.authRepository.findByPhone(phone);
+    const user = await this.authRepository.findByPhoneWithAccounts(phone);
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
@@ -73,14 +76,7 @@ export class AuthService {
 
     return {
       user: {
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        avatarUrl: user.avatarUrl,
-        phoneVerified: user.phoneVerified,
-        emailVerified: user.emailVerified,
+        ...this.toAuthUser(user),
       },
       ...tokens,
     };
@@ -123,6 +119,26 @@ export class AuthService {
 
   async logout(userId: string): Promise<void> {
     await this.redis.del(`refresh_token:${userId}`);
+  }
+
+  private toAuthUser(user: AuthUserWithAccounts) {
+    return {
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+      role: user.role,
+      roles: [user.role],
+      permissions: [],
+      merchantId: user.merchant?.id,
+      courierId: user.courier?.id,
+      avatarUrl: user.avatarUrl,
+      isActive: user.isActive,
+      phoneVerified: user.phoneVerified,
+      emailVerified: user.emailVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 
   private async generateTokens(userId: string, role: UserRole) {

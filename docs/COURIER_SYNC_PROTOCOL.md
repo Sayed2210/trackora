@@ -96,9 +96,9 @@ If the server status is already ahead of the local update:
 
 ## Photo & Signature
 
-- Base64 encode photos/signatures
-- Include in payload as `photoBase64` / `signatureBase64`
-- Max size: 2MB per image
+- Upload photos/signatures to storage when online.
+- Include returned URLs in payload as `photoUrl` / `signatureUrl`.
+- Keep local blobs queued offline until upload succeeds.
 
 ## Cash Deposit
 

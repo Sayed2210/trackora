@@ -55,7 +55,10 @@ export class CourierAppController {
   }
 
   @Post('deposits')
-  async logDeposit(@Body() dto: CourierDepositDto, @Req() req: RequestWithUser) {
+  async logDeposit(
+    @Body() dto: CourierDepositDto,
+    @Req() req: RequestWithUser,
+    ) {
     return this.courierAppService.logDeposit(req.user.userId, dto);
   }
 

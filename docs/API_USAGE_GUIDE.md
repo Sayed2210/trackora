@@ -20,7 +20,7 @@ Authorization: Bearer <jwt_token>
 ### Obtaining Tokens
 
 1. **Register** → `POST /auth/register`
-2. **Login** → `POST /auth/login` → returns `accessToken` and `refreshToken`
+2. **Login** → `POST /auth/login` → returns `accessToken`, `refreshToken`, and user profile fields including `merchantId` / `courierId`
 3. **Refresh** → `POST /auth/refresh`
 
 ## API Modules
@@ -75,6 +75,16 @@ Authorization: Bearer <jwt_token>
 | POST | `/admin/reports/merchant-delivery` | Per-merchant delivery rates |
 | GET | `/admin/audit-logs` | Filterable audit trail |
 
+### 6. Courier Admin (`/couriers`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/couriers` | List couriers with `search`, `isActive`, `isAvailable`, `zoneCode`, `page`, `limit` |
+| POST | `/couriers` | Create courier profile |
+| GET | `/couriers/:id` | Courier detail |
+| PATCH | `/couriers/:id/zones` | Update courier zones |
+| PATCH | `/couriers/:id/availability` | Set `{ "isAvailable": boolean }` |
+
 ## Rate Limits
 
 - **Default:** 100 requests / minute
@@ -91,13 +101,16 @@ GET /shipments?page=1&limit=20
 
 ## Response Format
 
-Success:
+Most endpoints return the resource payload directly. Paginated list endpoints return:
 ```json
 {
   "data": [...],
-  "total": 100,
-  "page": 1,
-  "limit": 20
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 100,
+    "totalPages": 5
+  }
 }
 ```
 

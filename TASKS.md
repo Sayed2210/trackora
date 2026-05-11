@@ -160,6 +160,7 @@
   - `updateAvailability(id, isAvailable)`
 - [x] **TASK-048:** Create `CourierController` with endpoints:
   - `POST /couriers`
+  - `GET /couriers`
   - `GET /couriers/:id`
   - `PATCH /couriers/:id/zones`
   - `PATCH /couriers/:id/availability`
@@ -333,7 +334,7 @@ This sprint provides the **backend APIs** consumed by the separate Courier PWA (
 - [x] **TASK-101:** Create `PATCH /courier/tasks/:id/status` endpoint
   - Accept status: DELIVERED, FAILED, POSTPONED
   - Validate OTP for COD deliveries
-  - Accept photoBase64, signatureBase64, gpsLocation
+  - Accept photoUrl, signatureUrl, gpsLocation
   - Update courier.cashHeld on COD delivery
 
 ### Courier Sync API
@@ -440,12 +441,12 @@ This sprint provides the **backend APIs** consumed by the separate Courier PWA (
 ## Sprint 7: Admin & Merchant APIs + Polish (Week 7-8)
 
 ### Merchant Dashboard API
-- [x] **TASK-128:** Create `GET /merchant/dashboard` endpoint
+- [x] **TASK-128:** Create `GET /merchant/:id/dashboard` endpoint
   - Shipment counts (total, pending, in transit, delivered, returned)
   - Delivery success rate
   - Average COD amount
   - Recent activity (last 5 shipments)
-- [x] **TASK-129:** Create `GET /merchant/analytics` endpoint
+- [x] **TASK-129:** Create `GET /merchant/:id/analytics` endpoint
   - Success rate trend (7d, 30d, 90d)
   - Return reasons breakdown
   - Zone performance metrics
