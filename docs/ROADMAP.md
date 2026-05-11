@@ -184,7 +184,7 @@ This roadmap breaks the Logistics & COD Shipment Management SaaS into 3 phases o
 | Task | Owner | Deliverable |
 |------|-------|-------------|
 | Excel/CSV template | Backend Dev | Downloadable template |
-| Bulk upload API | Backend Dev | POST /shipments/bulk |
+| Bulk upload API | Backend Dev | POST /shipments/bulk-upload |
 | Validation engine | Backend Dev | Row-by-row validation |
 | Background processing | Backend Dev | BullMQ job for large files |
 | Progress tracking | Frontend Dev | Upload progress, error report |

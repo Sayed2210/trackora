@@ -2,6 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { AbstractRepository } from '@common/database/abstract.repository';
 import { Courier } from '../entities/courier.entity';
+import { AssignmentStatus } from '@prisma/client';
+
+export interface CourierFilter {
+  search?: string;
+  isActive?: boolean;
+  isAvailable?: boolean;
+  zoneCode?: string;
+}
 
 @Injectable()
 export class CouriersRepository extends AbstractRepository<Courier> {
@@ -38,5 +46,64 @@ export class CouriersRepository extends AbstractRepository<Courier> {
         zoneCodes: { has: zoneCode },
       },
     });
+  }
+
+  async findWithFilters(
+    filters: CourierFilter,
+    skip: number,
+    take: number,
+  ) {
+    const where = this.buildWhere(filters);
+    const [data, total] = await Promise.all([
+      this.delegate.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: { user: true },
+      }),
+      this.delegate.count({ where }),
+    ]);
+
+    return { data, total };
+  }
+
+  async countActiveTasksByCourierIds(
+    courierIds: string[],
+  ): Promise<Map<string, number>> {
+    if (courierIds.length === 0) return new Map();
+
+    const grouped = await this.prisma.assignment.groupBy({
+      by: ['courierId'],
+      where: {
+        courierId: { in: courierIds },
+        status: AssignmentStatus.ACTIVE,
+      },
+      _count: { _all: true },
+    });
+
+    return new Map(
+      grouped.map((item) => [item.courierId, item._count._all]),
+    );
+  }
+
+  private buildWhere(filters: CourierFilter): Record<string, unknown> {
+    const where: Record<string, unknown> = {};
+
+    if (filters.isActive !== undefined) where.isActive = filters.isActive;
+    if (filters.isAvailable !== undefined)
+      where.isAvailable = filters.isAvailable;
+    if (filters.zoneCode) where.zoneCodes = { has: filters.zoneCode };
+    if (filters.search) {
+      where.OR = [
+        { employeeId: { contains: filters.search, mode: 'insensitive' } },
+        { licensePlate: { contains: filters.search, mode: 'insensitive' } },
+        { user: { name: { contains: filters.search, mode: 'insensitive' } } },
+        { user: { phone: { contains: filters.search, mode: 'insensitive' } } },
+        { user: { email: { contains: filters.search, mode: 'insensitive' } } },
+      ];
+    }
+
+    return where;
   }
 }

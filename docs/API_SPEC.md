@@ -2,13 +2,13 @@
 
 ## Overview
 
-RESTful API design for the Logistics & COD Shipment Management SaaS. All endpoints are versioned under `/api/v1`.
+RESTful API design for the Logistics & COD Shipment Management SaaS. Runtime routes are versioned under `/v1`; deployments may expose that under an `/api` gateway prefix.
 
 ## Base URL
 
 ```
-Production:  https://api.trackora.com/api/v1
-Staging:     https://api-staging.trackora.com/api/v1
+Production:  https://api.trackora.com/v1
+Staging:     https://api-staging.trackora.com/v1
 ```
 
 ## Authentication
@@ -33,19 +33,17 @@ Authorization: Bearer <jwt_access_token>
 
 ### Response Format
 
-All responses follow this envelope structure:
+The current API returns raw resource payloads for most endpoints. Paginated list endpoints return a list payload with pagination metadata, usually `{ "data": [...], "meta": { ... } }`. Older clients may still tolerate the legacy `{ "success": true, "data": ... }` envelope during migration.
 
 ```json
 {
-  "success": true,
-  "data": { },
+  "data": [],
   "meta": {
     "page": 1,
     "limit": 20,
     "total": 150,
     "totalPages": 8
-  },
-  "error": null
+  }
 }
 ```
 
@@ -101,17 +99,18 @@ Login with phone/password or request OTP.
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "accessToken": "eyJhbG...",
-    "refreshToken": "eyJhbG...",
-    "expiresIn": 900,
-    "user": {
-      "id": "uuid",
-      "name": "Ahmed",
-      "role": "MERCHANT",
-      "phoneVerified": true
-    }
+  "accessToken": "eyJhbG...",
+  "refreshToken": "eyJhbG...",
+  "expiresIn": 900,
+  "user": {
+    "id": "uuid",
+    "name": "Ahmed",
+    "role": "MERCHANT",
+    "roles": ["MERCHANT"],
+    "permissions": [],
+    "merchantId": "merchant-uuid",
+    "courierId": null,
+    "phoneVerified": true
   }
 }
 ```
@@ -285,7 +284,7 @@ Create a new shipment.
 
 **Response:** 201 Created
 
-### POST /shipments/bulk
+### POST /shipments/bulk-upload
 
 Bulk upload shipments via Excel/CSV.
 
@@ -318,21 +317,7 @@ Update shipment status (courier and admin).
 }
 ```
 
-### PATCH /shipments/:id/assign
-
-Assign shipment to courier (admin only).
-
-**Request:**
-```json
-{
-  "courierId": "uuid",
-  "type": "MANUAL"
-}
-```
-
-### DELETE /shipments/:id
-
-Soft delete shipment (only if status is PENDING).
+Manual assignment is handled by `POST /assignments`.
 
 ---
 
@@ -354,7 +339,7 @@ Create manual assignment.
 {
   "shipmentIds": ["uuid1", "uuid2"],
   "courierId": "uuid",
-  "type": "MANUAL"
+  "reason": "Manual dispatch from board"
 }
 ```
 
@@ -573,22 +558,19 @@ Get today's tasks for logged-in courier.
 
 **Response:**
 ```json
-{
-  "success": true,
-  "data": [
-    {
-      "shipmentId": "uuid",
-      "trackingNumber": "TRK-240502-A1B2",
-      "customerName": "Mohamed Ali",
-      "customerPhoneMasked": "0100*****01",
-      "addressText": "Maadi, Cairo",
-      "codAmount": 450.00,
-      "status": "OUT_FOR_DELIVERY",
-      "orderInRoute": 1,
-      "mapUrl": "https://maps.google.com/?q=29.96,31.25"
-    }
-  ]
-}
+[
+  {
+    "shipmentId": "uuid",
+    "trackingNumber": "TRK-240502-A1B2",
+    "customerName": "Mohamed Ali",
+    "customerPhoneMasked": "0100*****01",
+    "addressText": "Maadi, Cairo",
+    "codAmount": 450.00,
+    "status": "OUT_FOR_DELIVERY",
+    "orderInRoute": 1,
+    "mapUrl": "https://maps.google.com/?q=29.96,31.25"
+  }
+]
 ```
 
 ### PATCH /courier/tasks/:id/status
@@ -601,8 +583,8 @@ Update task status.
   "status": "DELIVERED",
   "otp": "1234",
   "collectedCash": 450.00,
-  "photoBase64": "base64encoded...",
-  "signatureBase64": "base64encoded...",
+  "photoUrl": "https://storage.example/proof.jpg",
+  "signatureUrl": "https://storage.example/signature.png",
   "gpsLocation": { "lat": 29.96, "lng": 31.25 },
   "notes": "Left with neighbor"
 }
@@ -628,17 +610,14 @@ Get courier performance metrics.
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "score": 87,
-    "totalDelivered": 245,
-    "totalFailed": 12,
-    "successRate": 95.3,
-    "avgDeliveryTimeMinutes": 28,
-    "cashHeld": 3200.00,
-    "rank": 3,
-    "weeklyTrend": [85, 86, 87, 88, 87]
-  }
+  "score": 87,
+  "totalDelivered": 245,
+  "totalFailed": 12,
+  "successRate": 95.3,
+  "avgDeliveryTimeMinutes": 28,
+  "cashHeld": 3200.00,
+  "rank": 3,
+  "weeklyTrend": [85, 86, 87, 88, 87]
 }
 ```
 
@@ -734,65 +713,77 @@ Query audit logs.
 **Query Parameters:**
 - userId, action, entityType, entityId, from, to, page, limit
 
+### GET /couriers
+
+List couriers for admin dispatch and courier management.
+
+**Query Parameters:**
+- search, isActive, isAvailable, zoneCode, page, limit
+
+### PATCH /couriers/:id/availability
+
+Set courier availability explicitly.
+
+**Request:**
+```json
+{
+  "isAvailable": true
+}
+```
+
 ---
 
 ## Merchant Portal Endpoints
 
-### GET /merchant/dashboard
+### GET /merchant/:id/dashboard
 
 Get merchant dashboard data.
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "shipments": {
-      "total": 120,
-      "pending": 15,
-      "inTransit": 45,
-      "delivered": 55,
-      "returned": 5
-    },
-    "deliveryRate": 91.7,
-    "avgCodAmount": 320.50,
-    "wallet": {
-      "balance": 2340.50,
-      "pending": 1200.00
-    },
-    "recentActivity": [
-      { "type": "DELIVERED", "trackingNumber": "TRK-xxx", "amount": 450, "time": "2 hours ago" }
-    ]
-  }
+  "shipments": {
+    "total": 120,
+    "pending": 15,
+    "inTransit": 45,
+    "delivered": 55,
+    "returned": 5
+  },
+  "deliveryRate": 91.7,
+  "avgCodAmount": 320.50,
+  "wallet": {
+    "balance": 2340.50,
+    "pending": 1200.00
+  },
+  "recentActivity": [
+    { "type": "DELIVERED", "trackingNumber": "TRK-xxx", "amount": 450, "time": "2 hours ago" }
+  ]
 }
 ```
 
-### GET /merchant/analytics
+### GET /merchant/:id/analytics
 
 Get delivery analytics.
 
 **Query Parameters:**
-- period (7d, 30d, 90d)
+- days
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "successRate": { "current": 92.5, "previous": 89.0, "trend": "up" },
-    "returnReasons": [
-      { "reason": "CUSTOMER_NOT_AVAILABLE", "count": 12, "percentage": 40 },
-      { "reason": "CUSTOMER_REFUSED", "count": 8, "percentage": 27 }
-    ],
-    "zonePerformance": [
-      { "zone": "Maadi", "delivered": 45, "failed": 3, "rate": 93.8 },
-      { "zone": "Nasr City", "delivered": 32, "failed": 8, "rate": 80.0 }
-    ],
-    "codTrend": [
-      { "date": "2024-04-26", "collected": 3200 },
-      { "date": "2024-04-27", "collected": 4100 }
-    ]
-  }
+  "successRate": { "current": 92.5, "previous": 89.0, "trend": "up" },
+  "returnReasons": [
+    { "reason": "CUSTOMER_NOT_AVAILABLE", "count": 12, "percentage": 40 },
+    { "reason": "CUSTOMER_REFUSED", "count": 8, "percentage": 27 }
+  ],
+  "zonePerformance": [
+    { "zone": "Maadi", "delivered": 45, "failed": 3, "rate": 93.8 },
+    { "zone": "Nasr City", "delivered": 32, "failed": 8, "rate": 80.0 }
+  ],
+  "codTrend": [
+    { "date": "2024-04-26", "collected": 3200 },
+    { "date": "2024-04-27", "collected": 4100 }
+  ]
 }
 ```
 
