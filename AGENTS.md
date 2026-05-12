@@ -216,3 +216,8 @@ If I am unsure about:
 
 *Last updated: 2026-05-03*
 *Version: 1.1*
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
