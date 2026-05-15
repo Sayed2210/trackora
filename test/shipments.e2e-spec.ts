@@ -25,6 +25,11 @@ jest.mock('bcryptjs', () => ({
 
 const SHIPMENT_ID = '123e4567-e89b-12d3-a456-426614174000';
 
+type TestUser = {
+  id: string;
+  role: UserRole;
+};
+
 const merchantUser = {
   id: '223e4567-e89b-12d3-a456-426614174001',
   email: 'merchant@test.com',
@@ -219,7 +224,7 @@ describe('ShipmentsController (e2e)', () => {
     await app.close();
   });
 
-  function getToken(user: typeof merchantUser): string {
+  function getToken(user: TestUser): string {
     return jwtService.sign({ sub: user.id, role: user.role, type: 'access' });
   }
 
