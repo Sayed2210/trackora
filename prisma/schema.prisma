@@ -302,7 +302,7 @@ model ShipmentStatusLog {
 
 model Assignment {
   id                 String           @id @default(uuid())
-  shipmentId         String           @unique
+  shipmentId         String
   courierId          String
   assignedByUserId   String?
   assignmentType     AssignmentType
@@ -316,6 +316,7 @@ model Assignment {
   courier    Courier  @relation(fields: [courierId], references: [id])
   assignedBy User?    @relation("AssignmentCreator", fields: [assignedByUserId], references: [id])
 
+  @@index([shipmentId, status])
   @@index([courierId, status])
   @@index([assignedAt])
 }
