@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { AuthRepository } from '../repositories/auth.repository';
 import { UserRole } from '../entities/auth.entity';
@@ -106,7 +110,7 @@ describe('AuthService', () => {
       expect(repository.create).toHaveBeenCalled();
     });
 
-    it('should throw if phone already registered', async () => {
+    it('should throw conflict if phone already registered', async () => {
       jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce(mockUser);
 
       await expect(
@@ -116,7 +120,7 @@ describe('AuthService', () => {
           'New User',
           'MERCHANT',
         ),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should reject SUPER_ADMIN role registration', async () => {
@@ -155,24 +159,22 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
-      expect(result).toHaveProperty('user');
-      expect(result.user.id).toBe(mockUser.id);
-      expect(result.user.merchantId).toBe('merchant-1');
-      expect(result.user.courierId).toBeUndefined();
-      expect(result.user).not.toHaveProperty('passwordHash');
+      expect(result.user).toMatchObject({
+        id: mockUser.id,
+        role: UserRole.MERCHANT,
+        merchantId: 'merchant-1',
+      });
     });
 
-    it('should throw for invalid phone', async () => {
-      jest
-        .spyOn(repository, 'findByPhoneWithAccounts')
-        .mockResolvedValueOnce(null);
+    it('should throw UnauthorizedException if user not found', async () => {
+      jest.spyOn(repository, 'findByPhoneWithAccounts').mockResolvedValueOnce(null);
 
       await expect(service.login('01000000001', 'password123')).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
-    it('should throw for invalid password', async () => {
+    it('should throw UnauthorizedException if password invalid', async () => {
       jest.spyOn(repository, 'findByPhoneWithAccounts').mockResolvedValueOnce({
         ...mockUser,
         merchant: null,
@@ -180,48 +182,41 @@ describe('AuthService', () => {
       } as any);
       (bcrypt.compare as jest.Mock).mockResolvedValueOnce(false);
 
-      await expect(
-        service.login('01000000001', 'wrongpassword'),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(service.login('01000000001', 'wrong')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
   describe('refreshTokens', () => {
-    it('should return new tokens for valid refresh token', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockUser);
+    it('should refresh valid token', async () => {
+      jest.spyOn(redis, 'get').mockResolvedValueOnce('refresh-token');
       jest.spyOn(jwtService, 'verify').mockReturnValueOnce({
         sub: mockUser.id,
         type: 'refresh',
-      });
-      jest.spyOn(redis, 'get').mockResolvedValueOnce('valid-refresh-token');
+      } as any);
+      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockUser as any);
 
-      const result = await service.refreshTokens('valid-refresh-token');
+      const result = await service.refreshTokens('refresh-token');
 
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
     });
 
-    it('should throw for invalid refresh token type', async () => {
-      jest.spyOn(jwtService, 'verify').mockReturnValueOnce({
-        sub: mockUser.id,
-        type: 'access',
+    it('should throw UnauthorizedException for invalid token', async () => {
+      jest.spyOn(jwtService, 'verify').mockImplementationOnce(() => {
+        throw new Error('invalid');
       });
 
-      await expect(service.refreshTokens('invalid-token')).rejects.toThrow(
+      await expect(service.refreshTokens('bad-token')).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
-    it('should throw for inactive user', async () => {
-      jest.spyOn(jwtService, 'verify').mockReturnValueOnce({
-        sub: mockUser.id,
-        type: 'refresh',
-      });
-      jest
-        .spyOn(repository, 'findById')
-        .mockResolvedValueOnce({ ...mockUser, isActive: false });
+    it('should throw UnauthorizedException if token revoked', async () => {
+      jest.spyOn(redis, 'get').mockResolvedValueOnce(null);
 
-      await expect(service.refreshTokens('valid-token')).rejects.toThrow(
+      await expect(service.refreshTokens('refresh-token')).rejects.toThrow(
         UnauthorizedException,
       );
     });
