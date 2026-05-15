@@ -61,8 +61,10 @@ Authorization: Bearer <jwt_token>
 |--------|----------|-------------|
 | GET | `/merchant/:id/dashboard` | Shipment counts, success rate, recent activity |
 | GET | `/merchant/:id/analytics` | Trends, zone performance, COD collection |
-| GET | `/merchant/:id/wallet` | Wallet balance |
-| GET | `/merchant/:id/wallet/transactions` | Transaction history |
+| GET | `/merchants/:id/wallet` | Wallet balance |
+| GET | `/merchants/:id/wallet/transactions` | Transaction history |
+| GET | `/payouts` | Payout history |
+| POST | `/payouts` | Request payout |
 
 ### 5. Admin (`/admin`)
 

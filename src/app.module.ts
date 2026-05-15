@@ -15,6 +15,7 @@ import { AssignmentsModule } from '@modules/assignments/assignments.module';
 import { AdminModule } from '@modules/admin/admin.module';
 import { ZonesModule } from '@modules/zones/zones.module';
 import { WebSocketModule } from '@modules/websocket/websocket.module';
+import { PayoutsModule } from '@modules/payouts/payouts.module';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/roles.guard';
 
@@ -33,6 +34,7 @@ import { RolesGuard } from '@common/guards/roles.guard';
     AdminModule,
     ZonesModule,
     WebSocketModule,
+    PayoutsModule,
   ],
   controllers: [AppController],
   providers: [

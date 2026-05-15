@@ -1,11 +1,11 @@
 import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { OtpService } from '../services/otp.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Public } from '@common/decorators/public.decorator';
-import { RegisterDto, LoginDto, RefreshTokenDto } from '../dtos';
+import { RegisterDto, LoginDto, RefreshTokenDto, LoginResponseDto } from '../dtos';
 
 interface RequestWithUser extends Request {
   user: { userId: string };
@@ -29,6 +29,7 @@ export class AuthController {
   @Post('login')
   @Public()
   @ApiOperation({ summary: 'Login with phone and password' })
+  @ApiCreatedResponse({ type: LoginResponseDto })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto.phone, dto.password);
   }

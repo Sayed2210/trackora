@@ -370,34 +370,28 @@ Cancel assignment.
 
 ## Wallet Endpoints
 
-### GET /wallets
-
-List wallets (admin: all, merchant: own).
-
 ### GET /wallets/:id
 
-Get wallet details.
+Get wallet details by wallet ID (finance/admin only).
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "uuid",
-    "merchantId": "uuid",
-    "balance": 2340.50,
-    "pendingBalance": 1200.00,
-    "totalCredited": 15000.00,
-    "totalDebited": 12659.50,
-    "currency": "EGP",
-    "lastSettlementAt": "2024-05-01T00:00:00Z"
-  }
+  "id": "uuid",
+  "merchantId": "uuid",
+  "balance": 2340.50,
+  "availableBalance": 2340.50,
+  "pendingBalance": 1200.00,
+  "totalCredited": 15000.00,
+  "totalDebited": 12659.50,
+  "currency": "EGP",
+  "updatedAt": "2024-05-01T00:00:00Z"
 }
 ```
 
 ### GET /wallets/:id/transactions
 
-Get transaction history.
+Get transaction history by wallet ID (finance/admin only).
 
 **Query Parameters:**
 - type, from, to, page, limit
@@ -405,7 +399,6 @@ Get transaction history.
 **Response:**
 ```json
 {
-  "success": true,
   "data": [
     {
       "id": "uuid",
@@ -425,24 +418,23 @@ Get transaction history.
       "shipmentId": "uuid",
       "createdAt": "2024-05-02T14:00:00Z"
     }
-  ]
+  ],
+  "total": 2,
+  "page": 1,
+  "limit": 20
 }
 ```
 
-### POST /wallets/:id/adjust
+### GET /merchants/:id/wallet
 
-Admin adjustment with reason.
+Get merchant wallet balance. Merchant portal uses authenticated `merchantId` from login profile for this route.
 
-**Request:**
-```json
-{
-  "amount": 50.00,
-  "type": "ADJUSTMENT_CREDIT",
-  "reason": "Correction for overcharged fee on TRK-xxx"
-}
-```
+### GET /merchants/:id/wallet/transactions
 
----
+Get merchant wallet transaction history.
+
+**Query Parameters:**
+- type, from, to, page, limit
 
 ## Payout Endpoints
 
@@ -473,7 +465,8 @@ Request payout (merchant only).
 **Validation:**
 - amount >= minimumPayoutThreshold (EGP 500)
 - amount <= available balance
-- No pending payouts for this merchant
+- No open payout (`PENDING`, `APPROVED`, or `PROCESSING`) for this merchant
+- Creates a `PAYOUT_DEBIT` transaction immediately
 
 ### PATCH /payouts/:id/approve
 
@@ -492,7 +485,7 @@ Mark payout as completed with reference.
 
 ### PATCH /payouts/:id/reject
 
-Reject payout.
+Reject payout and restore wallet balance with `ADJUSTMENT_CREDIT`.
 
 **Request:**
 ```json

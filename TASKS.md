@@ -416,10 +416,10 @@ This sprint provides the **backend APIs** consumed by the separate Courier PWA (
 - [x] **TASK-121:** Read fee structure from merchant config
 
 ### Merchant Wallet API
-- [x] **TASK-122:** Create `GET /merchant/wallet` endpoint
+- [x] **TASK-122:** Create `GET /merchants/:id/wallet` endpoint
   - Balance, pending balance, available balance
   - Total credited, total debited
-- [x] **TASK-123:** Create `GET /merchant/wallet/transactions` endpoint
+- [x] **TASK-123:** Create `GET /merchants/:id/wallet/transactions` endpoint
   - Transaction history with pagination
   - Filter by type, date range
 

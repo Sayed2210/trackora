@@ -38,23 +38,32 @@ export class WalletsService {
   }
 
   async getBalance(merchantId: string): Promise<{
+    id: string;
+    merchantId: string;
     balance: number;
+    availableBalance: number;
     pendingBalance: number;
     totalCredited: number;
     totalDebited: number;
     currency: string;
+    updatedAt: Date;
   }> {
     const wallet = await this.walletsRepository.findByMerchantId(merchantId);
     if (!wallet) {
       throw new NotFoundException('Wallet not found for merchant');
     }
 
+    const balance = Number(wallet.balance);
     return {
-      balance: Number(wallet.balance),
+      id: wallet.id,
+      merchantId: wallet.merchantId,
+      balance,
+      availableBalance: balance,
       pendingBalance: Number(wallet.pendingBalance),
       totalCredited: Number(wallet.totalCredited),
       totalDebited: Number(wallet.totalDebited),
       currency: wallet.currency,
+      updatedAt: wallet.updatedAt,
     };
   }
 
