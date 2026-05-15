@@ -18,6 +18,7 @@ import { Request } from 'express';
 import { ShipmentsService } from '../services/shipments.service';
 import { BulkUploadService } from '../services/bulk-upload.service';
 import { Roles } from '@common/decorators/roles.decorator';
+import { Public } from '@common/decorators/public.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { ShipmentStatus } from '../entities/shipment.entity';
 import { CreateShipmentDto } from '../dtos/create-shipment.dto';
@@ -144,14 +145,15 @@ export class ShipmentsController {
     );
   }
 
-  @Get(':id')
-  async findById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.shipmentsService.findById(id);
-  }
-
+  @Public()
   @Get('tracking/:trackingNumber')
   async findByTrackingNumber(@Param('trackingNumber') trackingNumber: string) {
     return this.shipmentsService.findByTrackingNumber(trackingNumber);
+  }
+
+  @Get(':id')
+  async findById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.shipmentsService.findById(id);
   }
 
   @Get(':id/timeline')
