@@ -23,14 +23,15 @@ export interface MerchantDashboardData {
 }
 
 export interface MerchantAnalyticsData {
-  successRateTrend: Array<{ date: string; rate: number }>;
-  returnReasons: Array<{ reason: string; count: number }>;
+  successRate: { current: number; previous: number; trend: 'up' | 'down' | 'flat' };
+  returnReasons: Array<{ reason: string; count: number; percentage: number }>;
   zonePerformance: Array<{
-    zoneName: string;
+    zone: string;
     delivered: number;
-    returned: number;
+    failed: number;
+    rate: number;
   }>;
-  codCollectionTrend: Array<{ date: string; totalCod: number }>;
+  codTrend: Array<{ date: string; collected: number }>;
 }
 
 @Injectable()
@@ -162,9 +163,14 @@ export class MerchantDashboardService {
       _count: { id: true },
     });
 
+    const returnedTotal = returnedShipments.reduce((sum, r) => sum + r._count.id, 0);
     const returnReasons = returnedShipments.map((r) => ({
       reason: r.returnReason || 'UNKNOWN',
       count: r._count.id,
+      percentage:
+        returnedTotal > 0
+          ? parseFloat(((r._count.id / returnedTotal) * 100).toFixed(1))
+          : 0,
     }));
 
     // Zone performance
@@ -187,11 +193,29 @@ export class MerchantDashboardService {
         : [];
 
     const zoneMap = new Map(zones.map((z) => [z.id, z.nameAr]));
-    const zonePerformance = zoneStats.map((z) => ({
-      zoneName: zoneMap.get(z.zoneId || '') || 'Unknown',
-      delivered: 0, // Simplified; precise counts require more queries
-      returned: z._count.id,
-    }));
+    const zonePerformance = await Promise.all(
+      zoneStats.map(async (z) => {
+        const zoneId = z.zoneId || undefined;
+        const [deliveredCount, failedCount] = await Promise.all([
+          this.prisma.shipment.count({
+            where: { merchantId, zoneId, status: ShipmentStatus.DELIVERED },
+          }),
+          this.prisma.shipment.count({
+            where: { merchantId, zoneId, status: ShipmentStatus.RETURNED },
+          }),
+        ]);
+        const completed = deliveredCount + failedCount;
+        return {
+          zone: zoneMap.get(z.zoneId || '') || 'Unknown',
+          delivered: deliveredCount,
+          failed: failedCount,
+          rate:
+            completed > 0
+              ? parseFloat(((deliveredCount / completed) * 100).toFixed(1))
+              : 0,
+        };
+      }),
+    );
 
     // COD collection trend
     const codShipments = await this.prisma.shipment.findMany({
@@ -213,18 +237,24 @@ export class MerchantDashboardService {
       codDailyMap.set(date, (codDailyMap.get(date) || 0) + Number(s.codAmount));
     }
 
-    const codCollectionTrend = Array.from(codDailyMap.entries())
+    const codTrend = Array.from(codDailyMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, totalCod]) => ({
+      .map(([date, collected]) => ({
         date,
-        totalCod: parseFloat(totalCod.toFixed(2)),
+        collected: parseFloat(collected.toFixed(2)),
       }));
 
+    const current = successRateTrend.at(-1)?.rate ?? 0;
+    const previous = successRateTrend.at(-2)?.rate ?? current;
     return {
-      successRateTrend,
+      successRate: {
+        current,
+        previous,
+        trend: current > previous ? 'up' : current < previous ? 'down' : 'flat',
+      },
       returnReasons,
       zonePerformance,
-      codCollectionTrend,
+      codTrend,
     };
   }
 }

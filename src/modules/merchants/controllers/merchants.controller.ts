@@ -9,7 +9,7 @@ import {
   ParseUUIDPipe,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { Request } from 'express';
 import { MerchantsService } from '../services/merchants.service';
 import { WalletsService } from '@modules/wallets/services/wallets.service';
@@ -18,6 +18,7 @@ import { UserRole } from '@modules/users/entities/user.entity';
 import { KycStatus } from '../entities/merchant.entity';
 import { CreateMerchantDto } from '../dtos/create-merchant.dto';
 import { UpdateFeesDto } from '../dtos/update-fees.dto';
+import { WalletTransactionsQueryDto } from '@modules/wallets/dtos/wallet-transactions-query.dto';
 
 interface RequestWithUser extends Request {
   user: { userId: string; role: UserRole };
@@ -85,6 +86,7 @@ export class MerchantsController {
 
   @Get(':id/wallet')
   @Roles(UserRole.SUPER_ADMIN, UserRole.FINANCE_ADMIN, UserRole.MERCHANT)
+  @ApiOkResponse({ description: 'Merchant wallet balance' })
   async getWallet(@Param('id', ParseUUIDPipe) id: string) {
     return this.walletsService.getBalance(id);
   }
@@ -93,18 +95,14 @@ export class MerchantsController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.FINANCE_ADMIN, UserRole.MERCHANT)
   async getWalletTransactions(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('type') type?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: WalletTransactionsQueryDto,
   ) {
     return this.walletsService.getTransactions(id, {
-      type: type as import('@prisma/client').TransactionType,
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 20,
+      type: query.type,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+      page: query.page,
+      limit: query.limit,
     });
   }
 }

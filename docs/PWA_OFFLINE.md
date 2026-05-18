@@ -43,8 +43,8 @@ interface PendingUpdate {
     status?: ShipmentStatus;
     collectedCash?: number;
     notes?: string;
-    photoBase64?: string;        // Max 500KB, JPEG compressed
-    signatureBase64?: string;    // Max 100KB
+    photoUrl?: string;
+    signatureUrl?: string;
     gpsLocation?: { lat: number; lng: number };
     timestamp: string;           // ISO 8601 local time
     deviceInfo?: { os: string; appVersion: string };
@@ -198,7 +198,7 @@ async function syncSingleUpdate(update: PendingUpdate, db: IDBDatabase): Promise
   await db.put('pending_updates', { ...update, syncStatus: 'SYNCING' });
   
   try {
-    const response = await fetch('/api/v1/courier/sync', {
+    const response = await fetch('/v1/courier/sync', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

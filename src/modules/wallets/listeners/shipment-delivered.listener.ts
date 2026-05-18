@@ -87,12 +87,13 @@ export class ShipmentDeliveredListener {
           const currentTotalCredited = Number(wallet.totalCredited);
           const currentTotalDebited = Number(wallet.totalDebited);
 
+          const grossCod = breakdown.grossCod;
           const netCredit = breakdown.netCredit;
           const commission = breakdown.commission;
           const fee = breakdown.fee;
 
-          const newBalance = currentBalance + netCredit - commission - fee;
-          const newTotalCredited = currentTotalCredited + netCredit;
+          const newBalance = currentBalance + netCredit;
+          const newTotalCredited = currentTotalCredited + grossCod;
           const newTotalDebited = currentTotalDebited + commission + fee;
           const newVersion = currentVersion + 1;
 
@@ -117,9 +118,9 @@ export class ShipmentDeliveredListener {
               walletId: wallet.id,
               shipmentId,
               type: TransactionType.COD_CREDIT,
-              amount: netCredit,
-              runningBalance: runningBalance + netCredit,
-              description: `COD credit for shipment ${shipmentId} (net after fees)`,
+              amount: grossCod,
+              runningBalance: runningBalance + grossCod,
+              description: `Gross COD credit for shipment ${shipmentId}`,
               metadata: {
                 grossCod: breakdown.grossCod,
                 commission: breakdown.commission,
@@ -129,7 +130,7 @@ export class ShipmentDeliveredListener {
               },
             },
           });
-          runningBalance += netCredit;
+          runningBalance += grossCod;
 
           if (commission > 0) {
             await tx.transaction.create({

@@ -75,10 +75,14 @@ describe('MerchantDashboardService', () => {
 
       const result = await service.getAnalytics('merchant-1', 7);
 
-      expect(result.successRateTrend).toEqual([]);
+      expect(result.successRate).toEqual({
+        current: 0,
+        previous: 0,
+        trend: 'flat',
+      });
       expect(result.returnReasons).toEqual([]);
       expect(result.zonePerformance).toEqual([]);
-      expect(result.codCollectionTrend).toEqual([]);
+      expect(result.codTrend).toEqual([]);
     });
   });
 });

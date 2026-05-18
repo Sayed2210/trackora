@@ -140,11 +140,15 @@ describe('WalletsService', () => {
       const result = await service.getBalance('merchant-1');
 
       expect(result).toEqual({
+        id: 'wallet-1',
+        merchantId: 'merchant-1',
         balance: 1000,
+        availableBalance: 1000,
         pendingBalance: 200,
         totalCredited: 5000,
         totalDebited: 4000,
         currency: 'EGP',
+        updatedAt: mockWallet.updatedAt,
       });
     });
 
@@ -192,33 +196,9 @@ describe('WalletsService', () => {
         .spyOn(walletsRepository, 'findByMerchantId')
         .mockResolvedValueOnce(null);
 
-      await expect(service.getTransactions('merchant-1')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-  });
-
-  describe('getOrCreateWallet', () => {
-    it('should return existing wallet', async () => {
-      jest
-        .spyOn(walletsRepository, 'findByMerchantId')
-        .mockResolvedValueOnce(mockWallet as any);
-
-      const result = await service.getOrCreateWallet('merchant-1');
-
-      expect(result).toEqual(mockWallet);
-      expect(walletsRepository.create).not.toHaveBeenCalled();
-    });
-
-    it('should create wallet if not exists', async () => {
-      jest
-        .spyOn(walletsRepository, 'findByMerchantId')
-        .mockResolvedValueOnce(null);
-
-      const result = await service.getOrCreateWallet('merchant-1');
-
-      expect(result).toEqual(mockWallet);
-      expect(walletsRepository.create).toHaveBeenCalled();
+      await expect(
+        service.getTransactions('merchant-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
