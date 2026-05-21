@@ -17,6 +17,10 @@ import {
   RefreshTokenPayload,
   UserRole,
 } from '../entities/auth.entity';
+import {
+  getPermissionsForRole,
+  isPlatformRole,
+} from '@common/constants/permissions.constant';
 
 const REGISTERABLE_ROLES = ['MERCHANT', 'COURIER'] as const;
 
@@ -122,7 +126,20 @@ export class AuthService {
     await this.redis.del(`refresh_token:${userId}`);
   }
 
+  async getMe(userId: string) {
+    const user = await this.authRepository.findByIdWithAccounts(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    return this.toAuthUser(user);
+  }
+
   private toAuthUser(user: AuthUserWithAccounts) {
+    const permissions = getPermissionsForRole(user.role);
+    const isPlatformUser = isPlatformRole(user.role);
+
     return {
       id: user.id,
       name: user.name,
@@ -130,7 +147,17 @@ export class AuthService {
       email: user.email,
       role: user.role,
       roles: [user.role],
-      permissions: [],
+      permissions,
+      tenantId: isPlatformUser ? undefined : user.tenantId,
+      isPlatformUser,
+      platformContext: isPlatformUser
+        ? {
+            userId: user.id,
+            role: user.role,
+            permissions,
+          }
+        : undefined,
+      impersonationContext: undefined,
       merchantId: user.merchant?.id,
       courierId: user.courier?.id,
       avatarUrl: user.avatarUrl,
