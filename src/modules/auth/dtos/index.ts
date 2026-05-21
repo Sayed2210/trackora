@@ -67,6 +67,18 @@ export class AuthUserResponseDto {
   permissions: string[];
 
   @ApiProperty({ required: false })
+  tenantId?: string;
+
+  @ApiProperty()
+  isPlatformUser: boolean;
+
+  @ApiProperty({ required: false })
+  platformContext?: Record<string, unknown>;
+
+  @ApiProperty({ required: false })
+  impersonationContext?: Record<string, unknown>;
+
+  @ApiProperty({ required: false })
   merchantId?: string;
 
   @ApiProperty({ required: false })

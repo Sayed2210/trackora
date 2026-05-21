@@ -45,6 +45,16 @@ export class AuthRepository extends AbstractRepository<User> {
     }) as Promise<AuthUserWithAccounts | null>;
   }
 
+  async findByIdWithAccounts(id: string): Promise<AuthUserWithAccounts | null> {
+    return this.delegate.findFirst({
+      where: { ...this.baseWhere, id },
+      include: {
+        merchant: { select: { id: true } },
+        courier: { select: { id: true } },
+      },
+    }) as Promise<AuthUserWithAccounts | null>;
+  }
+
   async findByEmail(email: string): Promise<User | null> {
     return this.findOne({ email });
   }

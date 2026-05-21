@@ -9,6 +9,7 @@ const mockAuthService = {
   login: jest.fn(),
   refreshTokens: jest.fn(),
   logout: jest.fn(),
+  getMe: jest.fn(),
 };
 
 const mockOtpService = {
@@ -119,6 +120,36 @@ describe('AuthController', () => {
 
       expect(mockAuthService.logout).toHaveBeenCalledWith('user-1');
       expect(result).toEqual({ message: 'Logged out successfully' });
+    });
+  });
+
+  describe('me', () => {
+    it('should return current user from authService', async () => {
+      const mockMeResponse = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'Platform Admin',
+        email: 'admin@example.com',
+        role: UserRole.PLATFORM_ADMIN,
+        permissions: ['manage_tenants'],
+        isPlatformUser: true,
+        platformContext: {
+          userId: '123e4567-e89b-12d3-a456-426614174000',
+          role: UserRole.PLATFORM_ADMIN,
+          permissions: ['manage_tenants'],
+        },
+        impersonationContext: undefined,
+      };
+      mockAuthService.getMe.mockResolvedValue(mockMeResponse);
+
+      const req = {
+        user: { userId: '123e4567-e89b-12d3-a456-426614174000' },
+      } as any;
+      const result = await controller.me(req);
+
+      expect(mockAuthService.getMe).toHaveBeenCalledWith(
+        '123e4567-e89b-12d3-a456-426614174000',
+      );
+      expect(result).toEqual(mockMeResponse);
     });
   });
 

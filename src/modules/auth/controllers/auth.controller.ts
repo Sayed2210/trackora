@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req } from '@nestjs/common';
 import { ApiCreatedResponse, ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
@@ -6,9 +6,10 @@ import { OtpService } from '../services/otp.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Public } from '@common/decorators/public.decorator';
 import { RegisterDto, LoginDto, RefreshTokenDto, LoginResponseDto } from '../dtos';
+import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 
 interface RequestWithUser extends Request {
-  user: { userId: string };
+  user: AuthenticatedRequestUser;
 }
 
 @ApiTags('Auth')
@@ -47,6 +48,13 @@ export class AuthController {
   async logout(@Req() req: RequestWithUser) {
     await this.authService.logout(req.user.userId);
     return { message: 'Logged out successfully' };
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'Get current authenticated user' })
+  @ApiBearerAuth()
+  async me(@Req() req: RequestWithUser) {
+    return this.authService.getMe(req.user.userId);
   }
 
   @Post('otp/send')

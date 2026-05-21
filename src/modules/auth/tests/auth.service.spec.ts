@@ -10,6 +10,7 @@ import { AuthService } from '../services/auth.service';
 import { AuthRepository } from '../repositories/auth.repository';
 import { UserRole } from '../entities/auth.entity';
 import { RedisService } from '@infrastructure/cache/redis.service';
+import { PERMISSIONS } from '@common/constants/permissions.constant';
 import * as bcrypt from 'bcryptjs';
 
 jest.mock('bcryptjs', () => ({
@@ -48,6 +49,7 @@ describe('AuthService', () => {
             findByPhone: jest.fn(),
             findByPhoneWithAccounts: jest.fn(),
             findById: jest.fn(),
+            findByIdWithAccounts: jest.fn(),
             create: jest.fn().mockResolvedValue(mockUser),
           },
         },
@@ -219,6 +221,56 @@ describe('AuthService', () => {
       await expect(service.refreshTokens('refresh-token')).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('getMe', () => {
+    it('returns platform context and permissions for platform users', async () => {
+      jest.spyOn(repository, 'findByIdWithAccounts').mockResolvedValueOnce({
+        ...mockUser,
+        role: UserRole.PLATFORM_FINANCE,
+        tenantId: null,
+        merchant: null,
+        courier: null,
+      } as any);
+
+      const result = await service.getMe(mockUser.id);
+
+      expect(result).toMatchObject({
+        id: mockUser.id,
+        role: UserRole.PLATFORM_FINANCE,
+        isPlatformUser: true,
+        permissions: [
+          PERMISSIONS.VIEW_BILLING,
+          PERMISSIONS.VIEW_PLATFORM_ANALYTICS,
+          PERMISSIONS.VIEW_AUDIT_LOGS,
+        ],
+        platformContext: {
+          userId: mockUser.id,
+          role: UserRole.PLATFORM_FINANCE,
+        },
+      });
+    });
+
+    it('returns tenantId and no platform context for tenant users', async () => {
+      jest.spyOn(repository, 'findByIdWithAccounts').mockResolvedValueOnce({
+        ...mockUser,
+        tenantId: 'tenant-1',
+        merchant: { id: 'merchant-1' },
+        courier: null,
+      } as any);
+
+      const result = await service.getMe(mockUser.id);
+
+      expect(result).toMatchObject({
+        id: mockUser.id,
+        role: UserRole.MERCHANT,
+        tenantId: 'tenant-1',
+        isPlatformUser: false,
+        permissions: [],
+        merchantId: 'merchant-1',
+      });
+      expect(result.platformContext).toBeUndefined();
     });
   });
 });
