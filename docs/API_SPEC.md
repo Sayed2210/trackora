@@ -47,6 +47,14 @@ The current API returns raw resource payloads for most endpoints. Paginated list
 }
 ```
 
+### Platform API Alignment
+
+Platform Owner APIs are planned under `/platform/*` and remain versioned by the same `/v1` base path. Phase 0 decisions for the backend foundation are:
+
+- Platform users reuse the existing `User` model with role values `PLATFORM_OWNER`, `PLATFORM_ADMIN`, `PLATFORM_SUPPORT`, and `PLATFORM_FINANCE`.
+- Platform DTOs should use explicit platform/action names in implementation phases, such as `CreatePlatformTenantDto`, `UpdatePlatformTenantDto`, `ChangePlatformTenantStatusDto`, `UpdateFeatureFlagDto`, `StartImpersonationDto`, and `CreateManualInvoiceDto`.
+- Existing development data is preserved through a default tenant migration strategy. Initial `tenantId` columns are nullable, a default development tenant is inserted by migration, and later backfill/enforcement can make tenant ownership mandatory after records are verified.
+
 ### Error Format
 
 ```json
