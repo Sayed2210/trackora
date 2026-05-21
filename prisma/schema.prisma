@@ -8,11 +8,57 @@ datasource db {
 }
 
 enum UserRole {
+  PLATFORM_OWNER
+  PLATFORM_ADMIN
+  PLATFORM_SUPPORT
+  PLATFORM_FINANCE
   SUPER_ADMIN
   OPERATIONS_MANAGER
   FINANCE_ADMIN
   MERCHANT
   COURIER
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  NOT_REQUIRED
+  PENDING
+  PAID
+  FAILED
+  PAST_DUE
+}
+
+enum FeatureFlagKey {
+  smart_dispatch
+  fraud_detection
+  cod_wallet
+  bulk_upload
+  whatsapp_notifications
+  api_access
+  public_tracking
+  advanced_reports
+}
+
+enum ImpersonationStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
 }
 
 enum ShipmentStatus {
@@ -120,6 +166,7 @@ enum JobStatus {
 
 model User {
   id            String    @id @default(uuid())
+  tenantId      String?
   email         String?   @unique
   phone         String    @unique
   passwordHash  String?
@@ -132,16 +179,152 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  merchant           Merchant?
-  courier            Courier?
-  statusLogs         ShipmentStatusLog[]
-  assignmentsCreated Assignment[]        @relation("AssignmentCreator")
-  payoutsApproved    Payout[]            @relation("PayoutApprover")
-  auditLogs          AuditLog[]
-  notifications      Notification[]      @relation("NotificationRecipient")
+  tenant                   Tenant?                @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  merchant                 Merchant?
+  courier                  Courier?
+  statusLogs               ShipmentStatusLog[]
+  assignmentsCreated       Assignment[]           @relation("AssignmentCreator")
+  payoutsApproved          Payout[]               @relation("PayoutApprover")
+  auditLogs                AuditLog[]
+  platformAuditLogs        AuditLog[]             @relation("AuditLogActor")
+  notifications            Notification[]         @relation("NotificationRecipient")
+  impersonationSessions    ImpersonationSession[] @relation("ImpersonationActor")
+  impersonationTargets     ImpersonationSession[] @relation("ImpersonationTarget")
+  tenantFeatureFlagChanges TenantFeatureFlag[]    @relation("TenantFeatureFlagActor")
 
   @@index([role, isActive])
+  @@index([tenantId])
   @@index([phone])
+}
+
+model Tenant {
+  id            String       @id @default(uuid())
+  name          String
+  slug          String       @unique
+  status        TenantStatus @default(TRIAL)
+  trialStartsAt DateTime?
+  trialEndsAt   DateTime?
+  currentPlanId String?
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  currentPlan           Plan?                  @relation("TenantCurrentPlan", fields: [currentPlanId], references: [id], onDelete: SetNull)
+  users                 User[]
+  merchants             Merchant[]
+  couriers              Courier[]
+  shipments             Shipment[]
+  wallets               Wallet[]
+  payouts               Payout[]
+  bulkJobs              BulkJob[]
+  notifications         Notification[]
+  subscriptions         Subscription[]
+  featureFlags          TenantFeatureFlag[]
+  auditLogs             AuditLog[]
+  impersonationSessions ImpersonationSession[]
+  manualInvoices        ManualInvoice[]
+
+  @@index([status])
+  @@index([currentPlanId])
+  @@index([trialEndsAt])
+}
+
+model Plan {
+  id                   String    @id @default(uuid())
+  name                 String
+  slug                 String    @unique
+  description          String?   @db.Text
+  monthlyPrice         Decimal   @default(0) @db.Decimal(10, 2)
+  currency             String    @default("EGP")
+  monthlyShipmentLimit Int?
+  adminUserLimit       Int?
+  merchantLimit        Int?
+  courierLimit         Int?
+  isActive             Boolean   @default(true)
+  archivedAt           DateTime?
+  metadata             Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  currentTenants Tenant[]          @relation("TenantCurrentPlan")
+  subscriptions  Subscription[]
+  featureFlags   PlanFeatureFlag[]
+
+  @@index([isActive, archivedAt])
+}
+
+model FeatureFlag {
+  id             String         @id @default(uuid())
+  key            FeatureFlagKey @unique
+  name           String
+  description    String?        @db.Text
+  defaultEnabled Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  planFlags   PlanFeatureFlag[]
+  tenantFlags TenantFeatureFlag[]
+}
+
+model PlanFeatureFlag {
+  id         String         @id @default(uuid())
+  planId     String
+  featureKey FeatureFlagKey
+  enabled    Boolean        @default(false)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  plan        Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  featureFlag FeatureFlag @relation(fields: [featureKey], references: [key], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+  @@index([featureKey])
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  tenantId           String
+  planId             String
+  status             SubscriptionStatus @default(TRIALING)
+  paymentStatus      PaymentStatus      @default(NOT_REQUIRED)
+  trialStartsAt      DateTime?
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  renewedAt          DateTime?
+  cancelledAt        DateTime?
+  pausedAt           DateTime?
+  metadata           Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  plan           Plan            @relation(fields: [planId], references: [id])
+  manualInvoices ManualInvoice[]
+
+  @@index([tenantId, status])
+  @@index([planId])
+  @@index([status, paymentStatus])
+  @@index([currentPeriodEnd])
+}
+
+model TenantFeatureFlag {
+  id              String         @id @default(uuid())
+  tenantId        String
+  featureKey      FeatureFlagKey
+  enabled         Boolean?
+  reason          String?        @db.Text
+  changedByUserId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  featureFlag FeatureFlag @relation(fields: [featureKey], references: [key], onDelete: Cascade)
+  changedBy   User?       @relation("TenantFeatureFlagActor", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, featureKey])
+  @@index([featureKey])
+  @@index([changedByUserId])
 }
 
 model Zone {
@@ -157,8 +340,8 @@ model Zone {
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
 
-  parent   Zone?       @relation("ZoneHierarchy", fields: [parentId], references: [id])
-  children Zone[]      @relation("ZoneHierarchy")
+  parent    Zone?      @relation("ZoneHierarchy", fields: [parentId], references: [id])
+  children  Zone[]     @relation("ZoneHierarchy")
   shipments Shipment[]
 
   @@index([parentId])
@@ -167,60 +350,66 @@ model Zone {
 }
 
 model Merchant {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  businessName        String
-  businessType        String
-  websiteUrl          String?
-  socialMediaUrl      String?
-  kycStatus           KycStatus @default(PENDING)
-  kycDocuments        Json?
-  commissionRate      Decimal  @default(0) @db.Decimal(5, 4)
-  feePerShipment      Decimal  @default(0) @db.Decimal(10, 2)
-  returnFee           Decimal  @default(0) @db.Decimal(10, 2)
-  cancellationFee     Decimal  @default(0) @db.Decimal(10, 2)
-  creditLimit         Decimal  @default(0) @db.Decimal(10, 2)
+  id                   String    @id @default(uuid())
+  tenantId             String?
+  userId               String    @unique
+  businessName         String
+  businessType         String
+  websiteUrl           String?
+  socialMediaUrl       String?
+  kycStatus            KycStatus @default(PENDING)
+  kycDocuments         Json?
+  commissionRate       Decimal   @default(0) @db.Decimal(5, 4)
+  feePerShipment       Decimal   @default(0) @db.Decimal(10, 2)
+  returnFee            Decimal   @default(0) @db.Decimal(10, 2)
+  cancellationFee      Decimal   @default(0) @db.Decimal(10, 2)
+  creditLimit          Decimal   @default(0) @db.Decimal(10, 2)
   defaultPickupAddress Json?
-  branding            Json?
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  branding             Json?
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
+  tenant    Tenant?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   user      User       @relation(fields: [userId], references: [id])
   shipments Shipment[]
   wallet    Wallet?
   payouts   Payout[]
 
+  @@index([tenantId])
   @@index([kycStatus, isActive])
   @@index([businessName])
 }
 
 model Courier {
-  id                    String      @id @default(uuid())
-  userId                String      @unique
-  employeeId            String?
-  vehicleType           VehicleType @default(MOTORCYCLE)
-  licensePlate          String?
-  zoneCodes             String[]
-  maxDailyCapacity      Int         @default(25)
-  currentPerformanceScore Int       @default(50)
-  cashHeld              Decimal     @default(0) @db.Decimal(10, 2)
-  cashHeldLimit         Decimal     @default(5000) @db.Decimal(10, 2)
-  documents             Json?
-  isActive              Boolean     @default(true)
-  isAvailable           Boolean     @default(true)
-  avgDeliveryTimeMinutes Int?
-  totalDelivered        Int         @default(0)
-  totalFailed           Int         @default(0)
-  totalReturned         Int         @default(0)
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  id                      String      @id @default(uuid())
+  tenantId                String?
+  userId                  String      @unique
+  employeeId              String?
+  vehicleType             VehicleType @default(MOTORCYCLE)
+  licensePlate            String?
+  zoneCodes               String[]
+  maxDailyCapacity        Int         @default(25)
+  currentPerformanceScore Int         @default(50)
+  cashHeld                Decimal     @default(0) @db.Decimal(10, 2)
+  cashHeldLimit           Decimal     @default(5000) @db.Decimal(10, 2)
+  documents               Json?
+  isActive                Boolean     @default(true)
+  isAvailable             Boolean     @default(true)
+  avgDeliveryTimeMinutes  Int?
+  totalDelivered          Int         @default(0)
+  totalFailed             Int         @default(0)
+  totalReturned           Int         @default(0)
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
 
+  tenant       Tenant?              @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   user         User                 @relation(fields: [userId], references: [id])
   assignments  Assignment[]
   shipments    Shipment[]           @relation("CourierAssignments")
   cashDeposits CourierCashDeposit[]
 
+  @@index([tenantId])
   @@index([isActive, isAvailable])
   @@index([zoneCodes])
   @@index([currentPerformanceScore])
@@ -228,6 +417,7 @@ model Courier {
 
 model Shipment {
   id                    String         @id @default(uuid())
+  tenantId              String?
   trackingNumber        String         @unique
   merchantId            String
   status                ShipmentStatus @default(PENDING)
@@ -261,16 +451,19 @@ model Shipment {
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
-  merchant     Merchant          @relation(fields: [merchantId], references: [id])
-  courier      Courier?          @relation("CourierAssignments", fields: [assignedCourierId], references: [id])
-  zone         Zone?             @relation(fields: [zoneId], references: [id])
-  statusLogs   ShipmentStatusLog[]
-  assignments  Assignment[]
-  transactions Transaction[]
-  shipmentRisk ShipmentRisk?
+  tenant        Tenant?             @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  merchant      Merchant            @relation(fields: [merchantId], references: [id])
+  courier       Courier?            @relation("CourierAssignments", fields: [assignedCourierId], references: [id])
+  zone          Zone?               @relation(fields: [zoneId], references: [id])
+  statusLogs    ShipmentStatusLog[]
+  assignments   Assignment[]
+  transactions  Transaction[]
+  shipmentRisk  ShipmentRisk?
   notifications Notification[]
 
   @@index([trackingNumber])
+  @@index([tenantId])
+  @@index([tenantId, status, createdAt])
   @@index([merchantId, status])
   @@index([merchantId, status, createdAt])
   @@index([assignedCourierId, status])
@@ -322,21 +515,24 @@ model Assignment {
 }
 
 model Wallet {
-  id               String   @id @default(uuid())
-  merchantId       String   @unique
-  balance          Decimal  @default(0) @db.Decimal(10, 2)
-  pendingBalance   Decimal  @default(0) @db.Decimal(10, 2)
-  totalCredited    Decimal  @default(0) @db.Decimal(10, 2)
-  totalDebited     Decimal  @default(0) @db.Decimal(10, 2)
-  currency         String   @default("EGP")
+  id               String    @id @default(uuid())
+  tenantId         String?
+  merchantId       String    @unique
+  balance          Decimal   @default(0) @db.Decimal(10, 2)
+  pendingBalance   Decimal   @default(0) @db.Decimal(10, 2)
+  totalCredited    Decimal   @default(0) @db.Decimal(10, 2)
+  totalDebited     Decimal   @default(0) @db.Decimal(10, 2)
+  currency         String    @default("EGP")
   lastSettlementAt DateTime?
-  version          Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   merchant     Merchant      @relation(fields: [merchantId], references: [id])
   transactions Transaction[]
 
+  @@index([tenantId])
   @@index([merchantId])
 }
 
@@ -361,6 +557,7 @@ model Transaction {
 
 model Payout {
   id               String       @id @default(uuid())
+  tenantId         String?
   merchantId       String
   amount           Decimal      @db.Decimal(10, 2)
   status           PayoutStatus @default(PENDING)
@@ -374,9 +571,12 @@ model Payout {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   merchant   Merchant @relation(fields: [merchantId], references: [id])
   approvedBy User?    @relation("PayoutApprover", fields: [approvedByUserId], references: [id])
 
+  @@index([tenantId])
+  @@index([tenantId, status, createdAt])
   @@index([merchantId, status])
   @@index([status, createdAt])
   @@index([referenceNumber])
@@ -397,15 +597,15 @@ model CourierCashDeposit {
 }
 
 model ShipmentRisk {
-  id          String   @id @default(uuid())
-  shipmentId  String   @unique
-  score       Int      @default(0)
+  id          String    @id @default(uuid())
+  shipmentId  String    @unique
+  score       Int       @default(0)
   signals     Json
-  status      String   @default("ACTIVE")
+  status      String    @default("ACTIVE")
   reviewedBy  String?
   reviewedAt  DateTime?
   actionTaken String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
@@ -414,54 +614,118 @@ model ShipmentRisk {
 }
 
 model BlacklistedPhone {
-  id          String   @id @default(uuid())
-  phone       String   @unique
+  id          String    @id @default(uuid())
+  phone       String    @unique
   reason      String
   evidence    Json?
   blockedBy   String?
-  blockedAt   DateTime @default(now())
+  blockedAt   DateTime  @default(now())
   expiresAt   DateTime?
-  isPermanent Boolean  @default(false)
+  isPermanent Boolean   @default(false)
 
   @@index([phone])
   @@index([blockedAt])
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  userId    String
+  id         String           @id @default(uuid())
+  tenantId   String?
+  userId     String
   shipmentId String?
-  type      NotificationType
-  title     String
-  body      String           @db.Text
-  data      Json?
-  isRead    Boolean          @default(false)
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
+  type       NotificationType
+  title      String
+  body       String           @db.Text
+  data       Json?
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
 
-  user     User     @relation("NotificationRecipient", fields: [userId], references: [id])
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user     User      @relation("NotificationRecipient", fields: [userId], references: [id])
   shipment Shipment? @relation(fields: [shipmentId], references: [id])
 
+  @@index([tenantId])
   @@index([userId, isRead, createdAt])
 }
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  userId     String?
-  action     String
-  entityType String
-  entityId   String
-  oldValue   Json?
-  newValue   Json?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
+  id           String    @id @default(uuid())
+  userId       String?
+  actorUserId  String?
+  actorRole    UserRole?
+  tenantId     String?
+  action       String
+  entityType   String
+  entityId     String
+  resourceType String?
+  resourceId   String?
+  oldValue     Json?
+  newValue     Json?
+  reason       String?   @db.Text
+  ipAddress    String?
+  userAgent    String?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
 
-  user User? @relation(fields: [userId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+  actor  User?   @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId, createdAt])
+  @@index([resourceType, resourceId, createdAt])
   @@index([userId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([tenantId, createdAt])
   @@index([action, createdAt])
+}
+
+model ImpersonationSession {
+  id           String              @id @default(uuid())
+  actorUserId  String
+  tenantId     String
+  targetUserId String?
+  reason       String              @db.Text
+  status       ImpersonationStatus @default(ACTIVE)
+  expiresAt    DateTime
+  endedAt      DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  actor      User   @relation("ImpersonationActor", fields: [actorUserId], references: [id])
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  targetUser User?  @relation("ImpersonationTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, status])
+  @@index([tenantId, status])
+  @@index([targetUserId])
+  @@index([status, expiresAt])
+}
+
+model ManualInvoice {
+  id             String        @id @default(uuid())
+  tenantId       String
+  subscriptionId String?
+  invoiceNumber  String?       @unique
+  amount         Decimal       @db.Decimal(10, 2)
+  currency       String        @default("EGP")
+  status         PaymentStatus @default(PENDING)
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime?
+  paidAt         DateTime?
+  notes          String?       @db.Text
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([subscriptionId])
+  @@index([status, dueAt])
+  @@index([issuedAt])
 }
 
 model WhatsAppTemplate {
@@ -481,6 +745,7 @@ model WhatsAppTemplate {
 
 model BulkJob {
   id          String    @id @default(uuid())
+  tenantId    String?
   merchantId  String
   type        String
   status      JobStatus @default(PROCESSING)
@@ -493,6 +758,9 @@ model BulkJob {
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
   @@index([merchantId, status])
   @@index([createdAt])
 }
