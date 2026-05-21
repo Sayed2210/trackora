@@ -58,16 +58,12 @@ src/modules/platform/
 ```
 
 ### Database Strategy
-
-<<<<<<< HEAD
-=======
 Phase 0 decisions applied for the initial backend foundation:
 
 - Platform users use the existing `User` model. `UserRole` is extended with `PLATFORM_OWNER`, `PLATFORM_ADMIN`, `PLATFORM_SUPPORT`, and `PLATFORM_FINANCE`; no separate `PlatformUser` model is introduced for MVP.
 - Existing development data uses a default tenant migration strategy. The first migration keeps new `tenantId` fields nullable to avoid deleting or blocking existing rows, creates a default development tenant record when migrations run, and leaves later backfill/enforcement to a dedicated migration once tenant ownership is verified.
 - Platform API DTO names should follow module-specific action names in later phases, for example `CreatePlatformTenantDto`, `UpdatePlatformTenantDto`, `ChangePlatformTenantStatusDto`, `CreatePlanDto`, `UpdatePlanDto`, `UpdateFeatureFlagDto`, `StartImpersonationDto`, and `CreateManualInvoiceDto`.
 
->>>>>>> main
 Add new Prisma enums:
 
 - `TenantStatus`: `TRIAL`, `ACTIVE`, `PAST_DUE`, `SUSPENDED`, `CANCELLED`
