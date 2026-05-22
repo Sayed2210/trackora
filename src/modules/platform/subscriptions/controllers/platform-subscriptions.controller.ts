@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
+import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import {
   PlatformAnyPermissions,
   PlatformPermissions,
@@ -15,6 +16,12 @@ import {
   UpdateSubscriptionDto,
 } from '../dtos';
 import { PlatformSubscriptionsService } from '../services/platform-subscriptions.service';
+
+interface AuthenticatedRequest {
+  user: AuthenticatedRequestUser;
+  ip?: string;
+  headers: { 'user-agent'?: string };
+}
 
 @ApiTags('Platform Subscriptions')
 @ApiBearerAuth()
@@ -51,8 +58,10 @@ export class PlatformSubscriptionsController {
   async update(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: UpdateSubscriptionDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.subscriptionsService.update(params.id, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.subscriptionsService.update(params.id, dto, audit) : this.subscriptionsService.update(params.id, dto);
   }
 
   @Post(':id/change-plan')
@@ -61,8 +70,10 @@ export class PlatformSubscriptionsController {
   async changePlan(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: ChangeSubscriptionPlanDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.subscriptionsService.changePlan(params.id, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.subscriptionsService.changePlan(params.id, dto, audit) : this.subscriptionsService.changePlan(params.id, dto);
   }
 
   @Post(':id/cancel')
@@ -71,8 +82,10 @@ export class PlatformSubscriptionsController {
   async cancel(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: CancelSubscriptionDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.subscriptionsService.cancel(params.id, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.subscriptionsService.cancel(params.id, dto, audit) : this.subscriptionsService.cancel(params.id, dto);
   }
 
   @Post(':id/renew')
@@ -81,7 +94,18 @@ export class PlatformSubscriptionsController {
   async renew(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: RenewSubscriptionDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.subscriptionsService.renew(params.id, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.subscriptionsService.renew(params.id, dto, audit) : this.subscriptionsService.renew(params.id, dto);
+  }
+
+  private toAuditContext(request?: AuthenticatedRequest) {
+    if (!request) return undefined;
+    return {
+      user: request.user,
+      ipAddress: request.ip,
+      userAgent: request.headers?.['user-agent'],
+    };
   }
 }

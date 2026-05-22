@@ -7,6 +7,10 @@ import {
 import { Tenant } from '../entities/tenant.entity';
 import { TenantsRepository } from '../repositories/tenants.repository';
 import {
+  AuditActorContext,
+  PlatformAuditLogService,
+} from '@modules/platform/audit-logs/services/platform-audit-log.service';
+import {
   ChangePlatformTenantStatusDto,
   CreatePlatformTenantDto,
   ListPlatformTenantsDto,
@@ -15,19 +19,31 @@ import {
 
 @Injectable()
 export class TenantsService {
-  constructor(private readonly tenantsRepository: TenantsRepository) {}
+  constructor(
+    private readonly tenantsRepository: TenantsRepository,
+    private readonly auditLogService: PlatformAuditLogService,
+  ) {}
 
-  async create(dto: CreatePlatformTenantDto): Promise<Tenant> {
+  async create(dto: CreatePlatformTenantDto, audit?: AuditActorContext): Promise<Tenant> {
     await this.assertSlugAvailable(dto.slug);
     this.assertValidTrialRange(dto.trialStartsAt, dto.trialEndsAt);
 
-    return this.tenantsRepository.create({
+    const tenant = await this.tenantsRepository.create({
       name: dto.name,
       slug: dto.slug,
       trialStartsAt: dto.trialStartsAt,
       trialEndsAt: dto.trialEndsAt,
       metadata: dto.metadata,
     });
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: tenant.id,
+      action: 'tenant.created',
+      resourceType: 'Tenant',
+      resourceId: tenant.id,
+      newValue: tenant,
+    });
+    return tenant;
   }
 
   async findAll(
@@ -65,7 +81,7 @@ export class TenantsService {
     return tenant;
   }
 
-  async update(id: string, dto: UpdatePlatformTenantDto): Promise<Tenant> {
+  async update(id: string, dto: UpdatePlatformTenantDto, audit?: AuditActorContext): Promise<Tenant> {
     const tenant = await this.findById(id);
 
     if (dto.slug !== undefined) {
@@ -77,15 +93,36 @@ export class TenantsService {
       dto.trialEndsAt ?? tenant.trialEndsAt ?? undefined,
     );
 
-    return this.tenantsRepository.update(id, { ...dto });
+    const updated = await this.tenantsRepository.update(id, { ...dto });
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: id,
+      action: 'tenant.updated',
+      resourceType: 'Tenant',
+      resourceId: id,
+      oldValue: tenant,
+      newValue: updated,
+    });
+    return updated;
   }
 
   async changeStatus(
     id: string,
     dto: ChangePlatformTenantStatusDto,
+    audit?: AuditActorContext,
   ): Promise<Tenant> {
-    await this.findById(id);
-    return this.tenantsRepository.update(id, { status: dto.status });
+    const tenant = await this.findById(id);
+    const updated = await this.tenantsRepository.update(id, { status: dto.status });
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: id,
+      action: 'tenant.status_changed',
+      resourceType: 'Tenant',
+      resourceId: id,
+      oldValue: { status: tenant.status },
+      newValue: { status: updated.status },
+    });
+    return updated;
   }
 
   private async assertSlugAvailable(

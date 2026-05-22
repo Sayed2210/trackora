@@ -11,10 +11,17 @@ import {
   ManualInvoiceWithDetails,
   PlatformBillingRepository,
 } from '../repositories/platform-billing.repository';
+import {
+  AuditActorContext,
+  PlatformAuditLogService,
+} from '@modules/platform/audit-logs/services/platform-audit-log.service';
 
 @Injectable()
 export class PlatformBillingService {
-  constructor(private readonly billingRepository: PlatformBillingRepository) {}
+  constructor(
+    private readonly billingRepository: PlatformBillingRepository,
+    private readonly auditLogService: PlatformAuditLogService,
+  ) {}
 
   async getOverview() {
     const overview = await this.billingRepository.getOverviewAggregates();
@@ -59,11 +66,10 @@ export class PlatformBillingService {
     return { data: invoices.map((invoice) => this.toInvoiceResponse(invoice)), total, page, limit };
   }
 
-  async createInvoice(dto: CreateManualInvoiceDto) {
+  async createInvoice(dto: CreateManualInvoiceDto, audit?: AuditActorContext) {
     this.assertDateRange(dto.billingPeriodStart, dto.billingPeriodEnd, 'Billing period end date must be after start date');
     const amount = this.toPositiveDecimal(dto.amount);
 
-    // TODO(audit): record manual invoice creation reason and before/after values once audit writer exists.
     const invoice = await this.billingRepository.createInvoice({
       tenantId: dto.tenantId,
       amount,
@@ -75,14 +81,24 @@ export class PlatformBillingService {
       metadata: { reason: dto.reason },
     });
     if (!invoice) throw new NotFoundException('Tenant not found');
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: invoice.tenant.id,
+      action: 'manual_invoice.created',
+      resourceType: 'ManualInvoice',
+      resourceId: invoice.id,
+      newValue: invoice,
+      reason: dto.reason,
+    });
     return this.toInvoiceResponse(invoice);
   }
 
-  async updateInvoice(id: string, dto: UpdateManualInvoiceDto) {
+  async updateInvoice(id: string, dto: UpdateManualInvoiceDto, audit?: AuditActorContext) {
     const amount = dto.amount === undefined ? undefined : this.toPositiveDecimal(dto.amount);
     const status = dto.paymentStatus ?? dto.status;
+    const before = await this.billingRepository.findById(id);
+    if (!before) throw new NotFoundException('Invoice not found');
 
-    // TODO(audit): record manual invoice update reason and before/after values once audit writer exists.
     const invoice = await this.billingRepository.updateInvoice(id, {
       amount,
       status,
@@ -92,6 +108,16 @@ export class PlatformBillingService {
       metadata: { reason: dto.reason },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: invoice.tenant.id,
+      action: 'manual_invoice.updated',
+      resourceType: 'ManualInvoice',
+      resourceId: id,
+      oldValue: before,
+      newValue: invoice,
+      reason: dto.reason,
+    });
     return this.toInvoiceResponse(invoice);
   }
 

@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { PlatformPermissions } from '@common/decorators/platform-permissions.decorator';
@@ -21,6 +23,12 @@ import {
 } from '../dtos';
 import { TenantsService } from '../services/tenants.service';
 
+interface AuthenticatedRequest {
+  user: AuthenticatedRequestUser;
+  ip?: string;
+  headers: { 'user-agent'?: string };
+}
+
 @ApiTags('Platform Tenants')
 @ApiBearerAuth()
 @UseGuards(PlatformOnlyGuard)
@@ -31,8 +39,9 @@ export class TenantsController {
   @Post()
   @PlatformPermissions(PERMISSIONS.MANAGE_TENANTS)
   @ApiOperation({ summary: 'Create tenant' })
-  async create(@Body() dto: CreatePlatformTenantDto) {
-    return this.tenantsService.create(dto);
+  async create(@Body() dto: CreatePlatformTenantDto, @Req() request?: AuthenticatedRequest) {
+    const audit = this.toAuditContext(request);
+    return audit ? this.tenantsService.create(dto, audit) : this.tenantsService.create(dto);
   }
 
   @Get()
@@ -55,8 +64,10 @@ export class TenantsController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePlatformTenantDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.tenantsService.update(id, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.tenantsService.update(id, dto, audit) : this.tenantsService.update(id, dto);
   }
 
   @Patch(':id/status')
@@ -65,7 +76,18 @@ export class TenantsController {
   async changeStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ChangePlatformTenantStatusDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.tenantsService.changeStatus(id, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.tenantsService.changeStatus(id, dto, audit) : this.tenantsService.changeStatus(id, dto);
+  }
+
+  private toAuditContext(request?: AuthenticatedRequest) {
+    if (!request) return undefined;
+    return {
+      user: request.user,
+      ipAddress: request.ip,
+      userAgent: request.headers?.['user-agent'],
+    };
   }
 }
