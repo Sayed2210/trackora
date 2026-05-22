@@ -17,6 +17,7 @@ import { ZonesModule } from '@modules/zones/zones.module';
 import { WebSocketModule } from '@modules/websocket/websocket.module';
 import { PayoutsModule } from '@modules/payouts/payouts.module';
 import { TenantsModule } from '@modules/tenants/tenants.module';
+import { PlatformPlansModule } from '@modules/platform/plans/platform-plans.module';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/roles.guard';
 import { PermissionsGuard } from '@common/guards/permissions.guard';
@@ -38,6 +39,7 @@ import { PermissionsGuard } from '@common/guards/permissions.guard';
     WebSocketModule,
     PayoutsModule,
     TenantsModule,
+    PlatformPlansModule,
   ],
   controllers: [AppController],
   providers: [

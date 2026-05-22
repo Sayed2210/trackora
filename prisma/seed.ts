@@ -1,4 +1,4 @@
-import { PrismaClient, ZoneLevel, ShipmentStatus, AssignmentStatus, AssignmentType, UserRole, VehicleType } from '@prisma/client';
+import { PrismaClient, ZoneLevel, ShipmentStatus, AssignmentStatus, AssignmentType, UserRole, VehicleType, FeatureFlagKey } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as bcrypt from 'bcryptjs';
@@ -52,13 +52,126 @@ interface JsonGovernorate {
   centers: JsonCenter[];
 }
 
+const PLAN_FEATURE_KEYS = Object.values(FeatureFlagKey);
+
+const platformPlans = [
+  {
+    name: 'Starter',
+    slug: 'starter',
+    description: 'Entry plan for early sellers and small delivery operations.',
+    monthlyPrice: '999.00',
+    monthlyShipmentLimit: 1000,
+    adminUserLimit: 3,
+    merchantLimit: 10,
+    courierLimit: 10,
+    features: {
+      bulk_upload: true,
+      public_tracking: true,
+    },
+  },
+  {
+    name: 'Growth',
+    slug: 'growth',
+    description: 'Growth plan for scaling merchants and regional teams.',
+    monthlyPrice: '4999.00',
+    monthlyShipmentLimit: 10000,
+    adminUserLimit: 10,
+    merchantLimit: 100,
+    courierLimit: 50,
+    features: {
+      bulk_upload: true,
+      public_tracking: true,
+      cod_wallet: true,
+      whatsapp_notifications: true,
+    },
+  },
+  {
+    name: 'Pro',
+    slug: 'pro',
+    description: 'Advanced automation plan for large logistics operations.',
+    monthlyPrice: '14999.00',
+    monthlyShipmentLimit: 50000,
+    adminUserLimit: 50,
+    merchantLimit: 1000,
+    courierLimit: 300,
+    features: Object.fromEntries(PLAN_FEATURE_KEYS.map((key) => [key, true])),
+  },
+  {
+    name: 'Enterprise',
+    slug: 'enterprise',
+    description: 'Custom pricing plan for enterprise logistics networks.',
+    monthlyPrice: '0.00',
+    monthlyShipmentLimit: null,
+    adminUserLimit: null,
+    merchantLimit: null,
+    courierLimit: null,
+    features: Object.fromEntries(PLAN_FEATURE_KEYS.map((key) => [key, true])),
+  },
+] as const;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function hashPassword(plain: string): string {
   return bcrypt.hashSync(plain, 10);
 }
 
+async function seedPlatformPlans() {
+  for (const key of PLAN_FEATURE_KEYS) {
+    await prisma.featureFlag.upsert({
+      where: { key },
+      create: {
+        key,
+        name: key
+          .split('_')
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' '),
+      },
+      update: {},
+    });
+  }
+
+  for (const plan of platformPlans) {
+    const record = await prisma.plan.upsert({
+      where: { slug: plan.slug },
+      create: {
+        name: plan.name,
+        slug: plan.slug,
+        description: plan.description,
+        monthlyPrice: plan.monthlyPrice,
+        currency: 'EGP',
+        monthlyShipmentLimit: plan.monthlyShipmentLimit,
+        adminUserLimit: plan.adminUserLimit,
+        merchantLimit: plan.merchantLimit,
+        courierLimit: plan.courierLimit,
+      },
+      update: {
+        name: plan.name,
+        description: plan.description,
+        monthlyPrice: plan.monthlyPrice,
+        currency: 'EGP',
+        monthlyShipmentLimit: plan.monthlyShipmentLimit,
+        adminUserLimit: plan.adminUserLimit,
+        merchantLimit: plan.merchantLimit,
+        courierLimit: plan.courierLimit,
+      },
+    });
+
+    await prisma.planFeatureFlag.deleteMany({ where: { planId: record.id } });
+    await prisma.planFeatureFlag.createMany({
+      data: PLAN_FEATURE_KEYS.map((key) => ({
+        planId: record.id,
+        featureKey: key,
+        enabled: plan.features[key] ?? false,
+      })),
+    });
+  }
+
+  console.log('✅ Seeded platform plans: Starter, Growth, Pro, Enterprise');
+}
+
 async function main() {
   console.log('🌱 Start seeding Dakahlia + demo data...');
+
+  await seedPlatformPlans();
 
   // ── 1. Ensure Egypt exists ────────────────────────────────────────────────
   let egypt = await prisma.zone.findFirst({ where: { code: 'EG' } });
