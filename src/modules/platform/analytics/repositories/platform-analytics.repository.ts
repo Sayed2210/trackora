@@ -55,7 +55,7 @@ export class PlatformAnalyticsRepository {
   async getTopTenantsByShipmentVolume(where: Prisma.ShipmentWhereInput = {}) {
     const grouped = await this.prisma.shipment.groupBy({
       by: ['tenantId'],
-      where: { ...where, tenantId: { not: null } },
+      where: { ...where, tenantId: where.tenantId ?? { not: null } },
       _count: { _all: true },
       orderBy: { _count: { tenantId: 'desc' } },
       take: 5,

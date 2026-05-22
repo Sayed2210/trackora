@@ -141,6 +141,22 @@ describe('PlatformAnalyticsService', () => {
     );
   });
 
+  it('keeps tenant filter on shipment top tenant analytics', async () => {
+    repository.countShipments.mockResolvedValue(0);
+    repository.getTopTenantsByShipmentVolume.mockResolvedValueOnce([]);
+    repository.getShipmentsByStatus.mockResolvedValueOnce([]);
+
+    await service.getShipments({
+      from: new Date('2026-05-01T00:00:00.000Z'),
+      to: new Date('2026-05-31T00:00:00.000Z'),
+      tenantId,
+    });
+
+    expect(repository.getTopTenantsByShipmentVolume).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId }),
+    );
+  });
+
   it('scopes usage counts by tenant when tenantId is provided', async () => {
     repository.countShipments.mockResolvedValue(5);
     repository.countMerchants.mockResolvedValue(2);
