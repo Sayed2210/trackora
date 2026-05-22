@@ -20,6 +20,7 @@ import { TenantsModule } from '@modules/tenants/tenants.module';
 import { PlatformPlansModule } from '@modules/platform/plans/platform-plans.module';
 import { PlatformSubscriptionsModule } from '@modules/platform/subscriptions/platform-subscriptions.module';
 import { PlatformFeatureFlagsModule } from '@modules/platform/feature-flags/platform-feature-flags.module';
+import { PlatformAnalyticsModule } from '@modules/platform/analytics/platform-analytics.module';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/roles.guard';
 import { PermissionsGuard } from '@common/guards/permissions.guard';
@@ -44,6 +45,7 @@ import { PermissionsGuard } from '@common/guards/permissions.guard';
     PlatformPlansModule,
     PlatformSubscriptionsModule,
     PlatformFeatureFlagsModule,
+    PlatformAnalyticsModule,
   ],
   controllers: [AppController],
   providers: [
