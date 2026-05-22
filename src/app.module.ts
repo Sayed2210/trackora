@@ -21,6 +21,7 @@ import { PlatformPlansModule } from '@modules/platform/plans/platform-plans.modu
 import { PlatformSubscriptionsModule } from '@modules/platform/subscriptions/platform-subscriptions.module';
 import { PlatformFeatureFlagsModule } from '@modules/platform/feature-flags/platform-feature-flags.module';
 import { PlatformAnalyticsModule } from '@modules/platform/analytics/platform-analytics.module';
+import { PlatformBillingModule } from '@modules/platform/billing/platform-billing.module';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/roles.guard';
 import { PermissionsGuard } from '@common/guards/permissions.guard';
@@ -46,6 +47,7 @@ import { PermissionsGuard } from '@common/guards/permissions.guard';
     PlatformSubscriptionsModule,
     PlatformFeatureFlagsModule,
     PlatformAnalyticsModule,
+    PlatformBillingModule,
   ],
   controllers: [AppController],
   providers: [
