@@ -17,6 +17,7 @@ import {
   PlatformAnyPermissions,
   PlatformPermissions,
 } from '@common/decorators/platform-permissions.decorator';
+import { DangerousAction } from '@common/decorators/dangerous-action.decorator';
 import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
 import {
   CreatePlanDto,
@@ -52,6 +53,7 @@ export class PlatformPlansController {
 
   @Post()
   @PlatformPermissions(PERMISSIONS.MANAGE_PLANS)
+  @DangerousAction('plan changes')
   @ApiOperation({ summary: 'Create platform plan' })
   async create(@Body() dto: CreatePlanDto, @Req() request?: AuthenticatedRequest) {
     const audit = this.toAuditContext(request);
@@ -71,6 +73,7 @@ export class PlatformPlansController {
 
   @Patch(':id')
   @PlatformPermissions(PERMISSIONS.MANAGE_PLANS)
+  @DangerousAction('plan changes')
   @ApiOperation({ summary: 'Update platform plan' })
   async update(
     @Param() params: PlanIdParamDto,
@@ -83,6 +86,7 @@ export class PlatformPlansController {
 
   @Delete(':id')
   @PlatformPermissions(PERMISSIONS.MANAGE_PLANS)
+  @DangerousAction('plan archive/delete')
   @ApiOperation({ summary: 'Archive or delete platform plan safely' })
   async remove(@Param() params: PlanIdParamDto, @Req() request?: AuthenticatedRequest) {
     const audit = this.toAuditContext(request);

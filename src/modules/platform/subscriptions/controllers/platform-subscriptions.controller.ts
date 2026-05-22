@@ -6,6 +6,7 @@ import {
   PlatformAnyPermissions,
   PlatformPermissions,
 } from '@common/decorators/platform-permissions.decorator';
+import { DangerousAction } from '@common/decorators/dangerous-action.decorator';
 import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
 import {
   CancelSubscriptionDto,
@@ -54,6 +55,7 @@ export class PlatformSubscriptionsController {
 
   @Patch(':id')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
+  @DangerousAction('subscription changes')
   @ApiOperation({ summary: 'Update platform subscription' })
   async update(
     @Param() params: SubscriptionIdParamDto,
@@ -66,6 +68,7 @@ export class PlatformSubscriptionsController {
 
   @Post(':id/change-plan')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
+  @DangerousAction('subscription plan changes')
   @ApiOperation({ summary: 'Change subscription plan' })
   async changePlan(
     @Param() params: SubscriptionIdParamDto,
@@ -78,6 +81,7 @@ export class PlatformSubscriptionsController {
 
   @Post(':id/cancel')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
+  @DangerousAction('subscription cancellation')
   @ApiOperation({ summary: 'Cancel subscription' })
   async cancel(
     @Param() params: SubscriptionIdParamDto,
@@ -90,6 +94,7 @@ export class PlatformSubscriptionsController {
 
   @Post(':id/renew')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
+  @DangerousAction('subscription renewal')
   @ApiOperation({ summary: 'Renew subscription' })
   async renew(
     @Param() params: SubscriptionIdParamDto,
