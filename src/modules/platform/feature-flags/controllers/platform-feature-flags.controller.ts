@@ -18,6 +18,8 @@ import { PlatformFeatureFlagsService } from '../services/platform-feature-flags.
 
 interface AuthenticatedRequest {
   user: AuthenticatedRequestUser;
+  ip?: string;
+  headers: { 'user-agent'?: string };
 }
 
 @ApiTags('Platform Feature Flags')
@@ -45,8 +47,10 @@ export class PlatformFeatureFlagsController {
   async updateGlobal(
     @Param() params: FeatureFlagKeyParamDto,
     @Body() dto: UpdateGlobalFeatureFlagDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.featureFlagsService.updateGlobal(params.key, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.featureFlagsService.updateGlobal(params.key, dto, audit) : this.featureFlagsService.updateGlobal(params.key, dto);
   }
 
   @Get('platform/tenants/:id/feature-flags')
@@ -65,13 +69,32 @@ export class PlatformFeatureFlagsController {
   async updateTenantFlag(
     @Param() params: TenantFeatureFlagsParamDto,
     @Body() dto: UpdateTenantFeatureFlagDto,
-    @Req() request: AuthenticatedRequest,
+    @Req() request?: AuthenticatedRequest,
   ) {
+    const audit = this.toAuditContext(request);
+    if (!audit) {
+      return this.featureFlagsService.updateTenantFlag(
+        params.id,
+        params.key,
+        dto,
+        request?.user.userId,
+      );
+    }
     return this.featureFlagsService.updateTenantFlag(
       params.id,
       params.key,
       dto,
-      request.user.userId,
+      request?.user.userId,
+      audit,
     );
+  }
+
+  private toAuditContext(request?: AuthenticatedRequest) {
+    if (!request?.headers) return undefined;
+    return {
+      user: request.user,
+      ipAddress: request.ip,
+      userAgent: request.headers?.['user-agent'],
+    };
   }
 }

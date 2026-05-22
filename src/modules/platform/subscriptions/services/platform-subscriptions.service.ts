@@ -12,6 +12,10 @@ import {
   PlatformSubscriptionWithDetails,
   UsageSnapshot,
 } from '../repositories/platform-subscriptions.repository';
+import {
+  AuditActorContext,
+  PlatformAuditLogService,
+} from '@modules/platform/audit-logs/services/platform-audit-log.service';
 
 const ALLOWED_STATUS_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]> = {
   [SubscriptionStatus.TRIALING]: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED, SubscriptionStatus.EXPIRED],
@@ -24,7 +28,10 @@ const ALLOWED_STATUS_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[
 
 @Injectable()
 export class PlatformSubscriptionsService {
-  constructor(private readonly subscriptionsRepository: PlatformSubscriptionsRepository) {}
+  constructor(
+    private readonly subscriptionsRepository: PlatformSubscriptionsRepository,
+    private readonly auditLogService: PlatformAuditLogService,
+  ) {}
 
   async findAll(query: ListSubscriptionsQueryDto) {
     this.assertDateRange(query.renewalFrom, query.renewalTo, 'Renewal end date must be after start date');
@@ -78,7 +85,7 @@ export class PlatformSubscriptionsService {
     );
   }
 
-  async update(id: string, dto: UpdateSubscriptionDto) {
+  async update(id: string, dto: UpdateSubscriptionDto, audit?: AuditActorContext) {
     const subscription = await this.getSubscriptionOrThrow(id);
     const nextStatus = dto.status ?? subscription.status;
     this.assertStatusTransition(subscription.status, nextStatus);
@@ -93,7 +100,6 @@ export class PlatformSubscriptionsService {
       'Current period end date must be after start date',
     );
 
-    // TODO(audit): write subscription mutation with reason and before/after values once audit writer exists.
     const updated = await this.subscriptionsRepository.update(id, {
       status: dto.status,
       paymentStatus: dto.paymentStatus,
@@ -106,11 +112,21 @@ export class PlatformSubscriptionsService {
       cancelledAt: dto.status === SubscriptionStatus.CANCELLED ? new Date() : undefined,
       pausedAt: dto.status === SubscriptionStatus.PAUSED ? new Date() : undefined,
     });
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: subscription.tenantId,
+      action: 'subscription.updated',
+      resourceType: 'Subscription',
+      resourceId: id,
+      oldValue: subscription,
+      newValue: updated,
+      reason: dto.reason,
+    });
     return this.toResponse(updated);
   }
 
-  async changePlan(id: string, dto: ChangeSubscriptionPlanDto) {
-    await this.getSubscriptionOrThrow(id);
+  async changePlan(id: string, dto: ChangeSubscriptionPlanDto, audit?: AuditActorContext) {
+    const subscription = await this.getSubscriptionOrThrow(id);
     const plan = await this.subscriptionsRepository.findPlanById(dto.planId);
     if (!plan) {
       throw new NotFoundException('Plan not found');
@@ -120,16 +136,25 @@ export class PlatformSubscriptionsService {
     }
 
     // MVP behavior: plan changes immediately. TODO(usage): resetUsageNow is accepted for future usage ledger support.
-    // TODO(audit): record reason/effectiveDate once audit writer exists.
     const updated = await this.subscriptionsRepository.changePlan(
       id,
       dto.planId,
       dto.effectiveDate,
     );
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: subscription.tenantId,
+      action: 'subscription.plan_changed',
+      resourceType: 'Subscription',
+      resourceId: id,
+      oldValue: subscription,
+      newValue: updated,
+      reason: dto.reason,
+    });
     return this.toResponse(updated);
   }
 
-  async cancel(id: string, dto: CancelSubscriptionDto) {
+  async cancel(id: string, dto: CancelSubscriptionDto, audit?: AuditActorContext) {
     const subscription = await this.getSubscriptionOrThrow(id);
     this.assertStatusTransition(subscription.status, SubscriptionStatus.CANCELLED);
     const cancelNow = !dto.cancelAtPeriodEnd;
@@ -147,10 +172,20 @@ export class PlatformSubscriptionsService {
         },
       },
     });
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: subscription.tenantId,
+      action: 'subscription.cancelled',
+      resourceType: 'Subscription',
+      resourceId: id,
+      oldValue: subscription,
+      newValue: updated,
+      reason: dto.reason,
+    });
     return this.toResponse(updated);
   }
 
-  async renew(id: string, dto: RenewSubscriptionDto) {
+  async renew(id: string, dto: RenewSubscriptionDto, audit?: AuditActorContext) {
     const subscription = await this.getSubscriptionOrThrow(id);
     this.assertDateRange(
       dto.currentPeriodStart ?? subscription.currentPeriodStart ?? undefined,
@@ -158,13 +193,22 @@ export class PlatformSubscriptionsService {
       'Current period end date must be after start date',
     );
 
-    // TODO(audit): record renewal reason once audit writer exists.
     const updated = await this.subscriptionsRepository.update(id, {
       status: SubscriptionStatus.ACTIVE,
       paymentStatus: dto.paymentStatus ?? PaymentStatus.PAID,
       currentPeriodStart: dto.currentPeriodStart ?? subscription.currentPeriodStart ?? new Date(),
       currentPeriodEnd: dto.currentPeriodEnd,
       renewedAt: dto.renewalDate ?? new Date(),
+    });
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: subscription.tenantId,
+      action: 'subscription.renewed',
+      resourceType: 'Subscription',
+      resourceId: id,
+      oldValue: subscription,
+      newValue: updated,
+      reason: dto.reason,
     });
     return this.toResponse(updated);
   }

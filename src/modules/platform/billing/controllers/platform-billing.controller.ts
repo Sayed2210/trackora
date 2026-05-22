@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { PlatformPermissions } from '@common/decorators/platform-permissions.decorator';
 import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
+import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import {
   BillingExportFormat,
   BillingExportQueryDto,
@@ -14,6 +15,12 @@ import {
   UpdateManualInvoiceDto,
 } from '../dtos';
 import { PlatformBillingService } from '../services/platform-billing.service';
+
+interface AuthenticatedRequest {
+  user: AuthenticatedRequestUser;
+  ip?: string;
+  headers: { 'user-agent'?: string };
+}
 
 @ApiTags('Platform Billing')
 @ApiBearerAuth()
@@ -39,9 +46,10 @@ export class PlatformBillingController {
   @Post('billing/invoices')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
   @ApiOperation({ summary: 'Create manual invoice' })
-  async createInvoice(@Body() dto: CreateManualInvoiceDto) {
+  async createInvoice(@Body() dto: CreateManualInvoiceDto, @Req() request?: AuthenticatedRequest) {
     // TODO(permissions): require view_billing + manage_subscriptions when AND permission composition exists.
-    return this.billingService.createInvoice(dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.billingService.createInvoice(dto, audit) : this.billingService.createInvoice(dto);
   }
 
   @Patch('billing/invoices/:id')
@@ -50,8 +58,10 @@ export class PlatformBillingController {
   async updateInvoice(
     @Param() params: InvoiceIdParamDto,
     @Body() dto: UpdateManualInvoiceDto,
+    @Req() request?: AuthenticatedRequest,
   ) {
-    return this.billingService.updateInvoice(params.id, dto);
+    const audit = this.toAuditContext(request);
+    return audit ? this.billingService.updateInvoice(params.id, dto, audit) : this.billingService.updateInvoice(params.id, dto);
   }
 
   @Get('tenants/:id/billing')
@@ -72,5 +82,14 @@ export class PlatformBillingController {
       response.type('text/csv');
     }
     return this.billingService.exportInvoices(query);
+  }
+
+  private toAuditContext(request?: AuthenticatedRequest) {
+    if (!request) return undefined;
+    return {
+      user: request.user,
+      ipAddress: request.ip,
+      userAgent: request.headers?.['user-agent'],
+    };
   }
 }

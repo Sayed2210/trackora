@@ -15,12 +15,19 @@ import {
   PlatformPlansRepository,
   PlatformPlanWithDetails,
 } from '../repositories/platform-plans.repository';
+import {
+  AuditActorContext,
+  PlatformAuditLogService,
+} from '@modules/platform/audit-logs/services/platform-audit-log.service';
 
 const PLAN_FEATURE_KEYS = Object.values(FeatureFlagKey);
 
 @Injectable()
 export class PlatformPlansService {
-  constructor(private readonly plansRepository: PlatformPlansRepository) {}
+  constructor(
+    private readonly plansRepository: PlatformPlansRepository,
+    private readonly auditLogService: PlatformAuditLogService,
+  ) {}
 
   async findAll(query: ListPlansQueryDto) {
     const page = query.page ?? 1;
@@ -59,9 +66,8 @@ export class PlatformPlansService {
     };
   }
 
-  async create(dto: CreatePlanDto) {
+  async create(dto: CreatePlanDto, audit?: AuditActorContext) {
     await this.assertUniquePlan(dto.name, dto.slug);
-    // TODO(audit): write old/new values when the platform audit writer exists.
     const plan = await this.plansRepository.createWithFlags(
       {
         name: dto.name,
@@ -76,6 +82,13 @@ export class PlatformPlansService {
       },
       this.normalizeFeatureFlags(dto.featureEntitlements),
     );
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      action: 'plan.created',
+      resourceType: 'Plan',
+      resourceId: plan.id,
+      newValue: plan,
+    });
     return this.toResponse(plan);
   }
 
@@ -83,7 +96,7 @@ export class PlatformPlansService {
     return this.toResponse(await this.getPlanOrThrow(id));
   }
 
-  async update(id: string, dto: UpdatePlanDto) {
+  async update(id: string, dto: UpdatePlanDto, audit?: AuditActorContext) {
     const plan = await this.getPlanOrThrow(id);
     await this.assertUniquePlan(dto.name, dto.slug, id);
 
@@ -103,7 +116,6 @@ export class PlatformPlansService {
     if (dto.courierLimit !== undefined) data.courierLimit = dto.courierLimit;
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
 
-    // TODO(audit): include before/after plan snapshots once audit writer exists.
     const updated = await this.plansRepository.updateWithFlags(
       plan.id,
       data,
@@ -111,18 +123,42 @@ export class PlatformPlansService {
         ? undefined
         : this.normalizeFeatureFlags(dto.featureEntitlements),
     );
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      action: 'plan.updated',
+      resourceType: 'Plan',
+      resourceId: id,
+      oldValue: plan,
+      newValue: updated,
+    });
     return this.toResponse(updated);
   }
 
-  async remove(id: string) {
+  async remove(id: string, audit?: AuditActorContext) {
     const plan = await this.getPlanOrThrow(id);
     const counts = await this.plansRepository.getReferenceCounts(id);
 
     if (counts.subscriptions > 0 || counts.currentTenants > 0) {
-      return this.toResponse(await this.plansRepository.archive(plan.id));
+      const archived = await this.plansRepository.archive(plan.id);
+      await this.auditLogService?.writeAuditLog({
+        ...audit,
+        action: 'plan.archived',
+        resourceType: 'Plan',
+        resourceId: id,
+        oldValue: plan,
+        newValue: archived,
+      });
+      return this.toResponse(archived);
     }
 
     await this.plansRepository.delete(plan.id);
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      action: 'plan.deleted',
+      resourceType: 'Plan',
+      resourceId: id,
+      oldValue: plan,
+    });
     return { deleted: true };
   }
 

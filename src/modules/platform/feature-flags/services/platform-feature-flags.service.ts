@@ -8,6 +8,10 @@ import {
   PlatformFeatureFlagsRepository,
   TenantWithFeatureFlagDetails,
 } from '../repositories/platform-feature-flags.repository';
+import {
+  AuditActorContext,
+  PlatformAuditLogService,
+} from '@modules/platform/audit-logs/services/platform-audit-log.service';
 
 type FeatureFlagSource =
   | 'tenant_override'
@@ -21,6 +25,7 @@ const FEATURE_FLAG_KEYS = Object.values(FeatureFlagKey);
 export class PlatformFeatureFlagsService {
   constructor(
     private readonly featureFlagsRepository: PlatformFeatureFlagsRepository,
+    private readonly auditLogService: PlatformAuditLogService,
   ) {}
 
   async findAllGlobal() {
@@ -41,12 +46,22 @@ export class PlatformFeatureFlagsService {
     });
   }
 
-  async updateGlobal(key: FeatureFlagKey, dto: UpdateGlobalFeatureFlagDto) {
-    // TODO(audit): write global feature flag change with reason once audit writer exists.
+  async updateGlobal(key: FeatureFlagKey, dto: UpdateGlobalFeatureFlagDto, audit?: AuditActorContext) {
+    const globalFlags = (await this.featureFlagsRepository.findGlobalFlags()) ?? [];
+    const before = globalFlags.find((flag) => flag.key === key) ?? null;
     const flag = await this.featureFlagsRepository.upsertGlobalFlag(
       key,
       dto.enabled,
     );
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      action: 'feature_flag.global_changed',
+      resourceType: 'FeatureFlag',
+      resourceId: key,
+      oldValue: before,
+      newValue: flag,
+      reason: dto.reason,
+    });
     return {
       key: flag.key,
       name: flag.name,
@@ -73,13 +88,14 @@ export class PlatformFeatureFlagsService {
     key: FeatureFlagKey,
     dto: UpdateTenantFeatureFlagDto,
     changedByUserId?: string,
+    audit?: AuditActorContext,
   ) {
     const tenant = await this.featureFlagsRepository.findTenantWithFlags(tenantId);
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
 
-    // TODO(audit): write tenant feature flag change with reason once audit writer exists.
+    const before = tenant.featureFlags.find((flag) => flag.featureKey === key) ?? null;
     const updatedTenant = await this.featureFlagsRepository.updateTenantOverride(
       tenantId,
       key,
@@ -87,6 +103,17 @@ export class PlatformFeatureFlagsService {
       dto.reason,
       changedByUserId,
     );
+    const after = updatedTenant.featureFlags.find((flag) => flag.featureKey === key) ?? null;
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId,
+      action: dto.enabled === null ? 'feature_flag.tenant_override_removed' : 'feature_flag.tenant_override_changed',
+      resourceType: 'TenantFeatureFlag',
+      resourceId: tenantId,
+      oldValue: before,
+      newValue: after,
+      reason: dto.reason,
+    });
     const globalFlags = await this.featureFlagsRepository.findGlobalFlags();
     return this.toTenantResponse(updatedTenant, globalFlags);
   }
