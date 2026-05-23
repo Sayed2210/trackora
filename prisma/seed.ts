@@ -54,6 +54,11 @@ interface JsonGovernorate {
 
 const PLAN_FEATURE_KEYS = Object.values(FeatureFlagKey);
 
+const OWNER_SEED_EMAIL = 'owner@trackora.local';
+const OWNER_SEED_PHONE = '0103453391';
+const OWNER_SEED_NAME = 'Trackora System Owner';
+const DEV_OWNER_SEED_PASSWORD = 'Owner@123456';
+
 const platformPlans = [
   {
     name: 'Starter',
@@ -114,6 +119,58 @@ function hashPassword(plain: string): string {
   return bcrypt.hashSync(plain, 10);
 }
 
+function getOwnerSeedPassword(): string {
+  const password = process.env.OWNER_SEED_PASSWORD;
+  if (password) return password;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('OWNER_SEED_PASSWORD is required to seed PLATFORM_OWNER in production');
+  }
+
+  return DEV_OWNER_SEED_PASSWORD;
+}
+
+async function seedPlatformOwner() {
+  const phoneConflict = await prisma.user.findFirst({
+    where: {
+      phone: OWNER_SEED_PHONE,
+      email: { not: OWNER_SEED_EMAIL },
+    },
+    select: { id: true, email: true },
+  });
+
+  if (phoneConflict) {
+    throw new Error(
+      `Cannot seed PLATFORM_OWNER: phone ${OWNER_SEED_PHONE} is already used by user ${phoneConflict.id}`,
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(getOwnerSeedPassword(), 12);
+
+  await prisma.user.upsert({
+    where: { email: OWNER_SEED_EMAIL },
+    create: {
+      name: OWNER_SEED_NAME,
+      email: OWNER_SEED_EMAIL,
+      phone: OWNER_SEED_PHONE,
+      role: UserRole.PLATFORM_OWNER,
+      isActive: true,
+      passwordHash,
+      emailVerified: new Date(),
+      phoneVerified: new Date(),
+    },
+    update: {
+      name: OWNER_SEED_NAME,
+      phone: OWNER_SEED_PHONE,
+      role: UserRole.PLATFORM_OWNER,
+      isActive: true,
+      passwordHash,
+    },
+  });
+
+  console.log(`✅ Seeded platform owner: ${OWNER_SEED_EMAIL}`);
+}
+
 async function seedPlatformPlans() {
   for (const key of PLAN_FEATURE_KEYS) {
     await prisma.featureFlag.upsert({
@@ -169,8 +226,15 @@ async function seedPlatformPlans() {
 }
 
 async function main() {
+  if (process.env.OWNER_SEED_ONLY === 'true') {
+    console.log('🌱 Start seeding platform owner...');
+    await seedPlatformOwner();
+    return;
+  }
+
   console.log('🌱 Start seeding Dakahlia + demo data...');
 
+  await seedPlatformOwner();
   await seedPlatformPlans();
 
   // ── 1. Ensure Egypt exists ────────────────────────────────────────────────
