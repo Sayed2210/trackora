@@ -1,11 +1,23 @@
 import { Controller, Get, Post, Body, Req } from '@nestjs/common';
-import { ApiCreatedResponse, ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { OtpService } from '../services/otp.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Public } from '@common/decorators/public.decorator';
-import { RegisterDto, LoginDto, RefreshTokenDto, LoginResponseDto } from '../dtos';
+import {
+  RegisterDto,
+  LoginDto,
+  RefreshTokenDto,
+  LoginResponseDto,
+} from '../dtos';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 
 interface RequestWithUser extends Request {
@@ -24,7 +36,12 @@ export class AuthController {
   @Public()
   @ApiOperation({ summary: 'Register new user' })
   async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto.phone, dto.password, dto.name, dto.role);
+    return this.authService.register(
+      dto.phone,
+      dto.password,
+      dto.name,
+      dto.role,
+    );
   }
 
   @Post('login')
@@ -51,8 +68,28 @@ export class AuthController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Get current authenticated user' })
+  @ApiOperation({
+    summary: 'Get current authenticated user',
+    description:
+      'Returns the authenticated user, permissions, tenant context, and platform context when applicable. During support impersonation, includes impersonation context without exposing credentials.',
+  })
   @ApiBearerAuth()
+  @ApiOkResponse({
+    description:
+      'Current authenticated user context, including platform permissions when present.',
+    schema: {
+      example: {
+        userId: 'user-uuid',
+        tenantId: 'tenant-uuid',
+        role: 'SYSTEM_OWNER',
+        permissions: ['manage_tenants'],
+        platformContext: { isPlatformUser: true },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired bearer token.',
+  })
   async me(@Req() req: RequestWithUser) {
     return req.user.impersonationContext
       ? this.authService.getMe(req.user.userId, req.user.impersonationContext)

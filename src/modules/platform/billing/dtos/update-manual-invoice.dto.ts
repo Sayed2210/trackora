@@ -45,7 +45,10 @@ export class UpdateManualInvoiceDto {
   @MaxLength(2000)
   notes?: string;
 
-  @ApiProperty({ example: 'Payment received by bank transfer' })
+  @ApiProperty({
+    example: 'Payment received by bank transfer',
+    description: 'Required audit reason for updating the manual invoice.',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(500)
