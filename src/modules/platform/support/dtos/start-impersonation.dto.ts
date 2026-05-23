@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class StartImpersonationDto {
@@ -18,6 +18,5 @@ export class StartImpersonationDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(60)
   durationMinutes?: number = 30;
 }

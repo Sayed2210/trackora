@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ImpersonationStatus, PaymentStatus, Prisma, SubscriptionStatus, TenantStatus, UserRole } from '@prisma/client';
+import { ImpersonationStatus, PaymentStatus, Prisma, TenantStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '@core/prisma/prisma.service';
 
 export type SupportTenantWithDetails = Prisma.TenantGetPayload<{
