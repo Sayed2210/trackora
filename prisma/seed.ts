@@ -55,7 +55,7 @@ interface JsonGovernorate {
 const PLAN_FEATURE_KEYS = Object.values(FeatureFlagKey);
 
 const OWNER_SEED_EMAIL = 'owner@trackora.local';
-const OWNER_SEED_PHONE = '0103453391';
+const OWNER_SEED_PHONE = '01013453391';
 const OWNER_SEED_NAME = 'Trackora System Owner';
 const DEV_OWNER_SEED_PASSWORD = 'Owner@123456';
 
