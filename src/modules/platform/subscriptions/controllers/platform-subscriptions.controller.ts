@@ -1,5 +1,24 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiUnauthorizedResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import {
@@ -29,7 +48,9 @@ interface AuthenticatedRequest {
 @UseGuards(PlatformOnlyGuard)
 @Controller('platform/subscriptions')
 export class PlatformSubscriptionsController {
-  constructor(private readonly subscriptionsService: PlatformSubscriptionsService) {}
+  constructor(
+    private readonly subscriptionsService: PlatformSubscriptionsService,
+  ) {}
 
   @Get()
   @PlatformAnyPermissions(
@@ -37,7 +58,25 @@ export class PlatformSubscriptionsController {
     PERMISSIONS.VIEW_BILLING,
     PERMISSIONS.VIEW_PLATFORM_ANALYTICS,
   )
-  @ApiOperation({ summary: 'List platform subscriptions' })
+  @ApiOperation({
+    summary: 'List platform subscriptions',
+    description:
+      'Returns paginated tenant subscriptions with tenant, plan, status, payment, renewal-date, search, and sort filters. Requires one of `manage_subscriptions`, `view_billing`, or `view_platform_analytics`.',
+  })
+  @ApiOkResponse({
+    description: 'Paginated platform subscription list.',
+    schema: {
+      example: {
+        data: [],
+        meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks a required permission.',
+  })
   async findAll(@Query() query: ListSubscriptionsQueryDto) {
     return this.subscriptionsService.findAll(query);
   }
@@ -48,7 +87,18 @@ export class PlatformSubscriptionsController {
     PERMISSIONS.VIEW_BILLING,
     PERMISSIONS.VIEW_PLATFORM_ANALYTICS,
   )
-  @ApiOperation({ summary: 'Get platform subscription details' })
+  @ApiOperation({
+    summary: 'Get platform subscription details',
+    description:
+      'Returns subscription details for platform owner workflows. Requires one of `manage_subscriptions`, `view_billing`, or `view_platform_analytics`.',
+  })
+  @ApiOkResponse({ description: 'Platform subscription details.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks a required permission.',
+  })
+  @ApiNotFoundResponse({ description: 'Subscription was not found.' })
   async findById(@Param() params: SubscriptionIdParamDto) {
     return this.subscriptionsService.findById(params.id);
   }
@@ -56,53 +106,120 @@ export class PlatformSubscriptionsController {
   @Patch(':id')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
   @DangerousAction('subscription changes')
-  @ApiOperation({ summary: 'Update platform subscription' })
+  @ApiOperation({
+    summary: 'Update platform subscription',
+    description:
+      'Updates subscription dates, status, payment status, or metadata. Requires `manage_subscriptions` permission, a body `reason`, and is blocked during impersonation.',
+  })
+  @ApiOkResponse({ description: 'Platform subscription updated.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `manage_subscriptions`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({ description: 'Subscription was not found.' })
+  @ApiConflictResponse({
+    description:
+      'Subscription update conflicts with current plan, tenant, or billing state.',
+  })
   async update(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: UpdateSubscriptionDto,
     @Req() request?: AuthenticatedRequest,
   ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.subscriptionsService.update(params.id, dto, audit) : this.subscriptionsService.update(params.id, dto);
+    return audit
+      ? this.subscriptionsService.update(params.id, dto, audit)
+      : this.subscriptionsService.update(params.id, dto);
   }
 
   @Post(':id/change-plan')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
   @DangerousAction('subscription plan changes')
-  @ApiOperation({ summary: 'Change subscription plan' })
+  @ApiOperation({
+    summary: 'Change subscription plan',
+    description:
+      'Changes the plan assigned to a subscription. Requires `manage_subscriptions` permission, a body `reason`, and is blocked during impersonation.',
+  })
+  @ApiOkResponse({ description: 'Subscription plan changed.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `manage_subscriptions`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({
+    description: 'Subscription or target plan was not found.',
+  })
+  @ApiConflictResponse({
+    description: 'Plan change conflicts with current subscription state.',
+  })
   async changePlan(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: ChangeSubscriptionPlanDto,
     @Req() request?: AuthenticatedRequest,
   ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.subscriptionsService.changePlan(params.id, dto, audit) : this.subscriptionsService.changePlan(params.id, dto);
+    return audit
+      ? this.subscriptionsService.changePlan(params.id, dto, audit)
+      : this.subscriptionsService.changePlan(params.id, dto);
   }
 
   @Post(':id/cancel')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
   @DangerousAction('subscription cancellation')
-  @ApiOperation({ summary: 'Cancel subscription' })
+  @ApiOperation({
+    summary: 'Cancel subscription',
+    description:
+      'Cancels a tenant subscription immediately or at period end. Requires `manage_subscriptions` permission, a body `reason`, and is blocked during impersonation.',
+  })
+  @ApiOkResponse({ description: 'Subscription cancelled.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `manage_subscriptions`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({ description: 'Subscription was not found.' })
+  @ApiConflictResponse({
+    description: 'Subscription cannot be cancelled from its current state.',
+  })
   async cancel(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: CancelSubscriptionDto,
     @Req() request?: AuthenticatedRequest,
   ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.subscriptionsService.cancel(params.id, dto, audit) : this.subscriptionsService.cancel(params.id, dto);
+    return audit
+      ? this.subscriptionsService.cancel(params.id, dto, audit)
+      : this.subscriptionsService.cancel(params.id, dto);
   }
 
   @Post(':id/renew')
   @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
   @DangerousAction('subscription renewal')
-  @ApiOperation({ summary: 'Renew subscription' })
+  @ApiOperation({
+    summary: 'Renew subscription',
+    description:
+      'Renews a tenant subscription period and optional payment state. Requires `manage_subscriptions` permission, a body `reason`, and is blocked during impersonation.',
+  })
+  @ApiOkResponse({ description: 'Subscription renewed.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `manage_subscriptions`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({ description: 'Subscription was not found.' })
+  @ApiConflictResponse({
+    description: 'Subscription cannot be renewed from its current state.',
+  })
   async renew(
     @Param() params: SubscriptionIdParamDto,
     @Body() dto: RenewSubscriptionDto,
     @Req() request?: AuthenticatedRequest,
   ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.subscriptionsService.renew(params.id, dto, audit) : this.subscriptionsService.renew(params.id, dto);
+    return audit
+      ? this.subscriptionsService.renew(params.id, dto, audit)
+      : this.subscriptionsService.renew(params.id, dto);
   }
 
   private toAuditContext(request?: AuthenticatedRequest) {

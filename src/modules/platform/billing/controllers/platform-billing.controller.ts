@@ -1,5 +1,27 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiProduces,
+  ApiUnauthorizedResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { PlatformPermissions } from '@common/decorators/platform-permissions.decorator';
@@ -32,14 +54,42 @@ export class PlatformBillingController {
 
   @Get('billing/overview')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
-  @ApiOperation({ summary: 'Get platform billing overview' })
+  @ApiOperation({
+    summary: 'Get platform billing overview',
+    description:
+      'Returns high-level billing totals for the platform owner dashboard. Requires `view_billing` permission.',
+  })
+  @ApiOkResponse({ description: 'Platform billing overview.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `view_billing`.',
+  })
   async overview() {
     return this.billingService.getOverview();
   }
 
   @Get('billing/invoices')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
-  @ApiOperation({ summary: 'List manual invoices' })
+  @ApiOperation({
+    summary: 'List manual invoices',
+    description:
+      'Returns paginated manual invoices with tenant, status, date, search, and sort filters. Requires `view_billing` permission.',
+  })
+  @ApiOkResponse({
+    description: 'Paginated invoice list.',
+    schema: {
+      example: {
+        data: [],
+        meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `view_billing`.',
+  })
   async findInvoices(@Query() query: ListInvoicesQueryDto) {
     return this.billingService.findInvoices(query);
   }
@@ -47,36 +97,95 @@ export class PlatformBillingController {
   @Post('billing/invoices')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
   @DangerousAction('billing invoice mutations')
-  @ApiOperation({ summary: 'Create manual invoice' })
-  async createInvoice(@Body() dto: CreateManualInvoiceDto, @Req() request?: AuthenticatedRequest) {
+  @ApiOperation({
+    summary: 'Create manual invoice',
+    description:
+      'Creates a manual billing invoice for a tenant. Requires `view_billing` currently, a body `reason`, and is blocked during impersonation. Restricted to platform billing operators.',
+  })
+  @ApiCreatedResponse({ description: 'Manual invoice created.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `view_billing`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant was not found.' })
+  @ApiConflictResponse({
+    description: 'Invoice conflicts with existing billing state.',
+  })
+  async createInvoice(
+    @Body() dto: CreateManualInvoiceDto,
+    @Req() request?: AuthenticatedRequest,
+  ) {
     // TODO(permissions): require view_billing + manage_subscriptions when AND permission composition exists.
     const audit = this.toAuditContext(request);
-    return audit ? this.billingService.createInvoice(dto, audit) : this.billingService.createInvoice(dto);
+    return audit
+      ? this.billingService.createInvoice(dto, audit)
+      : this.billingService.createInvoice(dto);
   }
 
   @Patch('billing/invoices/:id')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
   @DangerousAction('billing invoice mutations')
-  @ApiOperation({ summary: 'Update manual invoice' })
+  @ApiOperation({
+    summary: 'Update manual invoice',
+    description:
+      'Updates manual invoice amount, status, payment status, due date, paid date, or notes. Requires `view_billing` currently, a body `reason`, and is blocked during impersonation.',
+  })
+  @ApiOkResponse({ description: 'Manual invoice updated.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `view_billing`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({ description: 'Invoice was not found.' })
+  @ApiConflictResponse({
+    description: 'Invoice update conflicts with current billing state.',
+  })
   async updateInvoice(
     @Param() params: InvoiceIdParamDto,
     @Body() dto: UpdateManualInvoiceDto,
     @Req() request?: AuthenticatedRequest,
   ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.billingService.updateInvoice(params.id, dto, audit) : this.billingService.updateInvoice(params.id, dto);
+    return audit
+      ? this.billingService.updateInvoice(params.id, dto, audit)
+      : this.billingService.updateInvoice(params.id, dto);
   }
 
   @Get('tenants/:id/billing')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
-  @ApiOperation({ summary: 'Get tenant billing summary' })
+  @ApiOperation({
+    summary: 'Get tenant billing summary',
+    description:
+      'Returns billing summary for one tenant. Requires `view_billing` permission.',
+  })
+  @ApiOkResponse({ description: 'Tenant billing summary.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `view_billing`.',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant was not found.' })
   async tenantBilling(@Param() params: TenantBillingParamDto) {
     return this.billingService.getTenantBilling(params.id);
   }
 
   @Get('billing/export')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
-  @ApiOperation({ summary: 'Export billing invoices' })
+  @ApiOperation({
+    summary: 'Export billing invoices',
+    description:
+      'Exports invoices for a required date range as JSON or CSV. Requires `view_billing` permission.',
+  })
+  @ApiProduces('application/json', 'text/csv')
+  @ApiOkResponse({
+    description: 'Invoice export payload. CSV requests return `text/csv`.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `view_billing`.',
+  })
   async exportInvoices(
     @Query() query: BillingExportQueryDto,
     @Res({ passthrough: true }) response: Response,

@@ -12,7 +12,10 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateManualInvoiceDto {
-  @ApiProperty()
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Tenant ID that the manual invoice belongs to.',
+  })
   @IsUUID('4')
   tenantId: string;
 
@@ -49,7 +52,10 @@ export class CreateManualInvoiceDto {
   @MaxLength(2000)
   notes?: string;
 
-  @ApiProperty({ example: 'Manual correction for May billing cycle' })
+  @ApiProperty({
+    example: 'Manual correction for May billing cycle',
+    description: 'Required audit reason for creating the manual invoice.',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(500)

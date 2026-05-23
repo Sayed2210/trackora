@@ -11,7 +11,18 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiUnauthorizedResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { PlatformPermissions } from '@common/decorators/platform-permissions.decorator';
 import { DangerousAction } from '@common/decorators/dangerous-action.decorator';
@@ -39,49 +50,141 @@ export class TenantsController {
 
   @Post()
   @PlatformPermissions(PERMISSIONS.MANAGE_TENANTS)
-  @ApiOperation({ summary: 'Create tenant' })
-  async create(@Body() dto: CreatePlatformTenantDto, @Req() request?: AuthenticatedRequest) {
+  @ApiOperation({
+    summary: 'Create tenant',
+    description:
+      'Creates a tenant workspace for the platform. Requires `manage_tenants` permission.',
+  })
+  @ApiCreatedResponse({
+    description: 'Tenant created.',
+    schema: {
+      example: {
+        id: 'tenant-uuid',
+        name: 'Cairo Express',
+        slug: 'cairo-express',
+        status: 'TRIAL',
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `manage_tenants`.',
+  })
+  @ApiConflictResponse({
+    description: 'Tenant slug or unique tenant data already exists.',
+  })
+  async create(
+    @Body() dto: CreatePlatformTenantDto,
+    @Req() request?: AuthenticatedRequest,
+  ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.tenantsService.create(dto, audit) : this.tenantsService.create(dto);
+    return audit
+      ? this.tenantsService.create(dto, audit)
+      : this.tenantsService.create(dto);
   }
 
   @Get()
   @PlatformPermissions(PERMISSIONS.MANAGE_TENANTS)
-  @ApiOperation({ summary: 'List tenants' })
+  @ApiOperation({
+    summary: 'List tenants',
+    description:
+      'Returns paginated tenant records with optional search/status filters. Requires `manage_tenants` permission.',
+  })
+  @ApiOkResponse({
+    description: 'Paginated tenant list.',
+    schema: {
+      example: {
+        data: [],
+        meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `manage_tenants`.',
+  })
   async findAll(@Query() query: ListPlatformTenantsDto) {
     return this.tenantsService.findAll(query);
   }
 
   @Get(':id')
   @PlatformPermissions(PERMISSIONS.MANAGE_TENANTS)
-  @ApiOperation({ summary: 'Get tenant by ID' })
+  @ApiOperation({
+    summary: 'Get tenant by ID',
+    description:
+      'Returns a single tenant profile for platform administration. Requires `manage_tenants` permission.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Tenant ID.' })
+  @ApiOkResponse({ description: 'Tenant details.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `manage_tenants`.',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant was not found.' })
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.tenantsService.findById(id);
   }
 
   @Patch(':id')
   @PlatformPermissions(PERMISSIONS.MANAGE_TENANTS)
-  @ApiOperation({ summary: 'Update tenant profile' })
+  @ApiOperation({
+    summary: 'Update tenant profile',
+    description:
+      'Updates tenant profile fields. Requires `manage_tenants` permission.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Tenant ID.' })
+  @ApiOkResponse({ description: 'Tenant updated.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `manage_tenants`.',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant was not found.' })
+  @ApiConflictResponse({
+    description: 'Tenant slug or unique tenant data already exists.',
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePlatformTenantDto,
     @Req() request?: AuthenticatedRequest,
   ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.tenantsService.update(id, dto, audit) : this.tenantsService.update(id, dto);
+    return audit
+      ? this.tenantsService.update(id, dto, audit)
+      : this.tenantsService.update(id, dto);
   }
 
   @Patch(':id/status')
   @PlatformPermissions(PERMISSIONS.SUSPEND_TENANTS)
   @DangerousAction('tenant status changes')
-  @ApiOperation({ summary: 'Change tenant status' })
+  @ApiOperation({
+    summary: 'Change tenant status',
+    description:
+      'Dangerous action used to activate, suspend, or close a tenant. Requires `suspend_tenants` permission and is blocked during impersonation.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Tenant ID.' })
+  @ApiOkResponse({ description: 'Tenant status changed.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `suspend_tenants`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant was not found.' })
+  @ApiConflictResponse({
+    description: 'Requested tenant status transition is not allowed.',
+  })
   async changeStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ChangePlatformTenantStatusDto,
     @Req() request?: AuthenticatedRequest,
   ) {
     const audit = this.toAuditContext(request);
-    return audit ? this.tenantsService.changeStatus(id, dto, audit) : this.tenantsService.changeStatus(id, dto);
+    return audit
+      ? this.tenantsService.changeStatus(id, dto, audit)
+      : this.tenantsService.changeStatus(id, dto);
   }
 
   private toAuditContext(request?: AuthenticatedRequest) {
