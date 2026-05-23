@@ -32,10 +32,6 @@ export class OtpService {
     );
     await this.redis.del(attemptKey);
 
-    // TODO: Integrate Twilio for actual SMS delivery
-    // For now, log the code (dev only)
-    console.log(`[OTP] Code for ${phone}: ${code}`);
-
     return code;
   }
 
