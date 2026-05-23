@@ -116,23 +116,13 @@ describe('AuthService', () => {
       jest.spyOn(repository, 'findByPhone').mockResolvedValueOnce(mockUser);
 
       await expect(
-        service.register(
-          '01000000001',
-          'password123',
-          'New User',
-          'MERCHANT',
-        ),
+        service.register('01000000001', 'password123', 'New User', 'MERCHANT'),
       ).rejects.toThrow(ConflictException);
     });
 
     it('should reject SUPER_ADMIN role registration', async () => {
       await expect(
-        service.register(
-          '01000000002',
-          'password123',
-          'Hacker',
-          'SUPER_ADMIN',
-        ),
+        service.register('01000000002', 'password123', 'Hacker', 'SUPER_ADMIN'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -169,7 +159,9 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
-      jest.spyOn(repository, 'findByPhoneWithAccounts').mockResolvedValueOnce(null);
+      jest
+        .spyOn(repository, 'findByPhoneWithAccounts')
+        .mockResolvedValueOnce(null);
 
       await expect(service.login('01000000001', 'password123')).rejects.toThrow(
         UnauthorizedException,
@@ -269,6 +261,32 @@ describe('AuthService', () => {
         isPlatformUser: false,
         permissions: [],
         merchantId: 'merchant-1',
+      });
+      expect(result.platformContext).toBeUndefined();
+    });
+
+    it('includes impersonation context without granting platform permissions to tenant users', async () => {
+      const impersonationContext = {
+        sessionId: '123e4567-e89b-42d3-a456-426614174010',
+        actorUserId: '123e4567-e89b-42d3-a456-426614174011',
+        targetUserId: mockUser.id,
+        tenantId: '123e4567-e89b-42d3-a456-426614174012',
+      };
+      jest.spyOn(repository, 'findByIdWithAccounts').mockResolvedValueOnce({
+        ...mockUser,
+        tenantId: impersonationContext.tenantId,
+        merchant: { id: 'merchant-1' },
+        courier: null,
+      } as any);
+
+      const result = await service.getMe(mockUser.id, impersonationContext);
+
+      expect(result).toMatchObject({
+        role: UserRole.MERCHANT,
+        isPlatformUser: false,
+        tenantId: impersonationContext.tenantId,
+        permissions: [],
+        impersonationContext,
       });
       expect(result.platformContext).toBeUndefined();
     });

@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -9,7 +13,10 @@ import { PrismaService } from '@core/prisma/prisma.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService, private readonly prisma: PrismaService) {
+  constructor(
+    configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     const secret = configService.get<string>('JWT_SECRET');
     if (!secret) {
       throw new Error('JWT_SECRET is not defined');
@@ -35,7 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           where: { id: session.id },
           data: { status: ImpersonationStatus.EXPIRED, endedAt: new Date() },
         });
-        throw new UnauthorizedException('Impersonation session expired');
+        throw new ForbiddenException('Impersonation session expired');
       }
     }
 
