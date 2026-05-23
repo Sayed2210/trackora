@@ -185,7 +185,7 @@ async function main() {
   }
 
   // ── 2. Load & parse Dakahlia JSON ─────────────────────────────────────────
-  const jsonPath = path.resolve('../data/dakahlia-mansoura-shipping-tree.json');
+  const jsonPath = path.resolve('./dakahlia-mansoura-shipping-tree.json');
   const raw = fs.readFileSync(jsonPath, 'utf-8');
   const gov: JsonGovernorate = JSON.parse(raw);
 
