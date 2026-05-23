@@ -23,6 +23,8 @@ import { PlatformFeatureFlagsModule } from '@modules/platform/feature-flags/plat
 import { PlatformAnalyticsModule } from '@modules/platform/analytics/platform-analytics.module';
 import { PlatformBillingModule } from '@modules/platform/billing/platform-billing.module';
 import { PlatformAuditLogsModule } from '@modules/platform/audit-logs/platform-audit-logs.module';
+import { PlatformSupportModule } from '@modules/platform/support/platform-support.module';
+import { DangerousActionGuard } from '@common/guards/dangerous-action.guard';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/roles.guard';
 import { PermissionsGuard } from '@common/guards/permissions.guard';
@@ -50,6 +52,7 @@ import { PermissionsGuard } from '@common/guards/permissions.guard';
     PlatformAnalyticsModule,
     PlatformBillingModule,
     PlatformAuditLogsModule,
+    PlatformSupportModule,
   ],
   controllers: [AppController],
   providers: [
@@ -57,6 +60,7 @@ import { PermissionsGuard } from '@common/guards/permissions.guard';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_GUARD, useClass: DangerousActionGuard },
   ],
 })
 export class AppModule {}

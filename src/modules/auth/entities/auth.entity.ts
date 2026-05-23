@@ -7,6 +7,12 @@ export interface TokenPayload {
   sub: string;
   role: UserRole;
   type: string;
+  impersonationContext?: {
+    sessionId: string;
+    actorUserId: string;
+    targetUserId: string;
+    tenantId: string;
+  };
 }
 
 export interface RefreshTokenPayload {
@@ -17,4 +23,10 @@ export interface RefreshTokenPayload {
 export interface JwtPayload {
   sub: string;
   role: UserRole;
+  impersonationContext?: {
+    sessionId: string;
+    actorUserId: string;
+    targetUserId: string;
+    tenantId: string;
+  };
 }

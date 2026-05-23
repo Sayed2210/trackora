@@ -54,7 +54,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current authenticated user' })
   @ApiBearerAuth()
   async me(@Req() req: RequestWithUser) {
-    return this.authService.getMe(req.user.userId);
+    return req.user.impersonationContext
+      ? this.authService.getMe(req.user.userId, req.user.impersonationContext)
+      : this.authService.getMe(req.user.userId);
   }
 
   @Post('otp/send')

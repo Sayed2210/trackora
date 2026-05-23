@@ -14,6 +14,7 @@ import { AuthenticatedRequestUser } from '@common/interfaces/request-context.int
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { PlatformPermissions } from '@common/decorators/platform-permissions.decorator';
+import { DangerousAction } from '@common/decorators/dangerous-action.decorator';
 import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
 import {
   ChangePlatformTenantStatusDto,
@@ -72,6 +73,7 @@ export class TenantsController {
 
   @Patch(':id/status')
   @PlatformPermissions(PERMISSIONS.SUSPEND_TENANTS)
+  @DangerousAction('tenant status changes')
   @ApiOperation({ summary: 'Change tenant status' })
   async changeStatus(
     @Param('id', ParseUUIDPipe) id: string,

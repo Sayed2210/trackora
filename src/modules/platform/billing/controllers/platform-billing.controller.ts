@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { PERMISSIONS } from '@common/constants/permissions.constant';
 import { PlatformPermissions } from '@common/decorators/platform-permissions.decorator';
+import { DangerousAction } from '@common/decorators/dangerous-action.decorator';
 import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import {
@@ -45,6 +46,7 @@ export class PlatformBillingController {
 
   @Post('billing/invoices')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
+  @DangerousAction('billing invoice mutations')
   @ApiOperation({ summary: 'Create manual invoice' })
   async createInvoice(@Body() dto: CreateManualInvoiceDto, @Req() request?: AuthenticatedRequest) {
     // TODO(permissions): require view_billing + manage_subscriptions when AND permission composition exists.
@@ -54,6 +56,7 @@ export class PlatformBillingController {
 
   @Patch('billing/invoices/:id')
   @PlatformPermissions(PERMISSIONS.VIEW_BILLING)
+  @DangerousAction('billing invoice mutations')
   @ApiOperation({ summary: 'Update manual invoice' })
   async updateInvoice(
     @Param() params: InvoiceIdParamDto,

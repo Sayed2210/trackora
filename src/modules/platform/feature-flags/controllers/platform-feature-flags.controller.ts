@@ -5,6 +5,7 @@ import {
   PlatformAnyPermissions,
   PlatformPermissions,
 } from '@common/decorators/platform-permissions.decorator';
+import { DangerousAction } from '@common/decorators/dangerous-action.decorator';
 import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import {
@@ -43,6 +44,7 @@ export class PlatformFeatureFlagsController {
 
   @Patch('platform/feature-flags/:key')
   @PlatformPermissions(PERMISSIONS.MANAGE_FEATURE_FLAGS)
+  @DangerousAction('feature flag changes')
   @ApiOperation({ summary: 'Update global platform feature flag default' })
   async updateGlobal(
     @Param() params: FeatureFlagKeyParamDto,
@@ -65,6 +67,7 @@ export class PlatformFeatureFlagsController {
 
   @Patch('platform/tenants/:id/feature-flags/:key')
   @PlatformPermissions(PERMISSIONS.MANAGE_FEATURE_FLAGS)
+  @DangerousAction('tenant feature flag changes')
   @ApiOperation({ summary: 'Update or remove tenant feature flag override' })
   async updateTenantFlag(
     @Param() params: TenantFeatureFlagsParamDto,

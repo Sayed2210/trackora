@@ -21,6 +21,7 @@ import {
   getPermissionsForRole,
   isPlatformRole,
 } from '@common/constants/permissions.constant';
+import { ImpersonationContext } from '@common/interfaces/request-context.interface';
 
 const REGISTERABLE_ROLES = ['MERCHANT', 'COURIER'] as const;
 
@@ -126,17 +127,17 @@ export class AuthService {
     await this.redis.del(`refresh_token:${userId}`);
   }
 
-  async getMe(userId: string) {
+  async getMe(userId: string, impersonationContext?: ImpersonationContext) {
     const user = await this.authRepository.findByIdWithAccounts(userId);
 
     if (!user) {
       throw new UnauthorizedException('User not found or inactive');
     }
 
-    return this.toAuthUser(user);
+    return this.toAuthUser(user, impersonationContext);
   }
 
-  private toAuthUser(user: AuthUserWithAccounts) {
+  private toAuthUser(user: AuthUserWithAccounts, impersonationContext?: ImpersonationContext) {
     const permissions = getPermissionsForRole(user.role);
     const isPlatformUser = isPlatformRole(user.role);
 
@@ -157,7 +158,7 @@ export class AuthService {
             permissions,
           }
         : undefined,
-      impersonationContext: undefined,
+      impersonationContext,
       merchantId: user.merchant?.id,
       courierId: user.courier?.id,
       avatarUrl: user.avatarUrl,
