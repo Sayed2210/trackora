@@ -10,6 +10,16 @@ export type PlatformPlanWithDetails = Prisma.PlanGetPayload<{
   };
 }>;
 
+export type PublicPlanWithFeatures = Prisma.PlanGetPayload<{
+  include: {
+    featureFlags: {
+      include: {
+        featureFlag: { select: { name: true } };
+      };
+    };
+  };
+}>;
+
 export interface PlatformPlanFilter {
   isActive?: boolean;
   archivedAt?: null | { not: null };
@@ -118,6 +128,26 @@ export class PlatformPlansRepository {
       this.prisma.tenant.count({ where: { currentPlanId: id } }),
     ]);
     return { subscriptions, currentTenants };
+  }
+
+  async findPublicPlans(): Promise<PublicPlanWithFeatures[]> {
+    return this.prisma.plan.findMany({
+      where: {
+        isActive: true,
+        isPublic: true,
+        archivedAt: null,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { monthlyPrice: 'asc' }],
+      include: {
+        featureFlags: {
+          where: { enabled: true },
+          include: {
+            featureFlag: { select: { name: true } },
+          },
+          orderBy: { featureKey: 'asc' },
+        },
+      },
+    });
   }
 
   toOrderBy(

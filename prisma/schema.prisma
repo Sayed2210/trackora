@@ -240,6 +240,10 @@ model Plan {
   adminUserLimit       Int?
   merchantLimit        Int?
   courierLimit         Int?
+  yearlyPrice         Decimal?  @db.Decimal(10, 2)
+  isPublic            Boolean   @default(false)
+  isPopular           Boolean   @default(false)
+  sortOrder           Int       @default(0)
   isActive             Boolean   @default(true)
   archivedAt           DateTime?
   metadata             Json?
@@ -250,7 +254,8 @@ model Plan {
   subscriptions  Subscription[]
   featureFlags   PlanFeatureFlag[]
 
-  @@index([isActive, archivedAt])
+  @@index([isActive, isPublic, archivedAt])
+  @@index([sortOrder])
 }
 
 model FeatureFlag {
