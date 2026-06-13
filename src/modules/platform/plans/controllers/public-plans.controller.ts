@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '@common/decorators/public.decorator';
 import { PublicPlansService } from '../services/public-plans.service';
 import { PublicPlanResponseDto } from '../dtos';
@@ -16,7 +16,7 @@ export class PublicPlansController {
     description:
       'Returns active, public, non-archived plans sorted by sortOrder then monthlyPrice. No authentication required.',
   })
-  @ApiResponse({
+  @ApiOkResponse({
     description: 'List of public plans.',
     type: [PublicPlanResponseDto],
   })

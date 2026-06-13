@@ -22,7 +22,7 @@ export class RegisterDto {
 
   @ApiProperty({ enum: REGISTERABLE_ROLES })
   @IsIn(REGISTERABLE_ROLES)
-  role: typeof REGISTERABLE_ROLES[number];
+  role: (typeof REGISTERABLE_ROLES)[number];
 }
 
 export class LoginDto {
@@ -42,6 +42,20 @@ export class RefreshTokenDto {
   @IsString()
   @IsNotEmpty()
   refreshToken: string;
+}
+
+export class SendOtpDto {
+  @ApiProperty({ example: '01012345678' })
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+}
+
+export class VerifyOtpDto extends SendOtpDto {
+  @ApiProperty({ example: '1234', minLength: 4, maxLength: 4 })
+  @IsString()
+  @IsNotEmpty()
+  code: string;
 }
 
 export class AuthUserResponseDto {

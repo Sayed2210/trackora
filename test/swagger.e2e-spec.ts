@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { AppModule } from './../src/app.module';
+import { setupSwagger } from '@core/swagger/swagger.config';
 
 describe('Swagger & API Automation Tests (e2e)', () => {
   let app: INestApplication<App>;
@@ -40,15 +40,7 @@ describe('Swagger & API Automation Tests (e2e)', () => {
       }),
     );
 
-    // Swagger documentation
-    const config = new DocumentBuilder()
-      .setTitle('Trackora API')
-      .setDescription('Logistics & COD Shipment Management API')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
+    setupSwagger(app);
 
     await app.init();
     httpServer = app.getHttpServer();
@@ -102,11 +94,25 @@ describe('Swagger & API Automation Tests (e2e)', () => {
         'Auth',
         'Users',
         'Merchants',
+        'Merchant Dashboard',
         'Couriers',
+        'Courier App',
         'Shipments',
         'Assignments',
         'Wallets',
         'Admin',
+        'Audit Logs',
+        'Zones',
+        'Payouts',
+        'Platform Tenants',
+        'Platform Plans',
+        'Public Plans',
+        'Platform Subscriptions',
+        'Platform Feature Flags',
+        'Platform Analytics',
+        'Platform Billing',
+        'Platform Audit Logs',
+        'Platform Support',
       ];
       const allTags = new Set<string>();
       for (const path of Object.values(paths)) {
@@ -119,6 +125,57 @@ describe('Swagger & API Automation Tests (e2e)', () => {
       for (const tag of requiredTags) {
         expect(allTags.has(tag)).toBe(true);
       }
+    });
+
+    it('should document inferred and multipart request bodies', async () => {
+      const res = await request(httpServer).get('/api/docs-json');
+      const paths = res.body.paths;
+
+      expect(paths['/v1/auth/otp/send'].post.requestBody).toBeDefined();
+      expect(paths['/v1/auth/otp/verify'].post.requestBody).toBeDefined();
+      expect(paths['/v1/merchants/{id}/kyc'].patch.requestBody).toBeDefined();
+
+      const bulkUpload = paths['/v1/shipments/bulk-upload'].post;
+      expect(bulkUpload.requestBody.required).toBe(true);
+      expect(
+        bulkUpload.requestBody.content['multipart/form-data'].schema.properties
+          .file.format,
+      ).toBe('binary');
+    });
+
+    it('should only require bearer auth for protected shipment endpoints', async () => {
+      const res = await request(httpServer).get('/api/docs-json');
+      const paths = res.body.paths;
+
+      expect(paths['/v1/shipments'].get.security).toEqual([{ bearer: [] }]);
+      expect(
+        paths['/v1/shipments/tracking/{trackingNumber}'].get.security,
+      ).toBeUndefined();
+    });
+
+    it('should give every operation a tag, operationId, and success response', async () => {
+      const res = await request(httpServer).get('/api/docs-json');
+      const operationIds = new Set<string>();
+      const missingSuccessResponses: string[] = [];
+
+      for (const [path, pathItem] of Object.entries(res.body.paths)) {
+        for (const [method, operation] of Object.entries(pathItem as object)) {
+          const apiOperation = operation as any;
+          expect(apiOperation.tags?.length).toBeGreaterThan(0);
+          expect(apiOperation.operationId).toBeTruthy();
+          expect(operationIds.has(apiOperation.operationId)).toBe(false);
+          operationIds.add(apiOperation.operationId);
+          if (
+            !Object.keys(apiOperation.responses ?? {}).some((status) =>
+              status.startsWith('2'),
+            )
+          ) {
+            missingSuccessResponses.push(method.toUpperCase() + ' ' + path);
+          }
+        }
+      }
+
+      expect(missingSuccessResponses).toEqual([]);
     });
   });
 

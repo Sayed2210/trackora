@@ -13,7 +13,14 @@ import {
   Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiConsumes,
+  ApiBody,
+  ApiOperation,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { ShipmentsService } from '../services/shipments.service';
 import { BulkUploadService } from '../services/bulk-upload.service';
@@ -29,7 +36,6 @@ interface RequestWithUser extends Request {
 }
 
 @ApiTags('Shipments')
-@ApiBearerAuth()
 @Controller('shipments')
 export class ShipmentsController {
   constructor(
@@ -38,14 +44,30 @@ export class ShipmentsController {
   ) {}
 
   @Post()
+  @ApiBearerAuth()
   @Roles(UserRole.MERCHANT)
   async create(@Body() dto: CreateShipmentDto, @Req() req: RequestWithUser) {
     return this.shipmentsService.create(dto, req.user.userId);
   }
 
   @Post('bulk-upload')
+  @ApiBearerAuth()
   @Roles(UserRole.MERCHANT)
   @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Bulk import shipments from an Excel file' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Excel workbook containing up to 1,000 shipments.',
+        },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file'))
   async bulkUpload(
     @UploadedFile() file: { buffer: Buffer } | undefined,
@@ -58,6 +80,7 @@ export class ShipmentsController {
   }
 
   @Get()
+  @ApiBearerAuth()
   @ApiQuery({
     name: 'status',
     required: false,
@@ -102,6 +125,7 @@ export class ShipmentsController {
   }
 
   @Get('cursor')
+  @ApiBearerAuth()
   @ApiQuery({
     name: 'status',
     required: false,
@@ -152,16 +176,19 @@ export class ShipmentsController {
   }
 
   @Get(':id')
+  @ApiBearerAuth()
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.shipmentsService.findById(id);
   }
 
   @Get(':id/timeline')
+  @ApiBearerAuth()
   async getTimeline(@Param('id', ParseUUIDPipe) id: string) {
     return this.shipmentsService.getTimeline(id);
   }
 
   @Patch(':id/status')
+  @ApiBearerAuth()
   @Roles(UserRole.COURIER, UserRole.OPERATIONS_MANAGER)
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
