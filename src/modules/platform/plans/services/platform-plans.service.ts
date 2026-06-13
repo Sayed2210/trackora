@@ -74,11 +74,15 @@ export class PlatformPlansService {
         slug: dto.slug,
         description: dto.description,
         monthlyPrice: new Prisma.Decimal(dto.monthlyPrice),
+        yearlyPrice: dto.yearlyPrice != null ? new Prisma.Decimal(dto.yearlyPrice) : null,
         currency: dto.currency ?? 'EGP',
         monthlyShipmentLimit: dto.monthlyShipmentLimit,
         adminUserLimit: dto.adminUserLimit,
         merchantLimit: dto.merchantLimit,
         courierLimit: dto.courierLimit,
+        isPublic: dto.isPublic ?? false,
+        isPopular: dto.isPopular ?? false,
+        sortOrder: dto.sortOrder ?? 0,
       },
       this.normalizeFeatureFlags(dto.featureEntitlements),
     );
@@ -108,12 +112,18 @@ export class PlatformPlansService {
       data.monthlyPrice = new Prisma.Decimal(dto.monthlyPrice);
     }
     if (dto.currency !== undefined) data.currency = dto.currency;
+    if (dto.yearlyPrice !== undefined) {
+      data.yearlyPrice = dto.yearlyPrice != null ? new Prisma.Decimal(dto.yearlyPrice) : null;
+    }
     if (dto.monthlyShipmentLimit !== undefined) {
       data.monthlyShipmentLimit = dto.monthlyShipmentLimit;
     }
     if (dto.adminUserLimit !== undefined) data.adminUserLimit = dto.adminUserLimit;
     if (dto.merchantLimit !== undefined) data.merchantLimit = dto.merchantLimit;
     if (dto.courierLimit !== undefined) data.courierLimit = dto.courierLimit;
+    if (dto.isPublic !== undefined) data.isPublic = dto.isPublic;
+    if (dto.isPopular !== undefined) data.isPopular = dto.isPopular;
+    if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
 
     const updated = await this.plansRepository.updateWithFlags(
@@ -207,11 +217,15 @@ export class PlatformPlansService {
       slug: plan.slug,
       description: plan.description,
       monthlyPrice: plan.monthlyPrice.toString(),
+      yearlyPrice: plan.yearlyPrice?.toString() ?? null,
       currency: plan.currency,
       monthlyShipmentLimit: plan.monthlyShipmentLimit,
       adminUserLimit: plan.adminUserLimit,
       merchantLimit: plan.merchantLimit,
       courierLimit: plan.courierLimit,
+      isPublic: plan.isPublic,
+      isPopular: plan.isPopular,
+      sortOrder: plan.sortOrder,
       isActive: plan.isActive,
       archivedAt: plan.archivedAt,
       featureEntitlements: plan.featureFlags.map((flag) => ({
