@@ -157,7 +157,7 @@ describe('AuthController', () => {
     it('should call otpService.sendOtp and return success message', async () => {
       mockOtpService.sendOtp.mockResolvedValue('1234');
 
-      const result = await controller.sendOtp('01000000001');
+      const result = await controller.sendOtp({ phone: '01000000001' });
 
       expect(mockOtpService.sendOtp).toHaveBeenCalledWith('01000000001');
       expect(result).toEqual({ message: 'OTP sent' });
@@ -168,7 +168,10 @@ describe('AuthController', () => {
     it('should call otpService.verifyOtp and return validity', async () => {
       mockOtpService.verifyOtp.mockResolvedValue(true);
 
-      const result = await controller.verifyOtp('01000000001', '1234');
+      const result = await controller.verifyOtp({
+        phone: '01000000001',
+        code: '1234',
+      });
 
       expect(mockOtpService.verifyOtp).toHaveBeenCalledWith(
         '01000000001',

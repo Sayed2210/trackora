@@ -9,7 +9,12 @@ import {
   ParseUUIDPipe,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { MerchantsService } from '../services/merchants.service';
 import { WalletsService } from '@modules/wallets/services/wallets.service';
@@ -18,6 +23,7 @@ import { UserRole } from '@modules/users/entities/user.entity';
 import { KycStatus } from '../entities/merchant.entity';
 import { CreateMerchantDto } from '../dtos/create-merchant.dto';
 import { UpdateFeesDto } from '../dtos/update-fees.dto';
+import { UpdateKycDto } from '../dtos/update-kyc.dto';
 import { WalletTransactionsQueryDto } from '@modules/wallets/dtos/wallet-transactions-query.dto';
 
 interface RequestWithUser extends Request {
@@ -70,9 +76,9 @@ export class MerchantsController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
   async updateKyc(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('status') status: KycStatus,
+    @Body() dto: UpdateKycDto,
   ) {
-    return this.merchantsService.updateKycStatus(id, status);
+    return this.merchantsService.updateKycStatus(id, dto.status);
   }
 
   @Patch(':id/fees')

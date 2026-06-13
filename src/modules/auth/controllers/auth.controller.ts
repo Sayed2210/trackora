@@ -10,13 +10,14 @@ import {
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { OtpService } from '../services/otp.service';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Public } from '@common/decorators/public.decorator';
 import {
   RegisterDto,
   LoginDto,
   RefreshTokenDto,
   LoginResponseDto,
+  SendOtpDto,
+  VerifyOtpDto,
 } from '../dtos';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 
@@ -99,16 +100,16 @@ export class AuthController {
   @Post('otp/send')
   @Public()
   @ApiOperation({ summary: 'Send OTP to phone' })
-  async sendOtp(@Body('phone') phone: string) {
-    await this.otpService.sendOtp(phone);
+  async sendOtp(@Body() dto: SendOtpDto) {
+    await this.otpService.sendOtp(dto.phone);
     return { message: 'OTP sent' };
   }
 
   @Post('otp/verify')
   @Public()
   @ApiOperation({ summary: 'Verify OTP' })
-  async verifyOtp(@Body('phone') phone: string, @Body('code') code: string) {
-    const valid = await this.otpService.verifyOtp(phone, code);
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    const valid = await this.otpService.verifyOtp(dto.phone, dto.code);
     return { valid };
   }
 }
