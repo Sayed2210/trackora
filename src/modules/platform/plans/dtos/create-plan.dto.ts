@@ -5,6 +5,7 @@ import {
   IsDecimal,
   IsInt,
   IsISO4217CurrencyCode,
+  IsBoolean,
   IsOptional,
   IsString,
   Matches,
@@ -72,6 +73,28 @@ export class CreatePlanDto {
   @IsInt()
   @Min(1)
   courierLimit?: number | null;
+
+  @ApiProperty({ required: false, nullable: true, example: '9999.00' })
+  @IsOptional()
+  @IsDecimal({ decimal_digits: '0,2' })
+  yearlyPrice?: string | null;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isPopular?: boolean;
+
+  @ApiProperty({ required: false, default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 
   @ApiProperty({ type: [PlanFeatureFlagDto], required: false })
   @IsOptional()

@@ -77,6 +77,28 @@ export class UpdatePlanDto {
   @Min(1)
   courierLimit?: number | null;
 
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsDecimal({ decimal_digits: '0,2' })
+  yearlyPrice?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isPopular?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsBoolean()
