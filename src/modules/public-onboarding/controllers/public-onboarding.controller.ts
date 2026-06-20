@@ -1,6 +1,7 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNotFoundResponse,
@@ -9,7 +10,12 @@ import {
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import { Public } from '@common/decorators/public.decorator';
-import { PublicSubscribeDto, PublicSubscribeResponseDto } from '../dtos';
+import {
+  PublicSubscribeDto,
+  PublicSubscribeResponseDto,
+  RequestDemoDto,
+  RequestDemoResponseDto,
+} from '../dtos';
 import { PublicOnboardingService } from '../services/public-onboarding.service';
 
 interface OnboardingRequest {
@@ -48,6 +54,38 @@ export class PublicOnboardingController {
     @Req() req: OnboardingRequest,
   ): Promise<PublicSubscribeResponseDto> {
     return this.onboardingService.subscribe(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @Post('request-demo')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Request a sales demo (public lead capture)',
+    description:
+      'Captures a sales lead for prospects requesting a demo. No tenant, user, or subscription is created. ' +
+      'Required: name, companyName, phone (Egyptian format), businessType. ' +
+      'Optional: email (validated when provided), monthlyShipments, message, interestedPlanSlug. ' +
+      'Rate-limited to 5 requests per minute per IP.',
+  })
+  @ApiCreatedResponse({
+    description: 'Demo request received.',
+    type: RequestDemoResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Validation failed (missing required fields, invalid Egyptian phone, or invalid email format).',
+  })
+  @ApiTooManyRequestsResponse({
+    description: 'Too many demo requests from this IP.',
+  })
+  async requestDemo(
+    @Body() dto: RequestDemoDto,
+    @Req() req: OnboardingRequest,
+  ): Promise<RequestDemoResponseDto> {
+    return this.onboardingService.requestDemo(dto, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
