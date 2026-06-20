@@ -8,7 +8,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PublicOnboardingService } from '../services/public-onboarding.service';
-import { PublicSubscribeDto } from '../dtos';
+import { PublicSubscribeDto, RequestDemoDto } from '../dtos';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { AuthService } from '@modules/auth/services/auth.service';
 import { PlatformAuditLogService } from '@modules/platform/audit-logs/services/platform-audit-log.service';
@@ -54,11 +54,19 @@ function makePlan(overrides: Record<string, unknown> = {}) {
   };
 }
 
+interface DemoRequestCreateArgs {
+  data: Record<string, unknown>;
+  select: { id: true };
+}
+
 interface MockPrismaService {
   $transaction: jest.Mock;
   plan: { findUnique: jest.Mock };
   tenant: { findUnique: jest.Mock };
   user: { findUnique: jest.Mock };
+  demoRequest: {
+    create: jest.Mock<{ id: string }, [DemoRequestCreateArgs]>;
+  };
 }
 
 describe('PublicOnboardingService', () => {
@@ -74,6 +82,9 @@ describe('PublicOnboardingService', () => {
       plan: { findUnique: jest.fn() },
       tenant: { findUnique: jest.fn() },
       user: { findUnique: jest.fn() },
+      demoRequest: {
+        create: jest.fn<{ id: string }, [DemoRequestCreateArgs]>(),
+      },
     };
 
     authService = {
@@ -406,6 +417,102 @@ describe('PublicOnboardingService', () => {
         (trialEnd.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24),
       );
       expect(diffDays).toBe(14);
+    });
+  });
+
+  describe('requestDemo', () => {
+    function makeDemoDto(
+      overrides: Partial<RequestDemoDto> = {},
+    ): RequestDemoDto {
+      return {
+        name: 'Ahmed Ali',
+        companyName: 'Cairo Express',
+        phone: '01012345678',
+        email: 'ahmed@cairoexpress.com',
+        businessType: 'E-commerce',
+        monthlyShipments: '500-1000',
+        message: 'I want a demo for my team',
+        interestedPlanSlug: 'growth',
+        ...overrides,
+      };
+    }
+
+    it('persists the demo request and returns id + success message', async () => {
+      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+
+      const result = await service.requestDemo(makeDemoDto());
+
+      expect(result).toEqual({
+        id: 'demo-uuid',
+        message: 'Demo request received',
+      });
+      expect(prisma.demoRequest.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('stores all provided fields', async () => {
+      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+
+      await service.requestDemo(makeDemoDto(), {
+        ipAddress: '197.45.1.10',
+        userAgent: 'curl/8.0',
+      });
+
+      expect(prisma.demoRequest.create).toHaveBeenCalledWith({
+        data: {
+          name: 'Ahmed Ali',
+          companyName: 'Cairo Express',
+          phone: '01012345678',
+          email: 'ahmed@cairoexpress.com',
+          businessType: 'E-commerce',
+          monthlyShipments: '500-1000',
+          message: 'I want a demo for my team',
+          interestedPlanSlug: 'growth',
+          ipAddress: '197.45.1.10',
+          userAgent: 'curl/8.0',
+        },
+        select: { id: true },
+      });
+    });
+
+    it('stores nulls for omitted optional fields', async () => {
+      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+
+      await service.requestDemo(
+        {
+          name: 'Ahmed Ali',
+          companyName: 'Cairo Express',
+          phone: '01012345678',
+          businessType: 'E-commerce',
+        },
+        { ipAddress: '197.45.1.10', userAgent: 'curl/8.0' },
+      );
+
+      const data = prisma.demoRequest.create.mock.calls[0][0].data;
+      expect(data.email).toBeNull();
+      expect(data.monthlyShipments).toBeNull();
+      expect(data.message).toBeNull();
+      expect(data.interestedPlanSlug).toBeNull();
+    });
+
+    it('does not create a tenant, user, or subscription', async () => {
+      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+
+      await service.requestDemo(makeDemoDto());
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.tenant.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(authService.login).not.toHaveBeenCalled();
+    });
+
+    it('defaults request context fields to null when not provided', async () => {
+      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+
+      await service.requestDemo(makeDemoDto());
+
+      const data = prisma.demoRequest.create.mock.calls[0][0].data;
+      expect(data.ipAddress).toBeNull();
+      expect(data.userAgent).toBeNull();
     });
   });
 });
