@@ -551,6 +551,130 @@ Get detailed timeline (same as above, timeline-focused).
 
 ---
 
+## Public Plans Endpoints (No Auth)
+
+### GET /public/plans
+
+List active, public, non-archived subscription plans sorted by `sortOrder` then `monthlyPrice`. Used by the marketing site pricing section.
+
+**Response:**
+```json
+[
+  {
+    "id": "plan-uuid",
+    "slug": "growth",
+    "name": "Growth",
+    "description": "Growth plan for scaling merchants and regional teams.",
+    "priceMonthly": "4999.00",
+    "priceYearly": "49990.00",
+    "currency": "EGP",
+    "shipmentLimit": 10000,
+    "features": ["Bulk Upload", "Public Tracking", "COD Wallet", "WhatsApp Notifications"],
+    "isPopular": true,
+    "ctaLabel": "Request Demo",
+    "ctaHref": "/request-demo?plan=growth"
+  }
+]
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `isPopular` | boolean | Highlights the recommended plan on the pricing page |
+| `priceYearly` | string \| null | Null for custom-pricing plans (e.g. Enterprise) |
+| `features` | string[] | Display names of enabled feature flags, falling back to `metadata.publicFeatures` |
+
+---
+
+## Public Onboarding Endpoint (No Auth)
+
+### POST /public/subscribe
+
+Self-service tenant signup with company data. Atomically creates a `Tenant` (TRIAL status), an owner `User` (SUPER_ADMIN role), and a `Subscription` (TRIALING status) for a public plan, then returns auth tokens for immediate login.
+
+Rate-limited to **5 requests per minute per IP**.
+
+**Request:**
+```json
+{
+  "company": {
+    "name": "Cairo Express",
+    "slug": "cairo-express",
+    "businessType": "E-commerce",
+    "websiteUrl": "https://cairoexpress.com"
+  },
+  "owner": {
+    "name": "Ahmed Ali",
+    "phone": "01012345678",
+    "password": "securePassword123",
+    "email": "ahmed@cairoexpress.com"
+  },
+  "planSlug": "growth"
+}
+```
+
+| Field | Validation |
+|-------|-----------|
+| `company.name` | 2–120 chars |
+| `company.slug` | 2–80 chars, kebab-case (`^[a-z0-9]+(?:-[a-z0-9]+)*$`) |
+| `company.businessType` | optional, max 80 chars |
+| `company.websiteUrl` | optional, max 255 chars |
+| `owner.name` | 2–120 chars |
+| `owner.phone` | Egyptian format (`^01[0-9]{9}$`) |
+| `owner.password` | 6–72 chars (bcrypt-hashed) |
+| `owner.email` | optional, valid email, max 255 chars |
+| `planSlug` | must reference an active, public, non-archived plan |
+
+**Response (201 Created):**
+```json
+{
+  "tenant": {
+    "id": "tenant-uuid",
+    "name": "Cairo Express",
+    "slug": "cairo-express",
+    "status": "TRIAL",
+    "trialStartsAt": "2026-06-20T10:00:00.000Z",
+    "trialEndsAt": "2026-07-04T10:00:00.000Z"
+  },
+  "subscription": {
+    "id": "sub-uuid",
+    "planId": "plan-uuid",
+    "status": "TRIALING",
+    "paymentStatus": "NOT_REQUIRED",
+    "trialStartsAt": "2026-06-20T10:00:00.000Z",
+    "trialEndsAt": "2026-07-04T10:00:00.000Z"
+  },
+  "plan": {
+    "id": "plan-uuid",
+    "name": "Growth",
+    "slug": "growth"
+  },
+  "user": {
+    "id": "user-uuid",
+    "name": "Ahmed Ali",
+    "phone": "01012345678",
+    "role": "SUPER_ADMIN",
+    "tenantId": "tenant-uuid"
+  },
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
+  "expiresIn": 900
+}
+```
+
+**Errors:**
+
+| Status | Cause |
+|--------|-------|
+| 404 | `planSlug` not found, not public, inactive, or archived |
+| 409 | Company slug, phone, or email already exists (pre-check or race-condition P2002) |
+| 429 | Too many signup attempts from this IP (>5/min) |
+
+**Trial configuration:** Trial duration is set via `TRIAL_DAYS` env var (default: 14 days). Tenant is created with `status=TRIAL`, subscription with `status=TRIALING` and `paymentStatus=NOT_REQUIRED`.
+
+**Audit:** A `tenant.self_registered` audit log entry is written inside the same transaction, recording the new tenant, plan slug, and signup source.
+
+---
+
 ## Courier App Endpoints
 
 ### GET /courier/tasks
