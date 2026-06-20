@@ -23,7 +23,7 @@ export class RequestDemoDto {
 
   @ApiProperty({ example: '01012345678' })
   @IsString()
-  @Matches(/^01[0-9]{9}$/, {
+  @Matches(/^01[0125]\d{8}$/, {
     message:
       'phone must be a valid Egyptian number (11 digits starting with 01)',
   })
