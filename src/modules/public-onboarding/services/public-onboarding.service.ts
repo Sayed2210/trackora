@@ -18,7 +18,11 @@ import {
   AuditActorContext,
   PlatformAuditLogService,
 } from '@modules/platform/audit-logs/services/platform-audit-log.service';
-import { PublicSubscribeDto } from '../dtos';
+import {
+  PublicSubscribeDto,
+  RequestDemoDto,
+  RequestDemoResponseDto,
+} from '../dtos';
 
 export interface OnboardingRequestContext {
   ipAddress?: string;
@@ -235,5 +239,31 @@ export class PublicOnboardingService {
   private parseTrialDays(raw: string | undefined): number {
     const parsed = raw ? parseInt(raw, 10) : DEFAULT_TRIAL_DAYS;
     return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TRIAL_DAYS;
+  }
+
+  async requestDemo(
+    dto: RequestDemoDto,
+    requestContext?: OnboardingRequestContext,
+  ): Promise<RequestDemoResponseDto> {
+    const demoRequest = await this.prisma.demoRequest.create({
+      data: {
+        name: dto.name,
+        companyName: dto.companyName,
+        phone: dto.phone,
+        email: dto.email ?? null,
+        businessType: dto.businessType,
+        monthlyShipments: dto.monthlyShipments ?? null,
+        message: dto.message ?? null,
+        interestedPlanSlug: dto.interestedPlanSlug ?? null,
+        ipAddress: requestContext?.ipAddress ?? null,
+        userAgent: requestContext?.userAgent ?? null,
+      },
+      select: { id: true },
+    });
+
+    return {
+      id: demoRequest.id,
+      message: 'Demo request received',
+    };
   }
 }
