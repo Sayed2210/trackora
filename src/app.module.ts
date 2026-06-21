@@ -24,6 +24,7 @@ import { PlatformAnalyticsModule } from '@modules/platform/analytics/platform-an
 import { PlatformBillingModule } from '@modules/platform/billing/platform-billing.module';
 import { PlatformAuditLogsModule } from '@modules/platform/audit-logs/platform-audit-logs.module';
 import { PlatformSupportModule } from '@modules/platform/support/platform-support.module';
+import { DemoRequestsModule } from '@modules/platform/demo-requests/demo-requests.module';
 import { PublicOnboardingModule } from '@modules/public-onboarding/public-onboarding.module';
 import { DangerousActionGuard } from '@common/guards/dangerous-action.guard';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -54,6 +55,7 @@ import { PermissionsGuard } from '@common/guards/permissions.guard';
     PlatformBillingModule,
     PlatformAuditLogsModule,
     PlatformSupportModule,
+    DemoRequestsModule,
     PublicOnboardingModule,
   ],
   controllers: [AppController],

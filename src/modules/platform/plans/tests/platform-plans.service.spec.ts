@@ -61,15 +61,13 @@ describe('PlatformPlansService', () => {
   it('creates plan with normalized feature flags', async () => {
     repository.findByName.mockResolvedValueOnce(null);
     repository.findBySlug.mockResolvedValueOnce(null);
-    repository.createWithFlags.mockResolvedValueOnce(mockPlan as any);
+    repository.createWithFlags.mockResolvedValueOnce(mockPlan);
 
     const result = await service.create({
       name: 'Growth',
       slug: 'growth',
       monthlyPrice: '999.00',
-      featureEntitlements: [
-        { key: FeatureFlagKey.bulk_upload, enabled: true },
-      ],
+      featureEntitlements: [{ key: FeatureFlagKey.bulk_upload, enabled: true }],
     });
 
     expect(repository.createWithFlags).toHaveBeenCalledWith(
@@ -92,10 +90,14 @@ describe('PlatformPlansService', () => {
   });
 
   it('rejects duplicate plan name', async () => {
-    repository.findByName.mockResolvedValueOnce(mockPlan as any);
+    repository.findByName.mockResolvedValueOnce(mockPlan);
 
     await expect(
-      service.create({ name: 'Growth', slug: 'growth-new', monthlyPrice: '999.00' }),
+      service.create({
+        name: 'Growth',
+        slug: 'growth-new',
+        monthlyPrice: '999.00',
+      }),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -108,29 +110,29 @@ describe('PlatformPlansService', () => {
   });
 
   it('updates plan and replaces flags when provided', async () => {
-    repository.findById.mockResolvedValueOnce(mockPlan as any);
+    repository.findById.mockResolvedValueOnce(mockPlan);
     repository.updateWithFlags.mockResolvedValueOnce({
       ...mockPlan,
       name: 'Growth Plus',
-    } as any);
+    });
 
     const result = await service.update(mockPlan.id, {
       name: 'Growth Plus',
-      featureEntitlements: [
-        { key: FeatureFlagKey.api_access, enabled: true },
-      ],
+      featureEntitlements: [{ key: FeatureFlagKey.api_access, enabled: true }],
     });
 
     expect(repository.updateWithFlags).toHaveBeenCalledWith(
       mockPlan.id,
       { name: 'Growth Plus' },
-      expect.arrayContaining([{ key: FeatureFlagKey.api_access, enabled: true }]),
+      expect.arrayContaining([
+        { key: FeatureFlagKey.api_access, enabled: true },
+      ]),
     );
     expect(result.name).toBe('Growth Plus');
   });
 
   it('archives referenced plans instead of deleting unsafely', async () => {
-    repository.findById.mockResolvedValueOnce(mockPlan as any);
+    repository.findById.mockResolvedValueOnce(mockPlan);
     repository.getReferenceCounts.mockResolvedValueOnce({
       subscriptions: 1,
       currentTenants: 0,
@@ -139,7 +141,7 @@ describe('PlatformPlansService', () => {
       ...mockPlan,
       isActive: false,
       archivedAt: new Date('2026-05-02T00:00:00.000Z'),
-    } as any);
+    });
 
     const result = await service.remove(mockPlan.id);
 
@@ -149,13 +151,15 @@ describe('PlatformPlansService', () => {
   });
 
   it('deletes unused plans', async () => {
-    repository.findById.mockResolvedValueOnce(mockPlan as any);
+    repository.findById.mockResolvedValueOnce(mockPlan);
     repository.getReferenceCounts.mockResolvedValueOnce({
       subscriptions: 0,
       currentTenants: 0,
     });
     repository.delete.mockResolvedValueOnce(undefined);
 
-    await expect(service.remove(mockPlan.id)).resolves.toEqual({ deleted: true });
+    await expect(service.remove(mockPlan.id)).resolves.toEqual({
+      deleted: true,
+    });
   });
 });

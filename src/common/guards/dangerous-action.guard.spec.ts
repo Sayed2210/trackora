@@ -4,14 +4,17 @@ import { DANGEROUS_ACTION_KEY } from '@common/decorators/dangerous-action.decora
 import { DangerousActionGuard } from './dangerous-action.guard';
 
 describe('DangerousActionGuard', () => {
-  const reflector = { getAllAndOverride: jest.fn() } as unknown as jest.Mocked<Reflector>;
+  const reflector = {
+    getAllAndOverride: jest.fn(),
+  } as unknown as jest.Mocked<Reflector>;
   const guard = new DangerousActionGuard(reflector);
 
-  const context = (user?: any) => ({
-    getHandler: jest.fn(),
-    getClass: jest.fn(),
-    switchToHttp: () => ({ getRequest: () => ({ user }) }),
-  }) as any;
+  const context = (user?: any) =>
+    ({
+      getHandler: jest.fn(),
+      getClass: jest.fn(),
+      switchToHttp: () => ({ getRequest: () => ({ user }) }),
+    }) as any;
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -22,9 +25,18 @@ describe('DangerousActionGuard', () => {
   });
 
   it('blocks dangerous actions during impersonation', () => {
-    reflector.getAllAndOverride.mockReturnValueOnce({ reason: 'billing invoice mutations' });
+    reflector.getAllAndOverride.mockReturnValueOnce({
+      reason: 'billing invoice mutations',
+    });
 
-    expect(() => guard.canActivate(context({ impersonationContext: { sessionId: 'session-id' } }))).toThrow(ForbiddenException);
-    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(DANGEROUS_ACTION_KEY, expect.any(Array));
+    expect(() =>
+      guard.canActivate(
+        context({ impersonationContext: { sessionId: 'session-id' } }),
+      ),
+    ).toThrow(ForbiddenException);
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(
+      DANGEROUS_ACTION_KEY,
+      expect.any(Array),
+    );
   });
 });

@@ -251,6 +251,8 @@ describe('PlatformFeatureFlagsService', () => {
   it('throws 404 when tenant is missing', async () => {
     repository.findTenantWithFlags.mockResolvedValueOnce(null);
 
-    await expect(service.findTenantFlags(tenantId)).rejects.toThrow(NotFoundException);
+    await expect(service.findTenantFlags(tenantId)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

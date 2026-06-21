@@ -23,6 +23,8 @@ export const PERMISSIONS = {
   IMPERSONATE_TENANT_ADMIN: 'impersonate_tenant_admin',
   VIEW_BILLING: 'view_billing',
   SUSPEND_TENANTS: 'suspend_tenants',
+  VIEW_DEMO_REQUESTS: 'view_demo_requests',
+  MANAGE_DEMO_REQUESTS: 'manage_demo_requests',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -46,6 +48,8 @@ export const PLATFORM_PERMISSIONS = [
   PERMISSIONS.IMPERSONATE_TENANT_ADMIN,
   PERMISSIONS.VIEW_BILLING,
   PERMISSIONS.SUSPEND_TENANTS,
+  PERMISSIONS.VIEW_DEMO_REQUESTS,
+  PERMISSIONS.MANAGE_DEMO_REQUESTS,
 ] as const;
 
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
@@ -59,6 +63,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     PERMISSIONS.VIEW_AUDIT_LOGS,
     PERMISSIONS.VIEW_BILLING,
     PERMISSIONS.SUSPEND_TENANTS,
+    PERMISSIONS.VIEW_DEMO_REQUESTS,
+    PERMISSIONS.MANAGE_DEMO_REQUESTS,
   ],
   [UserRole.PLATFORM_SUPPORT]: [
     PERMISSIONS.VIEW_PLATFORM_ANALYTICS,

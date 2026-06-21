@@ -5,7 +5,10 @@ import { AbstractRepository } from '@common/database/abstract.repository';
 import { User } from '../entities/auth.entity';
 
 export type AuthUserWithAccounts = Prisma.UserGetPayload<{
-  include: { merchant: { select: { id: true } }; courier: { select: { id: true } } };
+  include: {
+    merchant: { select: { id: true } };
+    courier: { select: { id: true } };
+  };
 }>;
 
 @Injectable()
@@ -42,7 +45,7 @@ export class AuthRepository extends AbstractRepository<User> {
         merchant: { select: { id: true } },
         courier: { select: { id: true } },
       },
-    }) as Promise<AuthUserWithAccounts | null>;
+    });
   }
 
   async findByIdWithAccounts(id: string): Promise<AuthUserWithAccounts | null> {
@@ -52,7 +55,7 @@ export class AuthRepository extends AbstractRepository<User> {
         merchant: { select: { id: true } },
         courier: { select: { id: true } },
       },
-    }) as Promise<AuthUserWithAccounts | null>;
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {

@@ -48,11 +48,7 @@ export class CouriersRepository extends AbstractRepository<Courier> {
     });
   }
 
-  async findWithFilters(
-    filters: CourierFilter,
-    skip: number,
-    take: number,
-  ) {
+  async findWithFilters(filters: CourierFilter, skip: number, take: number) {
     const where = this.buildWhere(filters);
     const [data, total] = await Promise.all([
       this.delegate.findMany({
@@ -82,9 +78,7 @@ export class CouriersRepository extends AbstractRepository<Courier> {
       _count: { _all: true },
     });
 
-    return new Map(
-      grouped.map((item) => [item.courierId, item._count._all]),
-    );
+    return new Map(grouped.map((item) => [item.courierId, item._count._all]));
   }
 
   private buildWhere(filters: CourierFilter): Record<string, unknown> {

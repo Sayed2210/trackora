@@ -188,7 +188,7 @@ describe('AuthService', () => {
       jest.spyOn(jwtService, 'verify').mockReturnValueOnce({
         sub: mockUser.id,
         type: 'refresh',
-      } as any);
+      });
       jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockUser as any);
 
       const result = await service.refreshTokens('refresh-token');
@@ -224,7 +224,7 @@ describe('AuthService', () => {
         tenantId: null,
         merchant: null,
         courier: null,
-      } as any);
+      });
 
       const result = await service.getMe(mockUser.id);
 
@@ -250,7 +250,7 @@ describe('AuthService', () => {
         tenantId: 'tenant-1',
         merchant: { id: 'merchant-1' },
         courier: null,
-      } as any);
+      });
 
       const result = await service.getMe(mockUser.id);
 
@@ -277,7 +277,7 @@ describe('AuthService', () => {
         tenantId: impersonationContext.tenantId,
         merchant: { id: 'merchant-1' },
         courier: null,
-      } as any);
+      });
 
       const result = await service.getMe(mockUser.id, impersonationContext);
 

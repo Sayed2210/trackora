@@ -91,7 +91,9 @@ describe('CouriersController (integration)', () => {
       mockCouriersService.findAll.mockResolvedValue(result);
 
       const res = await request(app.getHttpServer())
-        .get('/couriers?search=ahmed&isActive=true&isAvailable=false&zoneCode=CAI-01&page=1&limit=20')
+        .get(
+          '/couriers?search=ahmed&isActive=true&isAvailable=false&zoneCode=CAI-01&page=1&limit=20',
+        )
         .expect(200);
 
       expect(res.body).toEqual(JSON.parse(JSON.stringify(result)));

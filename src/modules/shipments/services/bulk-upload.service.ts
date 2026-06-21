@@ -63,10 +63,7 @@ export class BulkUploadService {
     private readonly fraudDetection: FraudDetectionService,
   ) {}
 
-  async processFile(
-    buffer: Buffer,
-    merchantId: string,
-  ): Promise<BulkResult> {
+  async processFile(buffer: Buffer, merchantId: string): Promise<BulkResult> {
     const rows = this.parseFile(buffer);
     return this.processRows(rows, merchantId);
   }
@@ -76,10 +73,9 @@ export class BulkUploadService {
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-        worksheet,
-        { defval: '' },
-      );
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+        defval: '',
+      });
 
       return raw.map((r) => {
         const addressRaw = r['address'];
@@ -92,8 +88,12 @@ export class BulkUploadService {
 
         return {
           customerName: String(r['customerName'] || r['customer_name'] || ''),
-          customerPhone: String(r['customerPhone'] || r['customer_phone'] || ''),
-          customerPhone2: String(r['customerPhone2'] || r['customer_phone2'] || ''),
+          customerPhone: String(
+            r['customerPhone'] || r['customer_phone'] || '',
+          ),
+          customerPhone2: String(
+            r['customerPhone2'] || r['customer_phone2'] || '',
+          ),
           addressText: String(r['addressText'] || r['address_text'] || ''),
           address,
           type: String(r['type'] || ''),
@@ -104,10 +104,9 @@ export class BulkUploadService {
           productDescription: String(
             r['productDescription'] || r['product_description'] || '',
           ),
-          productValue: (r['productValue'] || r['product_value'] || undefined) as
-            | number
-            | string
-            | undefined,
+          productValue: (r['productValue'] ||
+            r['product_value'] ||
+            undefined) as number | string | undefined,
           weight: (r['weight'] || undefined) as number | string | undefined,
           pieces: (r['pieces'] || undefined) as number | string | undefined,
           notes: String(r['notes'] || ''),
@@ -132,9 +131,7 @@ export class BulkUploadService {
       throw new BadRequestException('File contains no data rows');
     }
     if (rows.length > 5000) {
-      throw new BadRequestException(
-        'Maximum 5,000 rows allowed per upload',
-      );
+      throw new BadRequestException('Maximum 5,000 rows allowed per upload');
     }
 
     // Pre-load all zones for fast lookup
@@ -159,11 +156,21 @@ export class BulkUploadService {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNum = i + 2; // +1 for header, +1 for 0-index
-      const validation = this.validateRow(row, rowNum, zones, zoneByCode, zoneByNameAr);
+      const validation = this.validateRow(
+        row,
+        rowNum,
+        zones,
+        zoneByCode,
+        zoneByNameAr,
+      );
       if (validation.error) {
         errors.push({ rowIndex: rowNum, message: validation.error });
       } else {
-        validRows.push({ rowIndex: rowNum, data: validation.data!, zoneId: validation.zoneId });
+        validRows.push({
+          rowIndex: rowNum,
+          data: validation.data!,
+          zoneId: validation.zoneId,
+        });
       }
     }
 
@@ -185,11 +192,12 @@ export class BulkUploadService {
     const shipmentCreates = validRows.map((vr, idx) => {
       const type = this.parseShipmentType(String(vr.data.type))!;
       const codAmount =
-        type === ShipmentType.COD
-          ? Number(vr.data.codAmount ?? 0)
-          : 0;
+        type === ShipmentType.COD ? Number(vr.data.codAmount ?? 0) : 0;
 
-      const address = this.parseAddress(vr.data.address, String(vr.data.addressText));
+      const address = this.parseAddress(
+        vr.data.address,
+        String(vr.data.addressText),
+      );
 
       return {
         trackingNumber: trackingNumbers[idx],
@@ -258,7 +266,7 @@ export class BulkUploadService {
         return shipments;
       });
 
-      createdShipments.push(...(result as unknown as Shipment[]));
+      createdShipments.push(...result);
     }
 
     return {
@@ -282,15 +290,24 @@ export class BulkUploadService {
     if (!row.customerName?.trim()) errors.push('customerName is required');
     if (!row.customerPhone?.trim()) errors.push('customerPhone is required');
     else if (!this.isValidEgyptianPhone(row.customerPhone.trim())) {
-      errors.push('customerPhone must be a valid Egyptian phone (11 digits starting with 01)');
+      errors.push(
+        'customerPhone must be a valid Egyptian phone (11 digits starting with 01)',
+      );
     }
 
     if (!row.addressText?.trim()) errors.push('addressText is required');
-    if (!row.productDescription?.trim()) errors.push('productDescription is required');
+    if (!row.productDescription?.trim())
+      errors.push('productDescription is required');
 
     const type = this.parseShipmentType(row.type);
-    if (!type) errors.push(`type must be one of: ${Object.values(ShipmentType).join(', ')}`);
-    if (type === ShipmentType.COD && (row.codAmount === undefined || row.codAmount === '')) {
+    if (!type)
+      errors.push(
+        `type must be one of: ${Object.values(ShipmentType).join(', ')}`,
+      );
+    if (
+      type === ShipmentType.COD &&
+      (row.codAmount === undefined || row.codAmount === '')
+    ) {
       errors.push('codAmount is required for COD shipments');
     }
 

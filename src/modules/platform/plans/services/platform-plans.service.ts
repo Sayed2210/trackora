@@ -74,7 +74,8 @@ export class PlatformPlansService {
         slug: dto.slug,
         description: dto.description,
         monthlyPrice: new Prisma.Decimal(dto.monthlyPrice),
-        yearlyPrice: dto.yearlyPrice != null ? new Prisma.Decimal(dto.yearlyPrice) : null,
+        yearlyPrice:
+          dto.yearlyPrice != null ? new Prisma.Decimal(dto.yearlyPrice) : null,
         currency: dto.currency ?? 'EGP',
         monthlyShipmentLimit: dto.monthlyShipmentLimit,
         adminUserLimit: dto.adminUserLimit,
@@ -113,12 +114,14 @@ export class PlatformPlansService {
     }
     if (dto.currency !== undefined) data.currency = dto.currency;
     if (dto.yearlyPrice !== undefined) {
-      data.yearlyPrice = dto.yearlyPrice != null ? new Prisma.Decimal(dto.yearlyPrice) : null;
+      data.yearlyPrice =
+        dto.yearlyPrice != null ? new Prisma.Decimal(dto.yearlyPrice) : null;
     }
     if (dto.monthlyShipmentLimit !== undefined) {
       data.monthlyShipmentLimit = dto.monthlyShipmentLimit;
     }
-    if (dto.adminUserLimit !== undefined) data.adminUserLimit = dto.adminUserLimit;
+    if (dto.adminUserLimit !== undefined)
+      data.adminUserLimit = dto.adminUserLimit;
     if (dto.merchantLimit !== undefined) data.merchantLimit = dto.merchantLimit;
     if (dto.courierLimit !== undefined) data.courierLimit = dto.courierLimit;
     if (dto.isPublic !== undefined) data.isPublic = dto.isPublic;
@@ -207,7 +210,10 @@ export class PlatformPlansService {
     for (const flag of flags ?? []) {
       byKey.set(flag.key, flag.enabled);
     }
-    return Array.from(byKey.entries()).map(([key, enabled]) => ({ key, enabled }));
+    return Array.from(byKey.entries()).map(([key, enabled]) => ({
+      key,
+      enabled,
+    }));
   }
 
   private toResponse(plan: PlatformPlanWithDetails) {

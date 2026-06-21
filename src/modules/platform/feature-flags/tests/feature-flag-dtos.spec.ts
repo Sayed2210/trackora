@@ -6,7 +6,9 @@ import { UpdateTenantFeatureFlagDto } from '../dtos/update-tenant-feature-flag.d
 
 describe('Feature flag DTO validation', () => {
   it('rejects invalid feature flag keys', async () => {
-    const dto = plainToInstance(FeatureFlagKeyParamDto, { key: 'invalid_flag' });
+    const dto = plainToInstance(FeatureFlagKeyParamDto, {
+      key: 'invalid_flag',
+    });
 
     const errors = await validate(dto);
 

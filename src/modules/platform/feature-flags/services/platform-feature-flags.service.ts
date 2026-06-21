@@ -46,8 +46,13 @@ export class PlatformFeatureFlagsService {
     });
   }
 
-  async updateGlobal(key: FeatureFlagKey, dto: UpdateGlobalFeatureFlagDto, audit?: AuditActorContext) {
-    const globalFlags = (await this.featureFlagsRepository.findGlobalFlags()) ?? [];
+  async updateGlobal(
+    key: FeatureFlagKey,
+    dto: UpdateGlobalFeatureFlagDto,
+    audit?: AuditActorContext,
+  ) {
+    const globalFlags =
+      (await this.featureFlagsRepository.findGlobalFlags()) ?? [];
     const before = globalFlags.find((flag) => flag.key === key) ?? null;
     const flag = await this.featureFlagsRepository.upsertGlobalFlag(
       key,
@@ -74,7 +79,8 @@ export class PlatformFeatureFlagsService {
   }
 
   async findTenantFlags(tenantId: string) {
-    const tenant = await this.featureFlagsRepository.findTenantWithFlags(tenantId);
+    const tenant =
+      await this.featureFlagsRepository.findTenantWithFlags(tenantId);
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
@@ -90,24 +96,32 @@ export class PlatformFeatureFlagsService {
     changedByUserId?: string,
     audit?: AuditActorContext,
   ) {
-    const tenant = await this.featureFlagsRepository.findTenantWithFlags(tenantId);
+    const tenant =
+      await this.featureFlagsRepository.findTenantWithFlags(tenantId);
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
 
-    const before = tenant.featureFlags.find((flag) => flag.featureKey === key) ?? null;
-    const updatedTenant = await this.featureFlagsRepository.updateTenantOverride(
-      tenantId,
-      key,
-      dto.enabled,
-      dto.reason,
-      changedByUserId,
-    );
-    const after = updatedTenant.featureFlags.find((flag) => flag.featureKey === key) ?? null;
+    const before =
+      tenant.featureFlags.find((flag) => flag.featureKey === key) ?? null;
+    const updatedTenant =
+      await this.featureFlagsRepository.updateTenantOverride(
+        tenantId,
+        key,
+        dto.enabled,
+        dto.reason,
+        changedByUserId,
+      );
+    const after =
+      updatedTenant.featureFlags.find((flag) => flag.featureKey === key) ??
+      null;
     await this.auditLogService?.writeAuditLog({
       ...audit,
       tenantId,
-      action: dto.enabled === null ? 'feature_flag.tenant_override_removed' : 'feature_flag.tenant_override_changed',
+      action:
+        dto.enabled === null
+          ? 'feature_flag.tenant_override_removed'
+          : 'feature_flag.tenant_override_changed',
       resourceType: 'TenantFeatureFlag',
       resourceId: tenantId,
       oldValue: before,
@@ -120,13 +134,16 @@ export class PlatformFeatureFlagsService {
 
   private toTenantResponse(
     tenant: TenantWithFeatureFlagDetails,
-    globalFlags: Awaited<ReturnType<PlatformFeatureFlagsRepository['findGlobalFlags']>>,
+    globalFlags: Awaited<
+      ReturnType<PlatformFeatureFlagsRepository['findGlobalFlags']>
+    >,
   ) {
     const tenantOverrides = new Map(
       tenant.featureFlags.map((flag) => [flag.featureKey, flag]),
     );
     const planFlags = new Map(
-      tenant.currentPlan?.featureFlags.map((flag) => [flag.featureKey, flag]) ?? [],
+      tenant.currentPlan?.featureFlags.map((flag) => [flag.featureKey, flag]) ??
+        [],
     );
     const globalByKey = new Map(globalFlags.map((flag) => [flag.key, flag]));
 
@@ -148,7 +165,11 @@ export class PlatformFeatureFlagsService {
         const tenantOverride = tenantOverrides.get(key);
         const planFlag = planFlags.get(key);
         const globalFlag = globalByKey.get(key);
-        const resolution = this.resolveFlag(tenantOverride, planFlag, globalFlag);
+        const resolution = this.resolveFlag(
+          tenantOverride,
+          planFlag,
+          globalFlag,
+        );
 
         return {
           key,
@@ -170,7 +191,10 @@ export class PlatformFeatureFlagsService {
     planFlag?: { enabled: boolean },
     globalFlag?: { defaultEnabled: boolean },
   ): { enabled: boolean; source: FeatureFlagSource } {
-    if (tenantOverride?.enabled !== undefined && tenantOverride.enabled !== null) {
+    if (
+      tenantOverride?.enabled !== undefined &&
+      tenantOverride.enabled !== null
+    ) {
       return { enabled: tenantOverride.enabled, source: 'tenant_override' };
     }
     if (planFlag) {

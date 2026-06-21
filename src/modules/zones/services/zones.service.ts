@@ -29,7 +29,9 @@ export class ZonesService {
     return this.zonesRepository.create({ ...dto });
   }
 
-  async findAll(query: ListZonesDto): Promise<{ data: Zone[]; total: number; page: number; limit: number }> {
+  async findAll(
+    query: ListZonesDto,
+  ): Promise<{ data: Zone[]; total: number; page: number; limit: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;

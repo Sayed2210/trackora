@@ -103,9 +103,7 @@ describe('PublicPlansController (e2e)', () => {
     it('excludes inactive plans via query filter', async () => {
       mockPrismaService.plan.findMany.mockResolvedValueOnce([]);
 
-      await request(app.getHttpServer())
-        .get('/public/plans')
-        .expect(200);
+      await request(app.getHttpServer()).get('/public/plans').expect(200);
 
       const findManyCall = mockPrismaService.plan.findMany.mock.calls[0][0];
       expect(findManyCall.where.isActive).toBe(true);
@@ -114,9 +112,7 @@ describe('PublicPlansController (e2e)', () => {
     it('excludes private plans via query filter', async () => {
       mockPrismaService.plan.findMany.mockResolvedValueOnce([]);
 
-      await request(app.getHttpServer())
-        .get('/public/plans')
-        .expect(200);
+      await request(app.getHttpServer()).get('/public/plans').expect(200);
 
       const findManyCall = mockPrismaService.plan.findMany.mock.calls[0][0];
       expect(findManyCall.where.isPublic).toBe(true);
@@ -125,9 +121,7 @@ describe('PublicPlansController (e2e)', () => {
     it('excludes archived plans via query filter', async () => {
       mockPrismaService.plan.findMany.mockResolvedValueOnce([]);
 
-      await request(app.getHttpServer())
-        .get('/public/plans')
-        .expect(200);
+      await request(app.getHttpServer()).get('/public/plans').expect(200);
 
       const findManyCall = mockPrismaService.plan.findMany.mock.calls[0][0];
       expect(findManyCall.where.archivedAt).toBe(null);
@@ -156,12 +150,13 @@ describe('PublicPlansController (e2e)', () => {
     it('sorts by sortOrder asc then monthlyPrice asc', async () => {
       mockPrismaService.plan.findMany.mockResolvedValueOnce([]);
 
-      await request(app.getHttpServer())
-        .get('/public/plans')
-        .expect(200);
+      await request(app.getHttpServer()).get('/public/plans').expect(200);
 
       const findManyCall = mockPrismaService.plan.findMany.mock.calls[0][0];
-      expect(findManyCall.orderBy).toEqual([{ sortOrder: 'asc' }, { monthlyPrice: 'asc' }]);
+      expect(findManyCall.orderBy).toEqual([
+        { sortOrder: 'asc' },
+        { monthlyPrice: 'asc' },
+      ]);
     });
 
     it('does not require authentication', async () => {

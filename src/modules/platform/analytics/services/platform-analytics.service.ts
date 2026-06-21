@@ -13,11 +13,23 @@ const DEFAULT_RANGE_DAYS = 30;
 
 @Injectable()
 export class PlatformAnalyticsService {
-  constructor(private readonly analyticsRepository: PlatformAnalyticsRepository) {}
+  constructor(
+    private readonly analyticsRepository: PlatformAnalyticsRepository,
+  ) {}
 
   async getOverview() {
     const range = this.resolveDateRange({});
-    const [tenants, totalShipments, activeMerchants, activeCouriers, codVolume, payoutVolume, fraudFlaggedShipments, topTenantsByShipmentVolume, recentGrowthSummary] = await Promise.all([
+    const [
+      tenants,
+      totalShipments,
+      activeMerchants,
+      activeCouriers,
+      codVolume,
+      payoutVolume,
+      fraudFlaggedShipments,
+      topTenantsByShipmentVolume,
+      recentGrowthSummary,
+    ] = await Promise.all([
       this.analyticsRepository.getTenantStatusCounts(),
       this.analyticsRepository.countShipments(),
       this.analyticsRepository.countMerchants({ isActive: true }),
@@ -58,7 +70,10 @@ export class PlatformAnalyticsService {
           createdAt: { gte: bucket.from, lt: bucket.to },
           tenantId: query.tenantId,
         };
-        const scopedWhere = { tenantId: query.tenantId, createdAt: { gte: bucket.from, lt: bucket.to } };
+        const scopedWhere = {
+          tenantId: query.tenantId,
+          createdAt: { gte: bucket.from, lt: bucket.to },
+        };
         const [shipments, merchants, couriers] = await Promise.all([
           this.analyticsRepository.countShipments(shipmentWhere),
           this.analyticsRepository.countMerchants(scopedWhere),
@@ -86,11 +101,12 @@ export class PlatformAnalyticsService {
   }
 
   async getRevenue() {
-    const [subscriptions, estimatedMrrByPlan, invoiceTotals] = await Promise.all([
-      this.analyticsRepository.getSubscriptionStatusCounts(),
-      this.analyticsRepository.getEstimatedMrrByPlan(),
-      this.analyticsRepository.getManualInvoiceTotals(),
-    ]);
+    const [subscriptions, estimatedMrrByPlan, invoiceTotals] =
+      await Promise.all([
+        this.analyticsRepository.getSubscriptionStatusCounts(),
+        this.analyticsRepository.getEstimatedMrrByPlan(),
+        this.analyticsRepository.getManualInvoiceTotals(),
+      ]);
     const revenueByPlan = estimatedMrrByPlan.map((item) => {
       const monthlyPrice = item.plan?.monthlyPrice ?? new Prisma.Decimal(0);
       return {
@@ -104,7 +120,9 @@ export class PlatformAnalyticsService {
             }
           : null,
         activeSubscriptions: item.activeSubscriptions,
-        estimatedMonthlyRevenue: monthlyPrice.mul(item.activeSubscriptions).toString(),
+        estimatedMonthlyRevenue: monthlyPrice
+          .mul(item.activeSubscriptions)
+          .toString(),
       };
     });
     const estimatedMrr = revenueByPlan.reduce(
@@ -132,12 +150,32 @@ export class PlatformAnalyticsService {
       tenantId: query.tenantId,
       status: query.status,
     };
-    const [totalShipments, deliveredShipments, failedShipments, returnedShipments, pendingShipments, topTenantsByShipmentVolume, byStatus] = await Promise.all([
+    const [
+      totalShipments,
+      deliveredShipments,
+      failedShipments,
+      returnedShipments,
+      pendingShipments,
+      topTenantsByShipmentVolume,
+      byStatus,
+    ] = await Promise.all([
       this.analyticsRepository.countShipments(where),
-      this.analyticsRepository.countShipments({ ...where, status: ShipmentStatus.DELIVERED }),
-      this.analyticsRepository.countShipments({ ...where, status: ShipmentStatus.FAILED }),
-      this.analyticsRepository.countShipments({ ...where, status: ShipmentStatus.RETURNED }),
-      this.analyticsRepository.countShipments({ ...where, status: ShipmentStatus.PENDING }),
+      this.analyticsRepository.countShipments({
+        ...where,
+        status: ShipmentStatus.DELIVERED,
+      }),
+      this.analyticsRepository.countShipments({
+        ...where,
+        status: ShipmentStatus.FAILED,
+      }),
+      this.analyticsRepository.countShipments({
+        ...where,
+        status: ShipmentStatus.RETURNED,
+      }),
+      this.analyticsRepository.countShipments({
+        ...where,
+        status: ShipmentStatus.PENDING,
+      }),
       this.analyticsRepository.getTopTenantsByShipmentVolume(where),
       this.analyticsRepository.getShipmentsByStatus(where),
     ]);
@@ -164,13 +202,17 @@ export class PlatformAnalyticsService {
 
   private resolveDateRange(query: AnalyticsDateRangeQueryDto) {
     const to = query.to ?? new Date();
-    const from = query.from ?? new Date(to.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000);
+    const from =
+      query.from ??
+      new Date(to.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000);
     if (from > to) {
       throw new BadRequestException('Date range start must be before end');
     }
     const rangeDays = (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000);
     if (rangeDays > MAX_RANGE_DAYS) {
-      throw new BadRequestException(`Date range cannot exceed ${MAX_RANGE_DAYS} days`);
+      throw new BadRequestException(
+        `Date range cannot exceed ${MAX_RANGE_DAYS} days`,
+      );
     }
     return { from, to };
   }
@@ -187,7 +229,10 @@ export class PlatformAnalyticsService {
       } else {
         next.setUTCDate(next.getUTCDate() + 1);
       }
-      buckets.push({ from: new Date(cursor), to: next > to ? to : new Date(next) });
+      buckets.push({
+        from: new Date(cursor),
+        to: next > to ? to : new Date(next),
+      });
       cursor = next;
     }
     return buckets;

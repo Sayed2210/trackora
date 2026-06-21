@@ -57,12 +57,16 @@ describe('PlatformSubscriptionsController', () => {
   });
 
   it('uses any read permissions for list/detail endpoints', () => {
-    expect(Reflect.getMetadata(ANY_PERMISSIONS_KEY, controller.findAll)).toEqual([
+    expect(
+      Reflect.getMetadata(ANY_PERMISSIONS_KEY, controller.findAll),
+    ).toEqual([
       PERMISSIONS.MANAGE_SUBSCRIPTIONS,
       PERMISSIONS.VIEW_BILLING,
       PERMISSIONS.VIEW_PLATFORM_ANALYTICS,
     ]);
-    expect(Reflect.getMetadata(ANY_PERMISSIONS_KEY, controller.findById)).toEqual([
+    expect(
+      Reflect.getMetadata(ANY_PERMISSIONS_KEY, controller.findById),
+    ).toEqual([
       PERMISSIONS.MANAGE_SUBSCRIPTIONS,
       PERMISSIONS.VIEW_BILLING,
       PERMISSIONS.VIEW_PLATFORM_ANALYTICS,

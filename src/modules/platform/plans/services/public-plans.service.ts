@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { PlatformPlansRepository, PublicPlanWithFeatures } from '../repositories/platform-plans.repository';
+import {
+  PlatformPlansRepository,
+  PublicPlanWithFeatures,
+} from '../repositories/platform-plans.repository';
 import { PublicPlanResponseDto } from '../dtos';
 
 @Injectable()
@@ -32,7 +35,9 @@ export class PublicPlansService {
   private mapFeatures(plan: PublicPlanWithFeatures): string[] {
     const flagNames = plan.featureFlags
       .map((flag) => flag.featureFlag?.name)
-      .filter((name): name is string => typeof name === 'string' && name.length > 0);
+      .filter(
+        (name): name is string => typeof name === 'string' && name.length > 0,
+      );
 
     if (flagNames.length > 0) {
       return flagNames;
@@ -44,9 +49,9 @@ export class PublicPlansService {
       'publicFeatures' in plan.metadata &&
       Array.isArray((plan.metadata as Record<string, unknown>).publicFeatures)
     ) {
-      return ((plan.metadata as Record<string, unknown>).publicFeatures as string[]).filter(
-        (f): f is string => typeof f === 'string',
-      );
+      return (
+        (plan.metadata as Record<string, unknown>).publicFeatures as string[]
+      ).filter((f): f is string => typeof f === 'string');
     }
 
     return [];

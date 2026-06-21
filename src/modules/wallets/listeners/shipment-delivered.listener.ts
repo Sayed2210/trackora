@@ -46,7 +46,9 @@ export class ShipmentDeliveredListener {
     }
   }
 
-  private async processCodCreditAtomic(event: ShipmentDeliveredEvent): Promise<void> {
+  private async processCodCreditAtomic(
+    event: ShipmentDeliveredEvent,
+  ): Promise<void> {
     const { shipmentId, merchantId, codAmount } = event;
 
     for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
@@ -77,10 +79,13 @@ export class ShipmentDeliveredListener {
             });
           }
 
-          const breakdown = this.feeCalculatorService.calculateNetCredit(codAmount, {
-            commissionRate: Number(merchant.commissionRate),
-            feePerShipment: Number(merchant.feePerShipment),
-          });
+          const breakdown = this.feeCalculatorService.calculateNetCredit(
+            codAmount,
+            {
+              commissionRate: Number(merchant.commissionRate),
+              feePerShipment: Number(merchant.feePerShipment),
+            },
+          );
 
           const currentVersion = wallet.version;
           const currentBalance = Number(wallet.balance);

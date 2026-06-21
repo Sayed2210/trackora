@@ -75,7 +75,10 @@ export class PlatformPlansRepository {
     flags: Array<{ key: FeatureFlagKey; enabled: boolean }>,
   ): Promise<PlatformPlanWithDetails> {
     return this.prisma.$transaction(async (tx) => {
-      await this.ensureFeatureFlags(tx, flags.map((flag) => flag.key));
+      await this.ensureFeatureFlags(
+        tx,
+        flags.map((flag) => flag.key),
+      );
       const plan = await tx.plan.create({ data });
       await this.replacePlanFlags(tx, plan.id, flags);
       return tx.plan.findUniqueOrThrow({
@@ -95,7 +98,10 @@ export class PlatformPlansRepository {
   ): Promise<PlatformPlanWithDetails> {
     return this.prisma.$transaction(async (tx) => {
       if (flags !== undefined) {
-        await this.ensureFeatureFlags(tx, flags.map((flag) => flag.key));
+        await this.ensureFeatureFlags(
+          tx,
+          flags.map((flag) => flag.key),
+        );
       }
       await tx.plan.update({ where: { id }, data });
       if (flags !== undefined) {

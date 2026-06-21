@@ -12,10 +12,15 @@ describe('Support DTO validation', () => {
   });
 
   it('validates duration range', async () => {
-    const dto = plainToInstance(StartImpersonationDto, { reason: 'support', durationMinutes: 0 });
+    const dto = plainToInstance(StartImpersonationDto, {
+      reason: 'support',
+      durationMinutes: 0,
+    });
 
     const errors = await validate(dto);
 
-    expect(errors.some((error) => error.property === 'durationMinutes')).toBe(true);
+    expect(errors.some((error) => error.property === 'durationMinutes')).toBe(
+      true,
+    );
   });
 });

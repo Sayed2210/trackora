@@ -9,7 +9,11 @@ import { PublicPlansService } from './services/public-plans.service';
 @Module({
   imports: [PlatformAuditLogsModule],
   controllers: [PlatformPlansController, PublicPlansController],
-  providers: [PlatformPlansRepository, PlatformPlansService, PublicPlansService],
+  providers: [
+    PlatformPlansRepository,
+    PlatformPlansService,
+    PublicPlansService,
+  ],
   exports: [PlatformPlansService],
 })
 export class PlatformPlansModule {}

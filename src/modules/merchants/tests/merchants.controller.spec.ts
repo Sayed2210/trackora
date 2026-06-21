@@ -46,7 +46,7 @@ describe('MerchantsController (integration)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-const moduleRef: TestingModule = await Test.createTestingModule({
+    const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [MerchantsController],
       providers: [
         { provide: MerchantsService, useValue: mockMerchantsService },
