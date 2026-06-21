@@ -24,7 +24,10 @@ export class TenantsService {
     private readonly auditLogService: PlatformAuditLogService,
   ) {}
 
-  async create(dto: CreatePlatformTenantDto, audit?: AuditActorContext): Promise<Tenant> {
+  async create(
+    dto: CreatePlatformTenantDto,
+    audit?: AuditActorContext,
+  ): Promise<Tenant> {
     await this.assertSlugAvailable(dto.slug);
     this.assertValidTrialRange(dto.trialStartsAt, dto.trialEndsAt);
 
@@ -81,7 +84,11 @@ export class TenantsService {
     return tenant;
   }
 
-  async update(id: string, dto: UpdatePlatformTenantDto, audit?: AuditActorContext): Promise<Tenant> {
+  async update(
+    id: string,
+    dto: UpdatePlatformTenantDto,
+    audit?: AuditActorContext,
+  ): Promise<Tenant> {
     const tenant = await this.findById(id);
 
     if (dto.slug !== undefined) {
@@ -112,7 +119,9 @@ export class TenantsService {
     audit?: AuditActorContext,
   ): Promise<Tenant> {
     const tenant = await this.findById(id);
-    const updated = await this.tenantsRepository.update(id, { status: dto.status });
+    const updated = await this.tenantsRepository.update(id, {
+      status: dto.status,
+    });
     await this.auditLogService?.writeAuditLog({
       ...audit,
       tenantId: id,

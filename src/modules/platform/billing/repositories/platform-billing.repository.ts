@@ -23,26 +23,65 @@ export class PlatformBillingRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverviewAggregates() {
-    const [total, paid, unpaid, pastDue, paidAmount, unpaidAmount, pastDueAmount, pastDueSubscriptions, recentInvoices] = await Promise.all([
+    const [
+      total,
+      paid,
+      unpaid,
+      pastDue,
+      paidAmount,
+      unpaidAmount,
+      pastDueAmount,
+      pastDueSubscriptions,
+      recentInvoices,
+    ] = await Promise.all([
       this.prisma.manualInvoice.count(),
-      this.prisma.manualInvoice.count({ where: { status: PaymentStatus.PAID } }),
-      this.prisma.manualInvoice.count({ where: { status: { not: PaymentStatus.PAID } } }),
-      this.prisma.manualInvoice.count({ where: { status: PaymentStatus.PAST_DUE } }),
-      this.prisma.manualInvoice.aggregate({ where: { status: PaymentStatus.PAID }, _sum: { amount: true } }),
-      this.prisma.manualInvoice.aggregate({ where: { status: { not: PaymentStatus.PAID } }, _sum: { amount: true } }),
-      this.prisma.manualInvoice.aggregate({ where: { status: PaymentStatus.PAST_DUE }, _sum: { amount: true } }),
+      this.prisma.manualInvoice.count({
+        where: { status: PaymentStatus.PAID },
+      }),
+      this.prisma.manualInvoice.count({
+        where: { status: { not: PaymentStatus.PAID } },
+      }),
+      this.prisma.manualInvoice.count({
+        where: { status: PaymentStatus.PAST_DUE },
+      }),
+      this.prisma.manualInvoice.aggregate({
+        where: { status: PaymentStatus.PAID },
+        _sum: { amount: true },
+      }),
+      this.prisma.manualInvoice.aggregate({
+        where: { status: { not: PaymentStatus.PAID } },
+        _sum: { amount: true },
+      }),
+      this.prisma.manualInvoice.aggregate({
+        where: { status: PaymentStatus.PAST_DUE },
+        _sum: { amount: true },
+      }),
       this.prisma.subscription.findMany({
         where: { status: SubscriptionStatus.PAST_DUE },
         take: 10,
         orderBy: { currentPeriodEnd: 'asc' },
         include: {
-          tenant: { select: { id: true, name: true, slug: true, status: true } },
-          plan: { select: { id: true, name: true, slug: true, currency: true } },
+          tenant: {
+            select: { id: true, name: true, slug: true, status: true },
+          },
+          plan: {
+            select: { id: true, name: true, slug: true, currency: true },
+          },
         },
       }),
       this.findMany({}, { createdAt: 'desc' }, 0, 5),
     ]);
-    return { total, paid, unpaid, pastDue, paidAmount, unpaidAmount, pastDueAmount, pastDueSubscriptions, recentInvoices };
+    return {
+      total,
+      paid,
+      unpaid,
+      pastDue,
+      paidAmount,
+      unpaidAmount,
+      pastDueAmount,
+      pastDueSubscriptions,
+      recentInvoices,
+    };
   }
 
   async findMany(
@@ -110,7 +149,9 @@ export class PlatformBillingRepository {
 
   async createInvoice(data: Prisma.ManualInvoiceUncheckedCreateInput) {
     return this.prisma.$transaction(async (tx) => {
-      const tenant = await tx.tenant.findUnique({ where: { id: data.tenantId } });
+      const tenant = await tx.tenant.findUnique({
+        where: { id: data.tenantId },
+      });
       if (!tenant) return null;
       const subscription = await tx.subscription.findFirst({
         where: { tenantId: data.tenantId },
@@ -142,23 +183,24 @@ export class PlatformBillingRepository {
   }
 
   async getTenantInvoiceTotals(tenantId: string) {
-    const [summary, unpaidAmount, pastDueAmount, recentInvoices] = await Promise.all([
-      this.prisma.manualInvoice.groupBy({
-        by: ['status'],
-        where: { tenantId },
-        _count: { _all: true },
-        _sum: { amount: true },
-      }),
-      this.prisma.manualInvoice.aggregate({
-        where: { tenantId, status: { not: PaymentStatus.PAID } },
-        _sum: { amount: true },
-      }),
-      this.prisma.manualInvoice.aggregate({
-        where: { tenantId, status: PaymentStatus.PAST_DUE },
-        _sum: { amount: true },
-      }),
-      this.findMany({ tenantId }, { createdAt: 'desc' }, 0, 10),
-    ]);
+    const [summary, unpaidAmount, pastDueAmount, recentInvoices] =
+      await Promise.all([
+        this.prisma.manualInvoice.groupBy({
+          by: ['status'],
+          where: { tenantId },
+          _count: { _all: true },
+          _sum: { amount: true },
+        }),
+        this.prisma.manualInvoice.aggregate({
+          where: { tenantId, status: { not: PaymentStatus.PAID } },
+          _sum: { amount: true },
+        }),
+        this.prisma.manualInvoice.aggregate({
+          where: { tenantId, status: PaymentStatus.PAST_DUE },
+          _sum: { amount: true },
+        }),
+        this.findMany({ tenantId }, { createdAt: 'desc' }, 0, 10),
+      ]);
     return { summary, unpaidAmount, pastDueAmount, recentInvoices };
   }
 
@@ -181,7 +223,9 @@ export class PlatformBillingRepository {
           status: true,
           paymentStatus: true,
           currentPeriodEnd: true,
-          plan: { select: { id: true, name: true, slug: true, currency: true } },
+          plan: {
+            select: { id: true, name: true, slug: true, currency: true },
+          },
         },
       },
     } satisfies Prisma.ManualInvoiceInclude;

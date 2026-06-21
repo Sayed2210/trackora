@@ -87,8 +87,8 @@ describe('TenantsController', () => {
   });
 
   it('requires suspend_tenants for status endpoint', () => {
-    expect(Reflect.getMetadata(PERMISSIONS_KEY, controller.changeStatus)).toEqual([
-      PERMISSIONS.SUSPEND_TENANTS,
-    ]);
+    expect(
+      Reflect.getMetadata(PERMISSIONS_KEY, controller.changeStatus),
+    ).toEqual([PERMISSIONS.SUSPEND_TENANTS]);
   });
 });

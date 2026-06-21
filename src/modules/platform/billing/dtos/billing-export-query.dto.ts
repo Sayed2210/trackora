@@ -29,7 +29,11 @@ export class BillingExportQueryDto {
   @IsUUID('4')
   tenantId?: string;
 
-  @ApiProperty({ enum: BillingExportFormat, required: false, default: BillingExportFormat.JSON })
+  @ApiProperty({
+    enum: BillingExportFormat,
+    required: false,
+    default: BillingExportFormat.JSON,
+  })
   @IsOptional()
   @IsEnum(BillingExportFormat)
   format?: BillingExportFormat = BillingExportFormat.JSON;

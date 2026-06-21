@@ -1,8 +1,13 @@
 import { FeatureFlagKey, Prisma } from '@prisma/client';
-import { PlatformPlansRepository, PublicPlanWithFeatures } from '../repositories/platform-plans.repository';
+import {
+  PlatformPlansRepository,
+  PublicPlanWithFeatures,
+} from '../repositories/platform-plans.repository';
 import { PublicPlansService } from '../services/public-plans.service';
 
-function makePlan(overrides: Partial<PublicPlanWithFeatures> = {}): PublicPlanWithFeatures {
+function makePlan(
+  overrides: Partial<PublicPlanWithFeatures> = {},
+): PublicPlanWithFeatures {
   return {
     id: 'plan-1',
     slug: 'growth',
@@ -222,8 +227,16 @@ describe('PublicPlansService', () => {
     });
 
     it('returns multiple plans in repository order (sorted by sortOrder then monthlyPrice)', async () => {
-      const plan1 = makePlan({ id: 'plan-1', sortOrder: 0, monthlyPrice: new Prisma.Decimal('100.00') });
-      const plan2 = makePlan({ id: 'plan-2', sortOrder: 1, monthlyPrice: new Prisma.Decimal('500.00') });
+      const plan1 = makePlan({
+        id: 'plan-1',
+        sortOrder: 0,
+        monthlyPrice: new Prisma.Decimal('100.00'),
+      });
+      const plan2 = makePlan({
+        id: 'plan-2',
+        sortOrder: 1,
+        monthlyPrice: new Prisma.Decimal('500.00'),
+      });
 
       repository.findPublicPlans.mockResolvedValueOnce([plan1, plan2]);
 

@@ -25,7 +25,8 @@ export class PlatformAuditLogsRepository {
     direction: SortDirection = SortDirection.DESC,
   ): Prisma.AuditLogOrderByWithRelationInput {
     if (sortBy === AuditLogSortField.ACTION) return { action: direction };
-    if (sortBy === AuditLogSortField.RESOURCE_TYPE) return { resourceType: direction };
+    if (sortBy === AuditLogSortField.RESOURCE_TYPE)
+      return { resourceType: direction };
     return { createdAt: direction };
   }
 }

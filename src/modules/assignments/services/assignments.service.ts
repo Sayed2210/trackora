@@ -278,7 +278,7 @@ export class AssignmentsService {
       return updated;
     });
 
-this.eventEmitter.emit('assignment.cancelled', {
+    this.eventEmitter.emit('assignment.cancelled', {
       assignmentId: cancelled.id,
       shipmentId: assignment.shipmentId,
       courierId: assignment.courierId,

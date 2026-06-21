@@ -70,7 +70,7 @@ export class PlatformAnalyticsRepository {
     const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
 
     return grouped.map((item) => ({
-      tenant: item.tenantId ? tenantById.get(item.tenantId) ?? null : null,
+      tenant: item.tenantId ? (tenantById.get(item.tenantId) ?? null) : null,
       shipmentCount: item._count._all,
     }));
   }
@@ -79,21 +79,47 @@ export class PlatformAnalyticsRepository {
     const previousFrom = new Date(
       range.from.getTime() - (range.to.getTime() - range.from.getTime()),
     );
-    const [currentTenants, previousTenants, currentShipments, previousShipments] = await Promise.all([
-      this.prisma.tenant.count({ where: { createdAt: { gte: range.from, lte: range.to } } }),
-      this.prisma.tenant.count({ where: { createdAt: { gte: previousFrom, lt: range.from } } }),
-      this.prisma.shipment.count({ where: { createdAt: { gte: range.from, lte: range.to } } }),
-      this.prisma.shipment.count({ where: { createdAt: { gte: previousFrom, lt: range.from } } }),
+    const [
+      currentTenants,
+      previousTenants,
+      currentShipments,
+      previousShipments,
+    ] = await Promise.all([
+      this.prisma.tenant.count({
+        where: { createdAt: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.tenant.count({
+        where: { createdAt: { gte: previousFrom, lt: range.from } },
+      }),
+      this.prisma.shipment.count({
+        where: { createdAt: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.shipment.count({
+        where: { createdAt: { gte: previousFrom, lt: range.from } },
+      }),
     ]);
-    return { currentTenants, previousTenants, currentShipments, previousShipments };
+    return {
+      currentTenants,
+      previousTenants,
+      currentShipments,
+      previousShipments,
+    };
   }
 
   async getSubscriptionStatusCounts() {
     const [active, trial, pastDue, cancelled] = await Promise.all([
-      this.prisma.subscription.count({ where: { status: SubscriptionStatus.ACTIVE } }),
-      this.prisma.subscription.count({ where: { status: SubscriptionStatus.TRIALING } }),
-      this.prisma.subscription.count({ where: { status: SubscriptionStatus.PAST_DUE } }),
-      this.prisma.subscription.count({ where: { status: SubscriptionStatus.CANCELLED } }),
+      this.prisma.subscription.count({
+        where: { status: SubscriptionStatus.ACTIVE },
+      }),
+      this.prisma.subscription.count({
+        where: { status: SubscriptionStatus.TRIALING },
+      }),
+      this.prisma.subscription.count({
+        where: { status: SubscriptionStatus.PAST_DUE },
+      }),
+      this.prisma.subscription.count({
+        where: { status: SubscriptionStatus.CANCELLED },
+      }),
     ]);
     return { active, trial, pastDue, cancelled };
   }
@@ -107,7 +133,13 @@ export class PlatformAnalyticsRepository {
     });
     const plans = await this.prisma.plan.findMany({
       where: { id: { in: grouped.map((item) => item.planId) } },
-      select: { id: true, name: true, slug: true, monthlyPrice: true, currency: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        monthlyPrice: true,
+        currency: true,
+      },
     });
     const planById = new Map(plans.map((plan) => [plan.id, plan]));
 

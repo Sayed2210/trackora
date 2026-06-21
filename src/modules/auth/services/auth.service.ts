@@ -34,13 +34,10 @@ export class AuthService {
     private readonly redis: RedisService,
   ) {}
 
-  async register(
-    phone: string,
-    password: string,
-    name: string,
-    role: string,
-  ) {
-    if (!REGISTERABLE_ROLES.includes(role as typeof REGISTERABLE_ROLES[number])) {
+  async register(phone: string, password: string, name: string, role: string) {
+    if (
+      !REGISTERABLE_ROLES.includes(role as (typeof REGISTERABLE_ROLES)[number])
+    ) {
       throw new BadRequestException(
         `Registration is only allowed for roles: ${REGISTERABLE_ROLES.join(', ')}`,
       );
@@ -137,7 +134,10 @@ export class AuthService {
     return this.toAuthUser(user, impersonationContext);
   }
 
-  private toAuthUser(user: AuthUserWithAccounts, impersonationContext?: ImpersonationContext) {
+  private toAuthUser(
+    user: AuthUserWithAccounts,
+    impersonationContext?: ImpersonationContext,
+  ) {
     const permissions = getPermissionsForRole(user.role);
     const isPlatformUser = isPlatformRole(user.role);
 

@@ -13,7 +13,9 @@ describe('PlatformAuditLogService', () => {
   let repository: jest.Mocked<PlatformAuditLogsRepository>;
 
   beforeEach(() => {
-    prisma = { auditLog: { create: jest.fn().mockResolvedValue({ id: 'log-id' }) } };
+    prisma = {
+      auditLog: { create: jest.fn().mockResolvedValue({ id: 'log-id' }) },
+    };
     repository = {
       findMany: jest.fn(),
       count: jest.fn(),
@@ -44,21 +46,43 @@ describe('PlatformAuditLogService', () => {
     ] as any);
     repository.count.mockResolvedValueOnce(1);
 
-    const result = await service.findAll({ actorUserId, tenantId, resourceId, search: 'support', page: 1, limit: 20 });
+    const result = await service.findAll({
+      actorUserId,
+      tenantId,
+      resourceId,
+      search: 'support',
+      page: 1,
+      limit: 20,
+    });
 
     expect(repository.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ actorUserId, tenantId, resourceId, reason: { contains: 'support', mode: 'insensitive' } }),
+      expect.objectContaining({
+        actorUserId,
+        tenantId,
+        resourceId,
+        reason: { contains: 'support', mode: 'insensitive' },
+      }),
       { createdAt: 'desc' },
       0,
       20,
     );
-    expect(result.data[0].oldValue).toEqual({ password: '[REDACTED]', nested: { otp: '[REDACTED]', name: 'safe' } });
-    expect(result.data[0].newValue).toEqual({ token: '[REDACTED]', amount: '10.5' });
+    expect(result.data[0].oldValue).toEqual({
+      password: '[REDACTED]',
+      nested: { otp: '[REDACTED]', name: 'safe' },
+    });
+    expect(result.data[0].newValue).toEqual({
+      token: '[REDACTED]',
+      amount: '10.5',
+    });
   });
 
   it('writes masked audit logs with actor context', async () => {
     await service.writeAuditLog({
-      user: { userId: actorUserId, role: UserRole.PLATFORM_FINANCE, permissions: [] },
+      user: {
+        userId: actorUserId,
+        role: UserRole.PLATFORM_FINANCE,
+        permissions: [],
+      },
       tenantId,
       action: 'manual_invoice.updated',
       resourceType: 'ManualInvoice',

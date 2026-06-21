@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PaymentStatus, Prisma, SubscriptionStatus } from '@prisma/client';
 import {
   CancelSubscriptionDto,
@@ -17,11 +22,31 @@ import {
   PlatformAuditLogService,
 } from '@modules/platform/audit-logs/services/platform-audit-log.service';
 
-const ALLOWED_STATUS_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]> = {
-  [SubscriptionStatus.TRIALING]: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED, SubscriptionStatus.EXPIRED],
-  [SubscriptionStatus.ACTIVE]: [SubscriptionStatus.PAST_DUE, SubscriptionStatus.PAUSED, SubscriptionStatus.CANCELLED, SubscriptionStatus.EXPIRED],
-  [SubscriptionStatus.PAST_DUE]: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED, SubscriptionStatus.CANCELLED, SubscriptionStatus.EXPIRED],
-  [SubscriptionStatus.PAUSED]: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED],
+const ALLOWED_STATUS_TRANSITIONS: Record<
+  SubscriptionStatus,
+  SubscriptionStatus[]
+> = {
+  [SubscriptionStatus.TRIALING]: [
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.CANCELLED,
+    SubscriptionStatus.EXPIRED,
+  ],
+  [SubscriptionStatus.ACTIVE]: [
+    SubscriptionStatus.PAST_DUE,
+    SubscriptionStatus.PAUSED,
+    SubscriptionStatus.CANCELLED,
+    SubscriptionStatus.EXPIRED,
+  ],
+  [SubscriptionStatus.PAST_DUE]: [
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.PAUSED,
+    SubscriptionStatus.CANCELLED,
+    SubscriptionStatus.EXPIRED,
+  ],
+  [SubscriptionStatus.PAUSED]: [
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.CANCELLED,
+  ],
   [SubscriptionStatus.CANCELLED]: [],
   [SubscriptionStatus.EXPIRED]: [],
 };
@@ -34,14 +59,19 @@ export class PlatformSubscriptionsService {
   ) {}
 
   async findAll(query: ListSubscriptionsQueryDto) {
-    this.assertDateRange(query.renewalFrom, query.renewalTo, 'Renewal end date must be after start date');
+    this.assertDateRange(
+      query.renewalFrom,
+      query.renewalTo,
+      'Renewal end date must be after start date',
+    );
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
     const where: Prisma.SubscriptionWhereInput = {};
 
     if (query.status !== undefined) where.status = query.status;
-    if (query.paymentStatus !== undefined) where.paymentStatus = query.paymentStatus;
+    if (query.paymentStatus !== undefined)
+      where.paymentStatus = query.paymentStatus;
     if (query.planId !== undefined) where.planId = query.planId;
     if (query.tenantId !== undefined) where.tenantId = query.tenantId;
     if (query.renewalFrom || query.renewalTo) {
@@ -62,7 +92,10 @@ export class PlatformSubscriptionsService {
     const [subscriptions, total] = await Promise.all([
       this.subscriptionsRepository.findMany(
         where,
-        this.subscriptionsRepository.toOrderBy(query.sortBy, query.sortDirection),
+        this.subscriptionsRepository.toOrderBy(
+          query.sortBy,
+          query.sortDirection,
+        ),
         skip,
         limit,
       ),
@@ -85,7 +118,11 @@ export class PlatformSubscriptionsService {
     );
   }
 
-  async update(id: string, dto: UpdateSubscriptionDto, audit?: AuditActorContext) {
+  async update(
+    id: string,
+    dto: UpdateSubscriptionDto,
+    audit?: AuditActorContext,
+  ) {
     const subscription = await this.getSubscriptionOrThrow(id);
     const nextStatus = dto.status ?? subscription.status;
     this.assertStatusTransition(subscription.status, nextStatus);
@@ -109,8 +146,10 @@ export class PlatformSubscriptionsService {
       currentPeriodEnd: dto.currentPeriodEnd,
       renewedAt: dto.renewedAt,
       metadata: dto.metadata as Prisma.InputJsonValue | undefined,
-      cancelledAt: dto.status === SubscriptionStatus.CANCELLED ? new Date() : undefined,
-      pausedAt: dto.status === SubscriptionStatus.PAUSED ? new Date() : undefined,
+      cancelledAt:
+        dto.status === SubscriptionStatus.CANCELLED ? new Date() : undefined,
+      pausedAt:
+        dto.status === SubscriptionStatus.PAUSED ? new Date() : undefined,
     });
     await this.auditLogService?.writeAuditLog({
       ...audit,
@@ -125,7 +164,11 @@ export class PlatformSubscriptionsService {
     return this.toResponse(updated);
   }
 
-  async changePlan(id: string, dto: ChangeSubscriptionPlanDto, audit?: AuditActorContext) {
+  async changePlan(
+    id: string,
+    dto: ChangeSubscriptionPlanDto,
+    audit?: AuditActorContext,
+  ) {
     const subscription = await this.getSubscriptionOrThrow(id);
     const plan = await this.subscriptionsRepository.findPlanById(dto.planId);
     if (!plan) {
@@ -154,9 +197,16 @@ export class PlatformSubscriptionsService {
     return this.toResponse(updated);
   }
 
-  async cancel(id: string, dto: CancelSubscriptionDto, audit?: AuditActorContext) {
+  async cancel(
+    id: string,
+    dto: CancelSubscriptionDto,
+    audit?: AuditActorContext,
+  ) {
     const subscription = await this.getSubscriptionOrThrow(id);
-    this.assertStatusTransition(subscription.status, SubscriptionStatus.CANCELLED);
+    this.assertStatusTransition(
+      subscription.status,
+      SubscriptionStatus.CANCELLED,
+    );
     const cancelNow = !dto.cancelAtPeriodEnd;
 
     // Schema has no scheduled cancellation field; cancelAtPeriodEnd stores intent in metadata until billing phase.
@@ -164,7 +214,7 @@ export class PlatformSubscriptionsService {
       status: cancelNow ? SubscriptionStatus.CANCELLED : subscription.status,
       cancelledAt: cancelNow ? new Date() : undefined,
       metadata: {
-        ...(this.asObject(subscription.metadata)),
+        ...this.asObject(subscription.metadata),
         cancellation: {
           reason: dto.reason,
           cancelAtPeriodEnd: dto.cancelAtPeriodEnd ?? false,
@@ -185,7 +235,11 @@ export class PlatformSubscriptionsService {
     return this.toResponse(updated);
   }
 
-  async renew(id: string, dto: RenewSubscriptionDto, audit?: AuditActorContext) {
+  async renew(
+    id: string,
+    dto: RenewSubscriptionDto,
+    audit?: AuditActorContext,
+  ) {
     const subscription = await this.getSubscriptionOrThrow(id);
     this.assertDateRange(
       dto.currentPeriodStart ?? subscription.currentPeriodStart ?? undefined,
@@ -196,7 +250,8 @@ export class PlatformSubscriptionsService {
     const updated = await this.subscriptionsRepository.update(id, {
       status: SubscriptionStatus.ACTIVE,
       paymentStatus: dto.paymentStatus ?? PaymentStatus.PAID,
-      currentPeriodStart: dto.currentPeriodStart ?? subscription.currentPeriodStart ?? new Date(),
+      currentPeriodStart:
+        dto.currentPeriodStart ?? subscription.currentPeriodStart ?? new Date(),
       currentPeriodEnd: dto.currentPeriodEnd,
       renewedAt: dto.renewalDate ?? new Date(),
     });
@@ -235,14 +290,20 @@ export class PlatformSubscriptionsService {
     }
   }
 
-  private assertDateRange(start: Date | undefined, end: Date | undefined, message: string): void {
+  private assertDateRange(
+    start: Date | undefined,
+    end: Date | undefined,
+    message: string,
+  ): void {
     if (start && end && end <= start) {
       throw new BadRequestException(message);
     }
   }
 
   private asObject(value: Prisma.JsonValue | null): Record<string, unknown> {
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value
+      : {};
   }
 
   private toResponse(

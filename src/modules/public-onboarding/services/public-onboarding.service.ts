@@ -245,20 +245,46 @@ export class PublicOnboardingService {
     dto: RequestDemoDto,
     requestContext?: OnboardingRequestContext,
   ): Promise<RequestDemoResponseDto> {
-    const demoRequest = await this.prisma.demoRequest.create({
-      data: {
-        name: dto.name,
-        companyName: dto.companyName,
-        phone: dto.phone,
-        email: dto.email ?? null,
-        businessType: dto.businessType,
-        monthlyShipments: dto.monthlyShipments ?? null,
-        message: dto.message ?? null,
-        interestedPlanSlug: dto.interestedPlanSlug ?? null,
-        ipAddress: requestContext?.ipAddress ?? null,
-        userAgent: requestContext?.userAgent ?? null,
-      },
-      select: { id: true },
+    const audit: AuditActorContext = {
+      ipAddress: requestContext?.ipAddress,
+      userAgent: requestContext?.userAgent,
+    };
+
+    const demoRequest = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.demoRequest.create({
+        data: {
+          name: dto.name,
+          companyName: dto.companyName,
+          phone: dto.phone,
+          email: dto.email ?? null,
+          businessType: dto.businessType,
+          monthlyShipments: dto.monthlyShipments ?? null,
+          message: dto.message ?? null,
+          interestedPlanSlug: dto.interestedPlanSlug ?? null,
+          ipAddress: audit.ipAddress ?? null,
+          userAgent: audit.userAgent ?? null,
+        },
+        select: { id: true },
+      });
+
+      await this.auditLogService.writeAuditLog(
+        {
+          ...audit,
+          action: 'demo_request.created',
+          resourceType: 'DemoRequest',
+          resourceId: created.id,
+          newValue: {
+            name: dto.name,
+            companyName: dto.companyName,
+            businessType: dto.businessType,
+            interestedPlanSlug: dto.interestedPlanSlug ?? null,
+          },
+          reason: 'Public demo request submission',
+        },
+        tx,
+      );
+
+      return created;
     });
 
     return {

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PaymentStatus, Prisma } from '@prisma/client';
 import {
   BillingExportFormat,
@@ -31,20 +35,28 @@ export class PlatformBillingService {
       unpaidInvoicesCount: overview.unpaid,
       pastDueInvoicesCount: overview.pastDue,
       totalPaidAmount: this.decimalToString(overview.paidAmount._sum.amount),
-      totalUnpaidAmount: this.decimalToString(overview.unpaidAmount._sum.amount),
-      totalPastDueAmount: this.decimalToString(overview.pastDueAmount._sum.amount),
+      totalUnpaidAmount: this.decimalToString(
+        overview.unpaidAmount._sum.amount,
+      ),
+      totalPastDueAmount: this.decimalToString(
+        overview.pastDueAmount._sum.amount,
+      ),
       currency: 'EGP',
-      tenantsWithPastDueSubscriptions: overview.pastDueSubscriptions.map((subscription) => ({
-        tenant: subscription.tenant,
-        subscription: {
-          id: subscription.id,
-          status: subscription.status,
-          paymentStatus: subscription.paymentStatus,
-          renewalDate: subscription.currentPeriodEnd,
-        },
-        plan: subscription.plan,
-      })),
-      recentInvoices: overview.recentInvoices.map((invoice) => this.toInvoiceResponse(invoice)),
+      tenantsWithPastDueSubscriptions: overview.pastDueSubscriptions.map(
+        (subscription) => ({
+          tenant: subscription.tenant,
+          subscription: {
+            id: subscription.id,
+            status: subscription.status,
+            paymentStatus: subscription.paymentStatus,
+            renewalDate: subscription.currentPeriodEnd,
+          },
+          plan: subscription.plan,
+        }),
+      ),
+      recentInvoices: overview.recentInvoices.map((invoice) =>
+        this.toInvoiceResponse(invoice),
+      ),
     };
   }
 
@@ -63,11 +75,20 @@ export class PlatformBillingService {
       ),
       this.billingRepository.count(where),
     ]);
-    return { data: invoices.map((invoice) => this.toInvoiceResponse(invoice)), total, page, limit };
+    return {
+      data: invoices.map((invoice) => this.toInvoiceResponse(invoice)),
+      total,
+      page,
+      limit,
+    };
   }
 
   async createInvoice(dto: CreateManualInvoiceDto, audit?: AuditActorContext) {
-    this.assertDateRange(dto.billingPeriodStart, dto.billingPeriodEnd, 'Billing period end date must be after start date');
+    this.assertDateRange(
+      dto.billingPeriodStart,
+      dto.billingPeriodEnd,
+      'Billing period end date must be after start date',
+    );
     const amount = this.toPositiveDecimal(dto.amount);
 
     const invoice = await this.billingRepository.createInvoice({
@@ -93,8 +114,13 @@ export class PlatformBillingService {
     return this.toInvoiceResponse(invoice);
   }
 
-  async updateInvoice(id: string, dto: UpdateManualInvoiceDto, audit?: AuditActorContext) {
-    const amount = dto.amount === undefined ? undefined : this.toPositiveDecimal(dto.amount);
+  async updateInvoice(
+    id: string,
+    dto: UpdateManualInvoiceDto,
+    audit?: AuditActorContext,
+  ) {
+    const amount =
+      dto.amount === undefined ? undefined : this.toPositiveDecimal(dto.amount);
     const status = dto.paymentStatus ?? dto.status;
     const before = await this.billingRepository.findById(id);
     if (!before) throw new NotFoundException('Invoice not found');
@@ -130,7 +156,12 @@ export class PlatformBillingService {
     ]);
 
     return {
-      tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status },
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        status: tenant.status,
+      },
       currentSubscription: subscription
         ? {
             id: subscription.id,
@@ -141,13 +172,17 @@ export class PlatformBillingService {
             renewedAt: subscription.renewedAt,
           }
         : null,
-      currentPlan: this.toPlanResponse(subscription?.plan ?? tenant.currentPlan),
+      currentPlan: this.toPlanResponse(
+        subscription?.plan ?? tenant.currentPlan,
+      ),
       invoiceSummary: invoices.summary.map((item) => ({
         status: item.status,
         count: item._count._all,
         amount: this.decimalToString(item._sum.amount),
       })),
-      recentInvoices: invoices.recentInvoices.map((invoice) => this.toInvoiceResponse(invoice)),
+      recentInvoices: invoices.recentInvoices.map((invoice) =>
+        this.toInvoiceResponse(invoice),
+      ),
       unpaidAmount: this.decimalToString(invoices.unpaidAmount._sum.amount),
       pastDueAmount: this.decimalToString(invoices.pastDueAmount._sum.amount),
       renewalDate: subscription?.currentPeriodEnd ?? null,
@@ -179,13 +214,17 @@ export class PlatformBillingService {
       status: invoice.status,
       renewalDate: invoice.subscription?.currentPeriodEnd ?? null,
     }));
-    if ((query.format ?? BillingExportFormat.JSON) === BillingExportFormat.CSV) {
+    if (
+      (query.format ?? BillingExportFormat.JSON) === BillingExportFormat.CSV
+    ) {
       return this.toCsv(data);
     }
     return data;
   }
 
-  private buildInvoiceWhere(query: ListInvoicesQueryDto): Prisma.ManualInvoiceWhereInput {
+  private buildInvoiceWhere(
+    query: ListInvoicesQueryDto,
+  ): Prisma.ManualInvoiceWhereInput {
     const status = query.paymentStatus ?? query.status;
     const where: Prisma.ManualInvoiceWhereInput = {
       tenantId: query.tenantId,
@@ -221,7 +260,16 @@ export class PlatformBillingService {
     };
   }
 
-  private toPlanResponse(plan?: { id: string; name: string; slug: string; monthlyPrice?: Prisma.Decimal; currency: string; isActive?: boolean } | null) {
+  private toPlanResponse(
+    plan?: {
+      id: string;
+      name: string;
+      slug: string;
+      monthlyPrice?: Prisma.Decimal;
+      currency: string;
+      isActive?: boolean;
+    } | null,
+  ) {
     if (!plan) return null;
     return {
       ...plan,
@@ -231,11 +279,16 @@ export class PlatformBillingService {
 
   private toPositiveDecimal(value: string) {
     const decimal = new Prisma.Decimal(value);
-    if (decimal.lte(0)) throw new BadRequestException('Amount must be positive');
+    if (decimal.lte(0))
+      throw new BadRequestException('Amount must be positive');
     return decimal;
   }
 
-  private assertDateRange(start?: Date, end?: Date, message = 'Date range start must be before end'): void {
+  private assertDateRange(
+    start?: Date,
+    end?: Date,
+    message = 'Date range start must be before end',
+  ): void {
     if (start && end && end < start) throw new BadRequestException(message);
   }
 
@@ -244,14 +297,28 @@ export class PlatformBillingService {
   }
 
   private toCsv(rows: Array<Record<string, unknown>>) {
-    const columns = ['tenantId', 'tenantName', 'tenantSlug', 'planName', 'billingPeriodStart', 'billingPeriodEnd', 'amount', 'currency', 'status', 'renewalDate'];
-    const values = rows.map((row) => columns.map((column) => this.csvValue(row[column])).join(','));
+    const columns = [
+      'tenantId',
+      'tenantName',
+      'tenantSlug',
+      'planName',
+      'billingPeriodStart',
+      'billingPeriodEnd',
+      'amount',
+      'currency',
+      'status',
+      'renewalDate',
+    ];
+    const values = rows.map((row) =>
+      columns.map((column) => this.csvValue(row[column])).join(','),
+    );
     return [columns.join(','), ...values].join('\n');
   }
 
   private csvValue(value: unknown) {
     if (value === null || value === undefined) return '';
-    const stringValue = value instanceof Date ? value.toISOString() : String(value);
+    const stringValue =
+      value instanceof Date ? value.toISOString() : String(value);
     return `"${stringValue.replace(/"/g, '""')}"`;
   }
 }

@@ -1,5 +1,14 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { PaymentStatus, Prisma, SubscriptionStatus, TenantStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  PaymentStatus,
+  Prisma,
+  SubscriptionStatus,
+  TenantStatus,
+} from '@prisma/client';
 import { PlatformSubscriptionsRepository } from '../repositories/platform-subscriptions.repository';
 import { PlatformSubscriptionsService } from '../services/platform-subscriptions.service';
 
@@ -64,7 +73,7 @@ describe('PlatformSubscriptionsService', () => {
   });
 
   it('lists subscriptions with filters and pagination', async () => {
-    repository.findMany.mockResolvedValueOnce([mockSubscription] as any);
+    repository.findMany.mockResolvedValueOnce([mockSubscription]);
     repository.count.mockResolvedValueOnce(1);
 
     const result = await service.findAll({
@@ -98,7 +107,7 @@ describe('PlatformSubscriptionsService', () => {
       merchants: { used: 1, limit: 100, remaining: 99, exceeded: false },
       couriers: { used: 4, limit: 50, remaining: 46, exceeded: false },
     };
-    repository.findById.mockResolvedValueOnce(mockSubscription as any);
+    repository.findById.mockResolvedValueOnce(mockSubscription);
     repository.getUsage.mockResolvedValueOnce(usage);
 
     const result = await service.findById(subscriptionId);
@@ -119,7 +128,7 @@ describe('PlatformSubscriptionsService', () => {
     repository.findById.mockResolvedValueOnce({
       ...mockSubscription,
       status: SubscriptionStatus.CANCELLED,
-    } as any);
+    });
 
     await expect(
       service.update(subscriptionId, {
@@ -130,7 +139,7 @@ describe('PlatformSubscriptionsService', () => {
   });
 
   it('rejects invalid period date range', async () => {
-    repository.findById.mockResolvedValueOnce(mockSubscription as any);
+    repository.findById.mockResolvedValueOnce(mockSubscription);
 
     await expect(
       service.update(subscriptionId, {
@@ -142,13 +151,13 @@ describe('PlatformSubscriptionsService', () => {
   });
 
   it('changes plan when target plan is active', async () => {
-    repository.findById.mockResolvedValueOnce(mockSubscription as any);
+    repository.findById.mockResolvedValueOnce(mockSubscription);
     repository.findPlanById.mockResolvedValueOnce({
       id: planId,
       isActive: true,
       archivedAt: null,
     } as any);
-    repository.changePlan.mockResolvedValueOnce(mockSubscription as any);
+    repository.changePlan.mockResolvedValueOnce(mockSubscription);
 
     const result = await service.changePlan(subscriptionId, {
       planId,
@@ -164,7 +173,7 @@ describe('PlatformSubscriptionsService', () => {
   });
 
   it('throws 404 when target plan is missing', async () => {
-    repository.findById.mockResolvedValueOnce(mockSubscription as any);
+    repository.findById.mockResolvedValueOnce(mockSubscription);
     repository.findPlanById.mockResolvedValueOnce(null);
 
     await expect(
@@ -173,7 +182,7 @@ describe('PlatformSubscriptionsService', () => {
   });
 
   it('rejects archived target plan', async () => {
-    repository.findById.mockResolvedValueOnce(mockSubscription as any);
+    repository.findById.mockResolvedValueOnce(mockSubscription);
     repository.findPlanById.mockResolvedValueOnce({
       id: planId,
       isActive: false,
@@ -186,14 +195,16 @@ describe('PlatformSubscriptionsService', () => {
   });
 
   it('cancels subscription without deleting history', async () => {
-    repository.findById.mockResolvedValueOnce(mockSubscription as any);
+    repository.findById.mockResolvedValueOnce(mockSubscription);
     repository.update.mockResolvedValueOnce({
       ...mockSubscription,
       status: SubscriptionStatus.CANCELLED,
       cancelledAt: new Date('2026-05-10T00:00:00.000Z'),
-    } as any);
+    });
 
-    const result = await service.cancel(subscriptionId, { reason: 'tenant churn' });
+    const result = await service.cancel(subscriptionId, {
+      reason: 'tenant churn',
+    });
 
     expect(repository.update).toHaveBeenCalledWith(
       subscriptionId,
@@ -203,11 +214,11 @@ describe('PlatformSubscriptionsService', () => {
   });
 
   it('renews subscription and defaults payment status to PAID', async () => {
-    repository.findById.mockResolvedValueOnce(mockSubscription as any);
+    repository.findById.mockResolvedValueOnce(mockSubscription);
     repository.update.mockResolvedValueOnce({
       ...mockSubscription,
       currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
-    } as any);
+    });
 
     await service.renew(subscriptionId, {
       reason: 'paid renewal',

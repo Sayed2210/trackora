@@ -13,9 +13,9 @@ describe('Plan DTO validation', () => {
 
     const errors = await validate(dto);
 
-    expect(errors.some((error) => error.property === 'monthlyShipmentLimit')).toBe(
-      true,
-    );
+    expect(
+      errors.some((error) => error.property === 'monthlyShipmentLimit'),
+    ).toBe(true);
   });
 
   it('rejects invalid feature flag keys', async () => {
@@ -28,9 +28,9 @@ describe('Plan DTO validation', () => {
 
     const errors = await validate(dto);
 
-    expect(errors.some((error) => error.property === 'featureEntitlements')).toBe(
-      true,
-    );
+    expect(
+      errors.some((error) => error.property === 'featureEntitlements'),
+    ).toBe(true);
   });
 
   it('accepts null limits as unlimited', async () => {

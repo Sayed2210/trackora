@@ -1,13 +1,21 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { PaymentStatus } from '@prisma/client';
-import { BillingExportQueryDto, CreateManualInvoiceDto, ListInvoicesQueryDto, UpdateManualInvoiceDto } from '../dtos';
+import {
+  BillingExportQueryDto,
+  CreateManualInvoiceDto,
+  ListInvoicesQueryDto,
+  UpdateManualInvoiceDto,
+} from '../dtos';
 
 const tenantId = '123e4567-e89b-42d3-a456-426614174001';
 
 describe('Billing DTO validation', () => {
   it('requires reason for invoice creation', async () => {
-    const dto = plainToInstance(CreateManualInvoiceDto, { tenantId, amount: '100.00' });
+    const dto = plainToInstance(CreateManualInvoiceDto, {
+      tenantId,
+      amount: '100.00',
+    });
 
     const errors = await validate(dto);
 
@@ -15,7 +23,9 @@ describe('Billing DTO validation', () => {
   });
 
   it('requires reason for invoice updates', async () => {
-    const dto = plainToInstance(UpdateManualInvoiceDto, { status: PaymentStatus.PAID });
+    const dto = plainToInstance(UpdateManualInvoiceDto, {
+      status: PaymentStatus.PAID,
+    });
 
     const errors = await validate(dto);
 
@@ -23,7 +33,11 @@ describe('Billing DTO validation', () => {
   });
 
   it('validates pagination and safe status filters', async () => {
-    const dto = plainToInstance(ListInvoicesQueryDto, { page: 0, limit: 10, status: 'INVALID' });
+    const dto = plainToInstance(ListInvoicesQueryDto, {
+      page: 0,
+      limit: 10,
+      status: 'INVALID',
+    });
 
     const errors = await validate(dto);
 
@@ -32,7 +46,10 @@ describe('Billing DTO validation', () => {
   });
 
   it('validates export query date fields', async () => {
-    const dto = plainToInstance(BillingExportQueryDto, { from: '2026-05-01T00:00:00.000Z', to: '2026-05-31T00:00:00.000Z' });
+    const dto = plainToInstance(BillingExportQueryDto, {
+      from: '2026-05-01T00:00:00.000Z',
+      to: '2026-05-31T00:00:00.000Z',
+    });
 
     const errors = await validate(dto);
 

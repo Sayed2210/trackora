@@ -37,7 +37,9 @@ export class MerchantsService {
     });
   }
 
-  async findAll(query: ListMerchantsDto): Promise<{ data: Merchant[]; total: number; page: number; limit: number }> {
+  async findAll(
+    query: ListMerchantsDto,
+  ): Promise<{ data: Merchant[]; total: number; page: number; limit: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -58,7 +60,12 @@ export class MerchantsService {
     }
 
     const [data, total] = await Promise.all([
-      this.merchantsRepository.findMany(where, { createdAt: 'desc' }, skip, limit),
+      this.merchantsRepository.findMany(
+        where,
+        { createdAt: 'desc' },
+        skip,
+        limit,
+      ),
       this.merchantsRepository.count(where),
     ]);
 

@@ -40,11 +40,18 @@ describe('PlatformAnalyticsService', () => {
     repository.countShipments.mockResolvedValueOnce(100);
     repository.countMerchants.mockResolvedValueOnce(20);
     repository.countCouriers.mockResolvedValueOnce(15);
-    repository.getCodVolume.mockResolvedValueOnce({ _sum: { codAmount: new Prisma.Decimal('1200.50') } } as any);
-    repository.getPayoutVolume.mockResolvedValueOnce({ _sum: { amount: new Prisma.Decimal('800.25') } } as any);
+    repository.getCodVolume.mockResolvedValueOnce({
+      _sum: { codAmount: new Prisma.Decimal('1200.50') },
+    });
+    repository.getPayoutVolume.mockResolvedValueOnce({
+      _sum: { amount: new Prisma.Decimal('800.25') },
+    });
     repository.countFraudFlaggedShipments.mockResolvedValueOnce(3);
     repository.getTopTenantsByShipmentVolume.mockResolvedValueOnce([
-      { tenant: { id: tenantId, name: 'Acme', slug: 'acme' }, shipmentCount: 50 },
+      {
+        tenant: { id: tenantId, name: 'Acme', slug: 'acme' },
+        shipmentCount: 50,
+      },
     ] as any);
     repository.getTenantGrowthSummary.mockResolvedValueOnce({
       currentTenants: 2,
@@ -83,11 +90,11 @@ describe('PlatformAnalyticsService', () => {
         },
         activeSubscriptions: 2,
       },
-    ] as any);
+    ]);
     repository.getManualInvoiceTotals.mockResolvedValueOnce({
       paid: { _sum: { amount: new Prisma.Decimal('500') } },
       unpaid: { _sum: { amount: new Prisma.Decimal('250') } },
-    } as any);
+    });
 
     await expect(service.getRevenue()).resolves.toEqual(
       expect.objectContaining({
@@ -117,7 +124,7 @@ describe('PlatformAnalyticsService', () => {
     repository.getShipmentsByStatus.mockResolvedValueOnce([
       { status: ShipmentStatus.DELIVERED, _count: { _all: 7 } },
       { status: ShipmentStatus.FAILED, _count: { _all: 2 } },
-    ] as any);
+    ]);
 
     await expect(
       service.getShipments({

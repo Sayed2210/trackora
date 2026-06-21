@@ -1,5 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
-import { PayoutMethod, PayoutStatus, TransactionType, UserRole } from '@prisma/client';
+import {
+  PayoutMethod,
+  PayoutStatus,
+  TransactionType,
+  UserRole,
+} from '@prisma/client';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { PayoutsRepository } from '../repositories/payouts.repository';
 import { PayoutsService } from '../services/payouts.service';
@@ -33,7 +38,10 @@ describe('PayoutsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new PayoutsService(prisma as unknown as PrismaService, repository as unknown as PayoutsRepository);
+    service = new PayoutsService(
+      prisma as unknown as PrismaService,
+      repository as unknown as PayoutsRepository,
+    );
     prisma.merchant.findUnique.mockResolvedValue({ id: 'merchant-1' });
     tx.wallet.findUnique.mockResolvedValue({
       id: 'wallet-1',

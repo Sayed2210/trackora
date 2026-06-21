@@ -97,7 +97,9 @@ export class CourierNotificationService {
       ]);
 
       if (!courier || !shipment) {
-        this.logger.warn('Courier or shipment not found for cancellation notification');
+        this.logger.warn(
+          'Courier or shipment not found for cancellation notification',
+        );
         return;
       }
 
