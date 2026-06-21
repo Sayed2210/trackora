@@ -437,8 +437,23 @@ describe('PublicOnboardingService', () => {
       };
     }
 
+    function setupTransaction() {
+      const tx = {
+        demoRequest: {
+          create: jest.fn().mockResolvedValue({ id: 'demo-uuid' }),
+        },
+        tenant: { create: jest.fn() },
+        user: { create: jest.fn() },
+        subscription: { create: jest.fn() },
+      };
+      prisma.$transaction.mockImplementation(
+        async (cb: (tx: any) => Promise<unknown>) => cb(tx),
+      );
+      return tx;
+    }
+
     it('persists the demo request and returns id + success message', async () => {
-      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+      setupTransaction();
 
       const result = await service.requestDemo(makeDemoDto());
 
@@ -446,18 +461,18 @@ describe('PublicOnboardingService', () => {
         id: 'demo-uuid',
         message: 'Demo request received',
       });
-      expect(prisma.demoRequest.create).toHaveBeenCalledTimes(1);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
     it('stores all provided fields', async () => {
-      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+      const tx = setupTransaction();
 
       await service.requestDemo(makeDemoDto(), {
         ipAddress: '197.45.1.10',
         userAgent: 'curl/8.0',
       });
 
-      expect(prisma.demoRequest.create).toHaveBeenCalledWith({
+      expect(tx.demoRequest.create).toHaveBeenCalledWith({
         data: {
           name: 'Ahmed Ali',
           companyName: 'Cairo Express',
@@ -475,7 +490,7 @@ describe('PublicOnboardingService', () => {
     });
 
     it('stores nulls for omitted optional fields', async () => {
-      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+      const tx = setupTransaction();
 
       await service.requestDemo(
         {
@@ -487,7 +502,10 @@ describe('PublicOnboardingService', () => {
         { ipAddress: '197.45.1.10', userAgent: 'curl/8.0' },
       );
 
-      const data = prisma.demoRequest.create.mock.calls[0][0].data;
+      const calls = tx.demoRequest.create.mock.calls as unknown as Array<
+        [DemoRequestCreateArgs]
+      >;
+      const data = calls[0][0].data;
       expect(data.email).toBeNull();
       expect(data.monthlyShipments).toBeNull();
       expect(data.message).toBeNull();
@@ -495,24 +513,66 @@ describe('PublicOnboardingService', () => {
     });
 
     it('does not create a tenant, user, or subscription', async () => {
-      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+      const tx = setupTransaction();
 
       await service.requestDemo(makeDemoDto());
 
-      expect(prisma.$transaction).not.toHaveBeenCalled();
-      expect(prisma.tenant.findUnique).not.toHaveBeenCalled();
-      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(tx.tenant.create).not.toHaveBeenCalled();
+      expect(tx.user.create).not.toHaveBeenCalled();
+      expect(tx.subscription.create).not.toHaveBeenCalled();
       expect(authService.login).not.toHaveBeenCalled();
     });
 
     it('defaults request context fields to null when not provided', async () => {
-      prisma.demoRequest.create.mockResolvedValue({ id: 'demo-uuid' });
+      const tx = setupTransaction();
 
       await service.requestDemo(makeDemoDto());
 
-      const data = prisma.demoRequest.create.mock.calls[0][0].data;
+      const calls = tx.demoRequest.create.mock.calls as unknown as Array<
+        [DemoRequestCreateArgs]
+      >;
+      const data = calls[0][0].data;
       expect(data.ipAddress).toBeNull();
       expect(data.userAgent).toBeNull();
+    });
+
+    it('writes a platform audit log for the public demo event', async () => {
+      const tx = setupTransaction();
+
+      await service.requestDemo(makeDemoDto({ interestedPlanSlug: 'growth' }), {
+        ipAddress: '197.45.1.10',
+        userAgent: 'curl/8.0',
+      });
+
+      expect(auditLogService.writeAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'demo_request.created',
+          resourceType: 'DemoRequest',
+          resourceId: 'demo-uuid',
+          reason: 'Public demo request submission',
+          ipAddress: '197.45.1.10',
+          userAgent: 'curl/8.0',
+        }),
+        tx,
+      );
+    });
+
+    it('does not include phone or email in the audit log newValue', async () => {
+      setupTransaction();
+
+      await service.requestDemo(makeDemoDto());
+
+      const auditCalls = auditLogService.writeAuditLog.mock
+        .calls as unknown as Array<[{ newValue: Record<string, unknown> }]>;
+      const auditInput = auditCalls[0][0];
+      expect(auditInput.newValue).toEqual({
+        name: 'Ahmed Ali',
+        companyName: 'Cairo Express',
+        businessType: 'E-commerce',
+        interestedPlanSlug: 'growth',
+      });
+      expect(auditInput.newValue).not.toHaveProperty('phone');
+      expect(auditInput.newValue).not.toHaveProperty('email');
     });
   });
 });

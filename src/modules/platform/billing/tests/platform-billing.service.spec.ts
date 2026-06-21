@@ -1,5 +1,10 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { PaymentStatus, Prisma, SubscriptionStatus, TenantStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  Prisma,
+  SubscriptionStatus,
+  TenantStatus,
+} from '@prisma/client';
 import { BillingExportFormat } from '../dtos';
 import { PlatformBillingRepository } from '../repositories/platform-billing.repository';
 import { PlatformBillingService } from '../services/platform-billing.service';
@@ -25,7 +30,12 @@ const invoice = {
   metadata: null,
   createdAt: now,
   updatedAt: now,
-  tenant: { id: tenantId, name: 'Acme', slug: 'acme', status: TenantStatus.ACTIVE },
+  tenant: {
+    id: tenantId,
+    name: 'Acme',
+    slug: 'acme',
+    status: TenantStatus.ACTIVE,
+  },
   subscription: null,
 };
 
@@ -65,7 +75,12 @@ describe('PlatformBillingService', () => {
           paymentStatus: PaymentStatus.PAST_DUE,
           currentPeriodEnd: now,
           tenant: invoice.tenant,
-          plan: { id: 'plan-id', name: 'Growth', slug: 'growth', currency: 'EGP' },
+          plan: {
+            id: 'plan-id',
+            name: 'Growth',
+            slug: 'growth',
+            currency: 'EGP',
+          },
         },
       ],
       recentInvoices: [invoice],
@@ -84,10 +99,15 @@ describe('PlatformBillingService', () => {
   });
 
   it('lists invoices with pagination and filters', async () => {
-    repository.findMany.mockResolvedValueOnce([invoice] as any);
+    repository.findMany.mockResolvedValueOnce([invoice]);
     repository.count.mockResolvedValueOnce(1);
 
-    const result = await service.findInvoices({ tenantId, status: PaymentStatus.PENDING, page: 2, limit: 10 });
+    const result = await service.findInvoices({
+      tenantId,
+      status: PaymentStatus.PENDING,
+      page: 2,
+      limit: 10,
+    });
 
     expect(repository.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId, status: PaymentStatus.PENDING }),
@@ -95,23 +115,31 @@ describe('PlatformBillingService', () => {
       10,
       10,
     );
-    expect(result).toEqual(expect.objectContaining({ total: 1, page: 2, limit: 10 }));
+    expect(result).toEqual(
+      expect.objectContaining({ total: 1, page: 2, limit: 10 }),
+    );
   });
 
   it('rejects invalid amount on create', async () => {
-    await expect(service.createInvoice({ tenantId, amount: '0', reason: 'billing' })).rejects.toThrow(BadRequestException);
+    await expect(
+      service.createInvoice({ tenantId, amount: '0', reason: 'billing' }),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('returns 404 when creating invoice for missing tenant', async () => {
-    repository.createInvoice.mockResolvedValueOnce(null as any);
+    repository.createInvoice.mockResolvedValueOnce(null);
 
-    await expect(service.createInvoice({ tenantId, amount: '100', reason: 'billing' })).rejects.toThrow(NotFoundException);
+    await expect(
+      service.createInvoice({ tenantId, amount: '100', reason: 'billing' }),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('returns 404 when updating missing invoice', async () => {
-    repository.updateInvoice.mockResolvedValueOnce(null as any);
+    repository.updateInvoice.mockResolvedValueOnce(null);
 
-    await expect(service.updateInvoice(invoiceId, { amount: '100', reason: 'correction' })).rejects.toThrow(NotFoundException);
+    await expect(
+      service.updateInvoice(invoiceId, { amount: '100', reason: 'correction' }),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('returns tenant billing summary shape', async () => {
@@ -129,14 +157,27 @@ describe('PlatformBillingService', () => {
       currentPeriodStart: now,
       currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
       renewedAt: now,
-      plan: { id: 'plan-id', name: 'Growth', slug: 'growth', monthlyPrice: new Prisma.Decimal('999'), currency: 'EGP', isActive: true },
+      plan: {
+        id: 'plan-id',
+        name: 'Growth',
+        slug: 'growth',
+        monthlyPrice: new Prisma.Decimal('999'),
+        currency: 'EGP',
+        isActive: true,
+      },
     } as any);
     repository.getTenantInvoiceTotals.mockResolvedValueOnce({
-      summary: [{ status: PaymentStatus.PENDING, _count: { _all: 1 }, _sum: { amount: new Prisma.Decimal('1500.50') } }],
+      summary: [
+        {
+          status: PaymentStatus.PENDING,
+          _count: { _all: 1 },
+          _sum: { amount: new Prisma.Decimal('1500.50') },
+        },
+      ],
       unpaidAmount: { _sum: { amount: new Prisma.Decimal('1500.50') } },
       pastDueAmount: { _sum: { amount: null } },
       recentInvoices: [invoice],
-    } as any);
+    });
 
     await expect(service.getTenantBilling(tenantId)).resolves.toEqual(
       expect.objectContaining({
@@ -149,11 +190,19 @@ describe('PlatformBillingService', () => {
   });
 
   it('exports JSON or CSV shapes', async () => {
-    repository.findMany.mockResolvedValue([invoice] as any);
+    repository.findMany.mockResolvedValue([invoice]);
 
-    await expect(service.exportInvoices({ from: now, to: now })).resolves.toEqual([
+    await expect(
+      service.exportInvoices({ from: now, to: now }),
+    ).resolves.toEqual([
       expect.objectContaining({ tenantName: 'Acme', amount: '1500.5' }),
     ]);
-    await expect(service.exportInvoices({ from: now, to: now, format: BillingExportFormat.CSV })).resolves.toContain('tenantName');
+    await expect(
+      service.exportInvoices({
+        from: now,
+        to: now,
+        format: BillingExportFormat.CSV,
+      }),
+    ).resolves.toContain('tenantName');
   });
 });

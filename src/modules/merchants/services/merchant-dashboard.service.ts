@@ -23,7 +23,11 @@ export interface MerchantDashboardData {
 }
 
 export interface MerchantAnalyticsData {
-  successRate: { current: number; previous: number; trend: 'up' | 'down' | 'flat' };
+  successRate: {
+    current: number;
+    previous: number;
+    trend: 'up' | 'down' | 'flat';
+  };
   returnReasons: Array<{ reason: string; count: number; percentage: number }>;
   zonePerformance: Array<{
     zone: string;
@@ -163,7 +167,10 @@ export class MerchantDashboardService {
       _count: { id: true },
     });
 
-    const returnedTotal = returnedShipments.reduce((sum, r) => sum + r._count.id, 0);
+    const returnedTotal = returnedShipments.reduce(
+      (sum, r) => sum + r._count.id,
+      0,
+    );
     const returnReasons = returnedShipments.map((r) => ({
       reason: r.returnReason || 'UNKNOWN',
       count: r._count.id,

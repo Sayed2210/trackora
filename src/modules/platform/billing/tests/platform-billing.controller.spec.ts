@@ -34,19 +34,48 @@ describe('PlatformBillingController', () => {
   });
 
   it('delegates billing endpoint calls', async () => {
-    service.getOverview.mockResolvedValueOnce({ totalManualInvoices: 1 } as any);
-    service.findInvoices.mockResolvedValueOnce({ data: [], total: 0, page: 1, limit: 20 } as any);
+    service.getOverview.mockResolvedValueOnce({
+      totalManualInvoices: 1,
+    } as any);
+    service.findInvoices.mockResolvedValueOnce({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+    });
     service.createInvoice.mockResolvedValueOnce({ id: invoiceId } as any);
-    service.updateInvoice.mockResolvedValueOnce({ id: invoiceId, amount: '200' } as any);
-    service.getTenantBilling.mockResolvedValueOnce({ tenant: { id: tenantId } } as any);
+    service.updateInvoice.mockResolvedValueOnce({
+      id: invoiceId,
+      amount: '200',
+    } as any);
+    service.getTenantBilling.mockResolvedValueOnce({
+      tenant: { id: tenantId },
+    } as any);
     service.exportInvoices.mockResolvedValueOnce([{ id: invoiceId }] as any);
 
-    await expect(controller.overview()).resolves.toEqual({ totalManualInvoices: 1 });
-    await expect(controller.findInvoices({ page: 1, limit: 20 })).resolves.toEqual({ data: [], total: 0, page: 1, limit: 20 });
-    await expect(controller.createInvoice({ tenantId, amount: '100', reason: 'billing' })).resolves.toEqual({ id: invoiceId });
-    await expect(controller.updateInvoice({ id: invoiceId }, { reason: 'correction', amount: '200' })).resolves.toEqual({ id: invoiceId, amount: '200' });
-    await expect(controller.tenantBilling({ id: tenantId })).resolves.toEqual({ tenant: { id: tenantId } });
-    await expect(controller.exportInvoices({ from: new Date(), to: new Date() }, { type: jest.fn() } as any)).resolves.toEqual([{ id: invoiceId }]);
+    await expect(controller.overview()).resolves.toEqual({
+      totalManualInvoices: 1,
+    });
+    await expect(
+      controller.findInvoices({ page: 1, limit: 20 }),
+    ).resolves.toEqual({ data: [], total: 0, page: 1, limit: 20 });
+    await expect(
+      controller.createInvoice({ tenantId, amount: '100', reason: 'billing' }),
+    ).resolves.toEqual({ id: invoiceId });
+    await expect(
+      controller.updateInvoice(
+        { id: invoiceId },
+        { reason: 'correction', amount: '200' },
+      ),
+    ).resolves.toEqual({ id: invoiceId, amount: '200' });
+    await expect(controller.tenantBilling({ id: tenantId })).resolves.toEqual({
+      tenant: { id: tenantId },
+    });
+    await expect(
+      controller.exportInvoices({ from: new Date(), to: new Date() }, {
+        type: jest.fn(),
+      } as any),
+    ).resolves.toEqual([{ id: invoiceId }]);
   });
 
   it('requires view_billing for all billing endpoints', () => {

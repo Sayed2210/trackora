@@ -1,11 +1,10 @@
+import { Controller, Get, Param, Query, ParseUUIDPipe } from '@nestjs/common';
 import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  ParseUUIDPipe,
-} from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
+  ApiTags,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { MerchantDashboardService } from '../services/merchant-dashboard.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';

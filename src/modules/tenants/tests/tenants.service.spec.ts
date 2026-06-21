@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { TenantStatus } from '@prisma/client';
 import { TenantsRepository } from '../repositories/tenants.repository';
 import { TenantsService } from '../services/tenants.service';
@@ -95,7 +99,12 @@ describe('TenantsService', () => {
       10,
       10,
     );
-    expect(result).toEqual({ data: [mockTenant], total: 1, page: 2, limit: 10 });
+    expect(result).toEqual({
+      data: [mockTenant],
+      total: 1,
+      page: 2,
+      limit: 10,
+    });
   });
 
   it('throws when tenant is not found', async () => {
@@ -109,7 +118,10 @@ describe('TenantsService', () => {
   it('updates tenant when slug remains unique', async () => {
     repository.findById.mockResolvedValueOnce(mockTenant);
     repository.findBySlug.mockResolvedValueOnce(null);
-    repository.update.mockResolvedValueOnce({ ...mockTenant, slug: 'new-slug' });
+    repository.update.mockResolvedValueOnce({
+      ...mockTenant,
+      slug: 'new-slug',
+    });
 
     const result = await service.update(mockTenant.id, { slug: 'new-slug' });
 

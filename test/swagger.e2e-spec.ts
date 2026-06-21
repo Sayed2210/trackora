@@ -160,7 +160,7 @@ describe('Swagger & API Automation Tests (e2e)', () => {
 
       for (const [path, pathItem] of Object.entries(res.body.paths)) {
         for (const [method, operation] of Object.entries(pathItem as object)) {
-          const apiOperation = operation as any;
+          const apiOperation = operation;
           expect(apiOperation.tags?.length).toBeGreaterThan(0);
           expect(apiOperation.operationId).toBeTruthy();
           expect(operationIds.has(apiOperation.operationId)).toBe(false);
@@ -201,14 +201,12 @@ describe('Swagger & API Automation Tests (e2e)', () => {
   // ─────────────────────────────────────────────────────────────
   describe('Authentication Flow', () => {
     it('should register a new user', async () => {
-      const res = await request(httpServer)
-        .post('/v1/auth/register')
-        .send({
-          phone: testPhone,
-          password: testPassword,
-          name: testName,
-          role: 'MERCHANT',
-        });
+      const res = await request(httpServer).post('/v1/auth/register').send({
+        phone: testPhone,
+        password: testPassword,
+        name: testName,
+        role: 'MERCHANT',
+      });
 
       expect([201, 409]).toContain(res.status);
     });

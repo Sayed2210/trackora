@@ -25,10 +25,30 @@ export type PlatformSubscriptionWithDetails = Prisma.SubscriptionGetPayload<{
 }>;
 
 export interface UsageSnapshot {
-  shipments: { used: number; limit: number | null; remaining: number | null; exceeded: boolean };
-  admins: { used: number; limit: number | null; remaining: number | null; exceeded: boolean };
-  merchants: { used: number; limit: number | null; remaining: number | null; exceeded: boolean };
-  couriers: { used: number; limit: number | null; remaining: number | null; exceeded: boolean };
+  shipments: {
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    exceeded: boolean;
+  };
+  admins: {
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    exceeded: boolean;
+  };
+  merchants: {
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    exceeded: boolean;
+  };
+  couriers: {
+    used: number;
+    limit: number | null;
+    remaining: number | null;
+    exceeded: boolean;
+  };
 }
 
 @Injectable()
@@ -95,8 +115,12 @@ export class PlatformSubscriptionsRepository {
     });
   }
 
-  async getUsage(subscription: PlatformSubscriptionWithDetails): Promise<UsageSnapshot> {
-    const shipmentWhere: Prisma.ShipmentWhereInput = { tenantId: subscription.tenantId };
+  async getUsage(
+    subscription: PlatformSubscriptionWithDetails,
+  ): Promise<UsageSnapshot> {
+    const shipmentWhere: Prisma.ShipmentWhereInput = {
+      tenantId: subscription.tenantId,
+    };
     if (subscription.currentPeriodStart || subscription.currentPeriodEnd) {
       shipmentWhere.createdAt = {
         gte: subscription.currentPeriodStart ?? undefined,
@@ -107,12 +131,17 @@ export class PlatformSubscriptionsRepository {
     const [shipments, admins, merchants, couriers] = await Promise.all([
       this.prisma.shipment.count({ where: shipmentWhere }),
       this.prisma.user.count({ where: { tenantId: subscription.tenantId } }),
-      this.prisma.merchant.count({ where: { tenantId: subscription.tenantId } }),
+      this.prisma.merchant.count({
+        where: { tenantId: subscription.tenantId },
+      }),
       this.prisma.courier.count({ where: { tenantId: subscription.tenantId } }),
     ]);
 
     return {
-      shipments: this.toUsageItem(shipments, subscription.plan.monthlyShipmentLimit),
+      shipments: this.toUsageItem(
+        shipments,
+        subscription.plan.monthlyShipmentLimit,
+      ),
       admins: this.toUsageItem(admins, subscription.plan.adminUserLimit),
       merchants: this.toUsageItem(merchants, subscription.plan.merchantLimit),
       couriers: this.toUsageItem(couriers, subscription.plan.courierLimit),

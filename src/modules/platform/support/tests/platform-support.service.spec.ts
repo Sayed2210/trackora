@@ -135,7 +135,7 @@ describe('PlatformSupportService', () => {
       },
       pastDueInvoices: { _count: { _all: 0 }, _sum: { amount: null } },
       recentAuditLogs: [],
-    } as any);
+    });
 
     const result = await service.getTenantHealth(tenantId, true);
 
@@ -172,7 +172,7 @@ describe('PlatformSupportService', () => {
       id: tenantId,
       status: TenantStatus.ACTIVE,
     } as any);
-    repository.findTenantUser.mockResolvedValueOnce(targetUser as any);
+    repository.findTenantUser.mockResolvedValueOnce(targetUser);
     repository.createImpersonationSession.mockResolvedValueOnce(session as any);
 
     const result = await service.startImpersonation(

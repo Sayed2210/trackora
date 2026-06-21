@@ -1,39 +1,74 @@
 import { Injectable } from '@nestjs/common';
-import { ImpersonationStatus, PaymentStatus, Prisma, TenantStatus, UserRole } from '@prisma/client';
+import {
+  ImpersonationStatus,
+  PaymentStatus,
+  Prisma,
+  TenantStatus,
+  UserRole,
+} from '@prisma/client';
 import { PrismaService } from '@core/prisma/prisma.service';
 
 export type SupportTenantWithDetails = Prisma.TenantGetPayload<{
   include: {
-    currentPlan: { select: { id: true; name: true; slug: true; currency: true } };
+    currentPlan: {
+      select: { id: true; name: true; slug: true; currency: true };
+    };
     subscriptions: {
-      select: { id: true; status: true; paymentStatus: true; currentPeriodEnd: true };
+      select: {
+        id: true;
+        status: true;
+        paymentStatus: true;
+        currentPeriodEnd: true;
+      };
     };
   };
 }>;
 
-export type ImpersonationSessionWithDetails = Prisma.ImpersonationSessionGetPayload<{
-  include: {
-    tenant: { select: { id: true; name: true; slug: true; status: true } };
-    targetUser: { select: { id: true; name: true; phone: true; email: true; role: true; tenantId: true; isActive: true } };
-  };
-}>;
+export type ImpersonationSessionWithDetails =
+  Prisma.ImpersonationSessionGetPayload<{
+    include: {
+      tenant: { select: { id: true; name: true; slug: true; status: true } };
+      targetUser: {
+        select: {
+          id: true;
+          name: true;
+          phone: true;
+          email: true;
+          role: true;
+          tenantId: true;
+          isActive: true;
+        };
+      };
+    };
+  }>;
 
 @Injectable()
 export class PlatformSupportRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findTenants(where: Prisma.TenantWhereInput, skip: number, take: number): Promise<SupportTenantWithDetails[]> {
+  async findTenants(
+    where: Prisma.TenantWhereInput,
+    skip: number,
+    take: number,
+  ): Promise<SupportTenantWithDetails[]> {
     return this.prisma.tenant.findMany({
       where,
       skip,
       take,
       orderBy: { createdAt: 'desc' },
       include: {
-        currentPlan: { select: { id: true, name: true, slug: true, currency: true } },
+        currentPlan: {
+          select: { id: true, name: true, slug: true, currency: true },
+        },
         subscriptions: {
           take: 1,
           orderBy: [{ currentPeriodEnd: 'desc' }, { createdAt: 'desc' }],
-          select: { id: true, status: true, paymentStatus: true, currentPeriodEnd: true },
+          select: {
+            id: true,
+            status: true,
+            paymentStatus: true,
+            currentPeriodEnd: true,
+          },
         },
       },
     });
@@ -61,7 +96,15 @@ export class PlatformSupportRepository {
   async findTenantUser(tenantId: string, userId: string) {
     return this.prisma.user.findFirst({
       where: { id: userId, tenantId, isActive: true },
-      select: { id: true, name: true, phone: true, email: true, role: true, tenantId: true, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        role: true,
+        tenantId: true,
+        isActive: true,
+      },
     });
   }
 
@@ -70,22 +113,44 @@ export class PlatformSupportRepository {
       where: {
         tenantId,
         isActive: true,
-        role: { in: [UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.FINANCE_ADMIN, UserRole.MERCHANT] },
+        role: {
+          in: [
+            UserRole.SUPER_ADMIN,
+            UserRole.OPERATIONS_MANAGER,
+            UserRole.FINANCE_ADMIN,
+            UserRole.MERCHANT,
+          ],
+        },
       },
       orderBy: { createdAt: 'asc' },
-      select: { id: true, name: true, phone: true, email: true, role: true, tenantId: true, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        role: true,
+        tenantId: true,
+        isActive: true,
+      },
     });
   }
 
-  async createImpersonationSession(data: Prisma.ImpersonationSessionUncheckedCreateInput): Promise<ImpersonationSessionWithDetails> {
+  async createImpersonationSession(
+    data: Prisma.ImpersonationSessionUncheckedCreateInput,
+  ): Promise<ImpersonationSessionWithDetails> {
     return this.prisma.impersonationSession.create({
       data,
       include: this.sessionInclude,
     });
   }
 
-  async findSessionById(id: string): Promise<ImpersonationSessionWithDetails | null> {
-    return this.prisma.impersonationSession.findUnique({ where: { id }, include: this.sessionInclude });
+  async findSessionById(
+    id: string,
+  ): Promise<ImpersonationSessionWithDetails | null> {
+    return this.prisma.impersonationSession.findUnique({
+      where: { id },
+      include: this.sessionInclude,
+    });
   }
 
   async findActiveSessionForActor(actorUserId: string) {
@@ -104,29 +169,69 @@ export class PlatformSupportRepository {
     });
   }
 
-  async getTenantHealthCounts(tenantId: string, periodStart?: Date, periodEnd?: Date) {
+  async getTenantHealthCounts(
+    tenantId: string,
+    periodStart?: Date,
+    periodEnd?: Date,
+  ) {
     const shipmentWhere: Prisma.ShipmentWhereInput = { tenantId };
-    if (periodStart || periodEnd) shipmentWhere.createdAt = { gte: periodStart, lte: periodEnd };
-    const [shipments, admins, merchants, couriers, unpaidInvoices, pastDueInvoices, recentAuditLogs] = await Promise.all([
+    if (periodStart || periodEnd)
+      shipmentWhere.createdAt = { gte: periodStart, lte: periodEnd };
+    const [
+      shipments,
+      admins,
+      merchants,
+      couriers,
+      unpaidInvoices,
+      pastDueInvoices,
+      recentAuditLogs,
+    ] = await Promise.all([
       this.prisma.shipment.count({ where: shipmentWhere }),
       this.prisma.user.count({ where: { tenantId, isActive: true } }),
       this.prisma.merchant.count({ where: { tenantId } }),
       this.prisma.courier.count({ where: { tenantId } }),
-      this.prisma.manualInvoice.aggregate({ where: { tenantId, status: { not: PaymentStatus.PAID } }, _sum: { amount: true }, _count: { _all: true } }),
-      this.prisma.manualInvoice.aggregate({ where: { tenantId, status: PaymentStatus.PAST_DUE }, _sum: { amount: true }, _count: { _all: true } }),
-      this.prisma.auditLog.findMany({ where: { tenantId }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      this.prisma.manualInvoice.aggregate({
+        where: { tenantId, status: { not: PaymentStatus.PAID } },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.manualInvoice.aggregate({
+        where: { tenantId, status: PaymentStatus.PAST_DUE },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.auditLog.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
     ]);
-    return { shipments, admins, merchants, couriers, unpaidInvoices, pastDueInvoices, recentAuditLogs };
+    return {
+      shipments,
+      admins,
+      merchants,
+      couriers,
+      unpaidInvoices,
+      pastDueInvoices,
+      recentAuditLogs,
+    };
   }
 
-  buildTenantSearchWhere(search?: string, status?: TenantStatus): Prisma.TenantWhereInput {
+  buildTenantSearchWhere(
+    search?: string,
+    status?: TenantStatus,
+  ): Prisma.TenantWhereInput {
     const where: Prisma.TenantWhereInput = { status };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { slug: { contains: search, mode: 'insensitive' } },
-        { users: { some: { email: { contains: search, mode: 'insensitive' } } } },
-        { users: { some: { phone: { contains: search, mode: 'insensitive' } } } },
+        {
+          users: { some: { email: { contains: search, mode: 'insensitive' } } },
+        },
+        {
+          users: { some: { phone: { contains: search, mode: 'insensitive' } } },
+        },
       ];
     }
     return where;
@@ -135,7 +240,17 @@ export class PlatformSupportRepository {
   private get sessionInclude() {
     return {
       tenant: { select: { id: true, name: true, slug: true, status: true } },
-      targetUser: { select: { id: true, name: true, phone: true, email: true, role: true, tenantId: true, isActive: true } },
+      targetUser: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          role: true,
+          tenantId: true,
+          isActive: true,
+        },
+      },
     } satisfies Prisma.ImpersonationSessionInclude;
   }
 }

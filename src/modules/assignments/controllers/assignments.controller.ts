@@ -36,7 +36,10 @@ export class AssignmentsController {
   @Post()
   @Roles(UserRole.OPERATIONS_MANAGER, UserRole.SUPER_ADMIN)
   async create(@Body() dto: CreateAssignmentDto, @Req() req: RequestWithUser) {
-    return this.assignmentsService.createManualAssignments(dto, req.user.userId);
+    return this.assignmentsService.createManualAssignments(
+      dto,
+      req.user.userId,
+    );
   }
 
   @Get()

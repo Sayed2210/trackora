@@ -25,9 +25,11 @@ describe('PlatformAuditLogsController', () => {
 
   it('delegates audit log listing', async () => {
     const response = { data: [], total: 0, page: 1, limit: 20 };
-    service.findAll.mockResolvedValueOnce(response as any);
+    service.findAll.mockResolvedValueOnce(response);
 
-    await expect(controller.findAll({ page: 1, limit: 20 })).resolves.toEqual(response);
+    await expect(controller.findAll({ page: 1, limit: 20 })).resolves.toEqual(
+      response,
+    );
   });
 
   it('requires view_audit_logs permission', () => {

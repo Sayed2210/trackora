@@ -18,12 +18,20 @@ describe('PayoutsController', () => {
   });
 
   it('lists payouts with filters and request user context', async () => {
-    service.findAll.mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 });
+    service.findAll.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+    });
     const req = { user: { userId: 'user-1', role: UserRole.MERCHANT } } as any;
 
     await controller.findAll({ status: PayoutStatus.PENDING }, req);
 
-    expect(service.findAll).toHaveBeenCalledWith({ status: PayoutStatus.PENDING }, req.user);
+    expect(service.findAll).toHaveBeenCalledWith(
+      { status: PayoutStatus.PENDING },
+      req.user,
+    );
   });
 
   it('creates a merchant payout request', async () => {

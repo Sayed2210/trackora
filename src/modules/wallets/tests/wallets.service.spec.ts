@@ -196,9 +196,9 @@ describe('WalletsService', () => {
         .spyOn(walletsRepository, 'findByMerchantId')
         .mockResolvedValueOnce(null);
 
-      await expect(
-        service.getTransactions('merchant-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getTransactions('merchant-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

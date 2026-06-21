@@ -1,7 +1,11 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { ShipmentStatus } from '@prisma/client';
-import { AnalyticsGroupBy, AnalyticsShipmentsQueryDto, AnalyticsUsageQueryDto } from '../dtos';
+import {
+  AnalyticsGroupBy,
+  AnalyticsShipmentsQueryDto,
+  AnalyticsUsageQueryDto,
+} from '../dtos';
 
 describe('Analytics DTO validation', () => {
   it('rejects invalid groupBy values', async () => {
@@ -13,7 +17,9 @@ describe('Analytics DTO validation', () => {
   });
 
   it('rejects invalid tenant ids', async () => {
-    const dto = plainToInstance(AnalyticsUsageQueryDto, { tenantId: 'not-a-uuid' });
+    const dto = plainToInstance(AnalyticsUsageQueryDto, {
+      tenantId: 'not-a-uuid',
+    });
 
     const errors = await validate(dto);
 

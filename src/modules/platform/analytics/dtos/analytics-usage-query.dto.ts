@@ -9,7 +9,10 @@ export enum AnalyticsGroupBy {
 }
 
 export class AnalyticsUsageQueryDto extends AnalyticsDateRangeQueryDto {
-  @ApiPropertyOptional({ enum: AnalyticsGroupBy, default: AnalyticsGroupBy.DAY })
+  @ApiPropertyOptional({
+    enum: AnalyticsGroupBy,
+    default: AnalyticsGroupBy.DAY,
+  })
   @IsOptional()
   @IsEnum(AnalyticsGroupBy)
   groupBy?: AnalyticsGroupBy;

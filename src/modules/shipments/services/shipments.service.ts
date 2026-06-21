@@ -207,11 +207,7 @@ export class ShipmentsService {
     ) {
       const plainOtp = this.generateOtp();
       updateData.customerOtp = await bcrypt.hash(plainOtp, 10);
-      await this.redis.set(
-        `shipment_otp_plain:${id}`,
-        plainOtp,
-        86400,
-      );
+      await this.redis.set(`shipment_otp_plain:${id}`, plainOtp, 86400);
     }
 
     if (dto.newStatus === ShipmentStatus.DELIVERED) {

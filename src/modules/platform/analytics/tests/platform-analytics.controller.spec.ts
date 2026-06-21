@@ -39,12 +39,20 @@ describe('PlatformAnalyticsController', () => {
 
     await expect(controller.overview()).resolves.toEqual({ totalTenants: 1 });
     await expect(controller.usage({})).resolves.toEqual({ data: [] });
-    await expect(controller.revenue()).resolves.toEqual({ estimatedMrr: '1000' });
-    await expect(controller.shipments({})).resolves.toEqual({ totalShipments: 10 });
+    await expect(controller.revenue()).resolves.toEqual({
+      estimatedMrr: '1000',
+    });
+    await expect(controller.shipments({})).resolves.toEqual({
+      totalShipments: 10,
+    });
   });
 
   it('requires view_platform_analytics for overview, usage, and shipments', () => {
-    for (const handler of [controller.overview, controller.usage, controller.shipments]) {
+    for (const handler of [
+      controller.overview,
+      controller.usage,
+      controller.shipments,
+    ]) {
       expect(Reflect.getMetadata(PERMISSIONS_KEY, handler)).toEqual([
         PERMISSIONS.VIEW_PLATFORM_ANALYTICS,
       ]);
@@ -52,9 +60,8 @@ describe('PlatformAnalyticsController', () => {
   });
 
   it('allows analytics or billing permission for revenue', () => {
-    expect(Reflect.getMetadata(ANY_PERMISSIONS_KEY, controller.revenue)).toEqual([
-      PERMISSIONS.VIEW_PLATFORM_ANALYTICS,
-      PERMISSIONS.VIEW_BILLING,
-    ]);
+    expect(
+      Reflect.getMetadata(ANY_PERMISSIONS_KEY, controller.revenue),
+    ).toEqual([PERMISSIONS.VIEW_PLATFORM_ANALYTICS, PERMISSIONS.VIEW_BILLING]);
   });
 });

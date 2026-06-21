@@ -4,7 +4,10 @@ import { ListAuditLogsQueryDto } from '../dtos';
 
 describe('Audit log DTO validation', () => {
   it('rejects unsafe sort fields and invalid pagination', async () => {
-    const dto = plainToInstance(ListAuditLogsQueryDto, { sortBy: 'oldValue', page: 0 });
+    const dto = plainToInstance(ListAuditLogsQueryDto, {
+      sortBy: 'oldValue',
+      page: 0,
+    });
 
     const errors = await validate(dto);
 
@@ -13,7 +16,10 @@ describe('Audit log DTO validation', () => {
   });
 
   it('validates UUID filters', async () => {
-    const dto = plainToInstance(ListAuditLogsQueryDto, { actorUserId: 'not-a-uuid', resourceId: 'also-bad' });
+    const dto = plainToInstance(ListAuditLogsQueryDto, {
+      actorUserId: 'not-a-uuid',
+      resourceId: 'also-bad',
+    });
 
     const errors = await validate(dto);
 
