@@ -63,6 +63,9 @@ describe('PlatformSubscriptionsService', () => {
       count: jest.fn(),
       findById: jest.fn(),
       findPlanById: jest.fn(),
+      findTenantById: jest.fn(),
+      findActiveByTenant: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
       changePlan: jest.fn(),
       getUsage: jest.fn(),
@@ -232,5 +235,107 @@ describe('PlatformSubscriptionsService', () => {
         paymentStatus: PaymentStatus.PAID,
       }),
     );
+  });
+
+  describe('create', () => {
+    const activePlan = {
+      id: planId,
+      isActive: true,
+      archivedAt: null,
+    };
+    const activeTenant = {
+      id: tenantId,
+      status: TenantStatus.ACTIVE,
+    };
+
+    it('creates subscription and defaults status to TRIALING when tenant/plan are valid', async () => {
+      repository.findTenantById.mockResolvedValueOnce(activeTenant as any);
+      repository.findPlanById.mockResolvedValueOnce(activePlan as any);
+      repository.findActiveByTenant.mockResolvedValueOnce(null);
+      repository.create.mockResolvedValueOnce(mockSubscription);
+
+      const result = await service.create({
+        tenantId,
+        planId,
+        reason: 'onboarding merchant',
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId,
+          planId,
+          status: SubscriptionStatus.TRIALING,
+          paymentStatus: PaymentStatus.NOT_REQUIRED,
+        }),
+      );
+      expect(result.id).toBe(subscriptionId);
+    });
+
+    it('throws 404 when tenant is missing', async () => {
+      repository.findTenantById.mockResolvedValueOnce(null);
+
+      await expect(
+        service.create({ tenantId, planId, reason: 'onboarding' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws 409 when tenant is cancelled', async () => {
+      repository.findTenantById.mockResolvedValueOnce({
+        ...activeTenant,
+        status: TenantStatus.CANCELLED,
+      } as any);
+
+      await expect(
+        service.create({ tenantId, planId, reason: 'onboarding' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws 404 when plan is missing', async () => {
+      repository.findTenantById.mockResolvedValueOnce(activeTenant as any);
+      repository.findPlanById.mockResolvedValueOnce(null);
+
+      await expect(
+        service.create({ tenantId, planId, reason: 'onboarding' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws 409 when plan is archived', async () => {
+      repository.findTenantById.mockResolvedValueOnce(activeTenant as any);
+      repository.findPlanById.mockResolvedValueOnce({
+        ...activePlan,
+        isActive: false,
+        archivedAt: new Date(),
+      } as any);
+
+      await expect(
+        service.create({ tenantId, planId, reason: 'onboarding' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws 409 when tenant already has an active subscription', async () => {
+      repository.findTenantById.mockResolvedValueOnce(activeTenant as any);
+      repository.findPlanById.mockResolvedValueOnce(activePlan as any);
+      repository.findActiveByTenant.mockResolvedValueOnce(mockSubscription);
+
+      await expect(
+        service.create({ tenantId, planId, reason: 'onboarding' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws 400 when trial date range is inverted', async () => {
+      repository.findTenantById.mockResolvedValueOnce(activeTenant as any);
+      repository.findPlanById.mockResolvedValueOnce(activePlan as any);
+      repository.findActiveByTenant.mockResolvedValueOnce(null);
+
+      await expect(
+        service.create({
+          tenantId,
+          planId,
+          reason: 'onboarding',
+          trialStartsAt: new Date('2026-06-01T00:00:00.000Z'),
+          trialEndsAt: new Date('2026-05-01T00:00:00.000Z'),
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });

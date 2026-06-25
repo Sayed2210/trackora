@@ -4,10 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PaymentStatus, Prisma, SubscriptionStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  Prisma,
+  SubscriptionStatus,
+  TenantStatus,
+} from '@prisma/client';
 import {
   CancelSubscriptionDto,
   ChangeSubscriptionPlanDto,
+  CreateSubscriptionDto,
   ListSubscriptionsQueryDto,
   RenewSubscriptionDto,
   UpdateSubscriptionDto,
@@ -116,6 +122,66 @@ export class PlatformSubscriptionsService {
       subscription,
       await this.subscriptionsRepository.getUsage(subscription),
     );
+  }
+
+  async create(dto: CreateSubscriptionDto, audit?: AuditActorContext) {
+    const tenant = await this.subscriptionsRepository.findTenantById(
+      dto.tenantId,
+    );
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+    if (tenant.status === TenantStatus.CANCELLED) {
+      throw new ConflictException('Cannot subscribe a cancelled tenant');
+    }
+
+    const plan = await this.subscriptionsRepository.findPlanById(dto.planId);
+    if (!plan) {
+      throw new NotFoundException('Plan not found');
+    }
+    if (!plan.isActive || plan.archivedAt) {
+      throw new ConflictException('Target plan is not active');
+    }
+
+    const existing = await this.subscriptionsRepository.findActiveByTenant(
+      dto.tenantId,
+    );
+    if (existing) {
+      throw new ConflictException('Tenant already has an active subscription');
+    }
+
+    this.assertDateRange(
+      dto.trialStartsAt,
+      dto.trialEndsAt,
+      'Trial end date must be after start date',
+    );
+    this.assertDateRange(
+      dto.currentPeriodStart,
+      dto.currentPeriodEnd,
+      'Current period end date must be after start date',
+    );
+
+    const created = await this.subscriptionsRepository.create({
+      tenantId: dto.tenantId,
+      planId: dto.planId,
+      status: dto.status ?? SubscriptionStatus.TRIALING,
+      paymentStatus: dto.paymentStatus ?? PaymentStatus.NOT_REQUIRED,
+      trialStartsAt: dto.trialStartsAt,
+      trialEndsAt: dto.trialEndsAt,
+      currentPeriodStart: dto.currentPeriodStart,
+      currentPeriodEnd: dto.currentPeriodEnd,
+      metadata: dto.metadata as Prisma.InputJsonValue | undefined,
+    });
+    await this.auditLogService?.writeAuditLog({
+      ...audit,
+      tenantId: created.tenantId,
+      action: 'subscription.created',
+      resourceType: 'Subscription',
+      resourceId: created.id,
+      newValue: created,
+      reason: dto.reason,
+    });
+    return this.toResponse(created);
   }
 
   async update(

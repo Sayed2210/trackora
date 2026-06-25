@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { PaymentStatus, Prisma, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { SortDirection, SubscriptionSortField } from '../dtos';
+
+const ACTIVE_STATUSES: SubscriptionStatus[] = [
+  SubscriptionStatus.TRIALING,
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.PAST_DUE,
+  SubscriptionStatus.PAUSED,
+];
 
 export type PlatformSubscriptionWithDetails = Prisma.SubscriptionGetPayload<{
   include: {
@@ -83,6 +90,58 @@ export class PlatformSubscriptionsRepository {
 
   async findPlanById(planId: string) {
     return this.prisma.plan.findUnique({ where: { id: planId } });
+  }
+
+  async findTenantById(tenantId: string) {
+    return this.prisma.tenant.findUnique({ where: { id: tenantId } });
+  }
+
+  async findActiveByTenant(
+    tenantId: string,
+  ): Promise<PlatformSubscriptionWithDetails | null> {
+    return this.prisma.subscription.findFirst({
+      where: {
+        tenantId,
+        status: { in: ACTIVE_STATUSES },
+      },
+      include: this.includeDetails,
+    });
+  }
+
+  async create(data: {
+    tenantId: string;
+    planId: string;
+    status: SubscriptionStatus;
+    paymentStatus: PaymentStatus;
+    trialStartsAt?: Date | null;
+    trialEndsAt?: Date | null;
+    currentPeriodStart?: Date | null;
+    currentPeriodEnd?: Date | null;
+    metadata?: Prisma.InputJsonValue;
+  }): Promise<PlatformSubscriptionWithDetails> {
+    return this.prisma.$transaction(async (tx) => {
+      const subscription = await tx.subscription.create({
+        data: {
+          tenantId: data.tenantId,
+          planId: data.planId,
+          status: data.status,
+          paymentStatus: data.paymentStatus,
+          trialStartsAt: data.trialStartsAt ?? null,
+          trialEndsAt: data.trialEndsAt ?? null,
+          currentPeriodStart: data.currentPeriodStart ?? null,
+          currentPeriodEnd: data.currentPeriodEnd ?? null,
+          metadata: data.metadata,
+        },
+      });
+      await tx.tenant.update({
+        where: { id: data.tenantId },
+        data: { currentPlanId: data.planId },
+      });
+      return tx.subscription.findUniqueOrThrow({
+        where: { id: subscription.id },
+        include: this.includeDetails,
+      });
+    });
   }
 
   async update(id: string, data: Prisma.SubscriptionUpdateInput) {
