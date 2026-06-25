@@ -20,6 +20,7 @@ describe('PlatformSubscriptionsController', () => {
         {
           provide: PlatformSubscriptionsService,
           useValue: {
+            create: jest.fn(),
             findAll: jest.fn(),
             findById: jest.fn(),
             update: jest.fn(),
@@ -42,6 +43,19 @@ describe('PlatformSubscriptionsController', () => {
     await expect(controller.findAll({ page: 1, limit: 20 })).resolves.toEqual(
       response,
     );
+  });
+
+  it('delegates create subscription', async () => {
+    const dto = {
+      tenantId: '123e4567-e89b-42d3-a456-426614174001',
+      planId: '123e4567-e89b-42d3-a456-426614174002',
+      reason: 'onboarding merchant',
+    };
+    service.create.mockResolvedValueOnce({ id: subscriptionId } as any);
+
+    await controller.create(dto);
+
+    expect(service.create).toHaveBeenCalledWith(dto);
   });
 
   it('delegates change plan', async () => {
@@ -75,6 +89,7 @@ describe('PlatformSubscriptionsController', () => {
 
   it('requires manage_subscriptions for mutation endpoints', () => {
     for (const handler of [
+      controller.create,
       controller.update,
       controller.changePlan,
       controller.cancel,

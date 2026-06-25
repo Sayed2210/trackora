@@ -12,6 +12,7 @@ import {
 import {
   ApiBearerAuth,
   ApiConflictResponse,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -30,6 +31,7 @@ import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
 import {
   CancelSubscriptionDto,
   ChangeSubscriptionPlanDto,
+  CreateSubscriptionDto,
   ListSubscriptionsQueryDto,
   RenewSubscriptionDto,
   SubscriptionIdParamDto,
@@ -51,6 +53,37 @@ export class PlatformSubscriptionsController {
   constructor(
     private readonly subscriptionsService: PlatformSubscriptionsService,
   ) {}
+
+  @Post()
+  @PlatformPermissions(PERMISSIONS.MANAGE_SUBSCRIPTIONS)
+  @DangerousAction('subscription creation')
+  @ApiOperation({
+    summary: 'Create subscription for a tenant',
+    description:
+      'Subscribes a tenant to a plan, creating the first subscription record and syncing the tenant current plan. Requires `manage_subscriptions` permission, a body `reason`, and is blocked during impersonation.',
+  })
+  @ApiCreatedResponse({ description: 'Subscription created.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks `manage_subscriptions`, or is impersonating.',
+  })
+  @ApiNotFoundResponse({
+    description: 'Tenant or plan was not found.',
+  })
+  @ApiConflictResponse({
+    description:
+      'Tenant is cancelled, plan is inactive/archived, or tenant already has an active subscription.',
+  })
+  async create(
+    @Body() dto: CreateSubscriptionDto,
+    @Req() request?: AuthenticatedRequest,
+  ) {
+    const audit = this.toAuditContext(request);
+    return audit
+      ? this.subscriptionsService.create(dto, audit)
+      : this.subscriptionsService.create(dto);
+  }
 
   @Get()
   @PlatformAnyPermissions(
