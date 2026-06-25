@@ -1,5 +1,6 @@
 export { CancelSubscriptionDto } from './cancel-subscription.dto';
 export { ChangeSubscriptionPlanDto } from './change-subscription-plan.dto';
+export { CreateSubscriptionDto } from './create-subscription.dto';
 export {
   ListSubscriptionsQueryDto,
   SortDirection,
