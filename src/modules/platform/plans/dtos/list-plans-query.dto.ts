@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -8,6 +8,16 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+const toBoolean = ({ value }: { value: unknown }): boolean | undefined => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const v = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(v)) return true;
+  if (['false', '0', 'no', 'off'].includes(v)) return false;
+  return Boolean(value);
+};
 
 export enum PlanSortField {
   CREATED_AT = 'createdAt',
@@ -32,7 +42,7 @@ export class ListPlansQueryDto {
     description: 'Filter by active plans.',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toBoolean)
   @IsBoolean()
   isActive?: boolean;
 
@@ -42,7 +52,7 @@ export class ListPlansQueryDto {
     description: 'Filter archived or non-archived plans.',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toBoolean)
   @IsBoolean()
   archived?: boolean;
 
