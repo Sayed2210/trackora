@@ -31,9 +31,12 @@ import {
   ChangePlatformTenantStatusDto,
   CreatePlatformTenantDto,
   ListPlatformTenantsDto,
+  OnboardPlatformTenantDto,
+  OnboardPlatformTenantResponseDto,
   UpdatePlatformTenantDto,
 } from '../dtos';
 import { TenantsService } from '../services/tenants.service';
+import { TenantOnboardingService } from '../services/tenant-onboarding.service';
 
 interface AuthenticatedRequest {
   user: AuthenticatedRequestUser;
@@ -46,7 +49,75 @@ interface AuthenticatedRequest {
 @UseGuards(PlatformOnlyGuard)
 @Controller('platform/tenants')
 export class TenantsController {
-  constructor(private readonly tenantsService: TenantsService) {}
+  constructor(
+    private readonly tenantsService: TenantsService,
+    private readonly onboardingService: TenantOnboardingService,
+  ) {}
+
+  @Post('onboard')
+  @PlatformPermissions(
+    PERMISSIONS.MANAGE_TENANTS,
+    PERMISSIONS.MANAGE_SUBSCRIPTIONS,
+  )
+  @DangerousAction('tenant onboarding')
+  @ApiOperation({
+    summary: 'Onboard a tenant atomically',
+    description:
+      'Creates a tenant, an admin/owner user, a subscription, and links the tenant to the plan in a single ACID transaction. Requires both `manage_tenants` and `manage_subscriptions` permissions. The returned `credentials.temporaryPassword` is shown once and never persisted in plaintext.',
+  })
+  @ApiCreatedResponse({
+    description: 'Tenant onboarded successfully.',
+    type: OnboardPlatformTenantResponseDto,
+    schema: {
+      example: {
+        tenant: {
+          id: 'tenant-uuid',
+          name: 'Cairo Express',
+          slug: 'cairo-express',
+          status: 'TRIAL',
+          currentPlanId: 'plan-uuid',
+        },
+        subscription: {
+          id: 'subscription-uuid',
+          tenantId: 'tenant-uuid',
+          planId: 'plan-uuid',
+          status: 'TRIALING',
+          paymentStatus: 'NOT_REQUIRED',
+          currentPeriodStart: '2026-06-27T00:00:00.000Z',
+          currentPeriodEnd: '2026-07-27T00:00:00.000Z',
+        },
+        owner: {
+          id: 'user-uuid',
+          tenantId: 'tenant-uuid',
+          name: 'Ahmed Ali',
+          phone: '01000000000',
+          email: 'owner@company.com',
+          role: 'SUPER_ADMIN',
+          isActive: true,
+        },
+        credentials: {
+          temporaryPassword: 'Trackora@12345',
+        },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user or lacks `manage_tenants` / `manage_subscriptions`.',
+  })
+  @ApiNotFoundResponse({ description: 'Plan was not found.' })
+  @ApiConflictResponse({
+    description:
+      'Tenant slug already exists, owner phone/email already registered, or plan is not active.',
+  })
+  async onboard(
+    @Body() dto: OnboardPlatformTenantDto,
+    @Req() request?: AuthenticatedRequest,
+  ): Promise<OnboardPlatformTenantResponseDto> {
+    const audit = this.toAuditContext(request);
+    return this.onboardingService.onboard(dto, audit);
+  }
 
   @Post()
   @PlatformPermissions(PERMISSIONS.MANAGE_TENANTS)
