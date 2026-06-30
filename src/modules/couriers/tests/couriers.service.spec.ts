@@ -1,5 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, UserRole } from '@prisma/client';
+import { PrismaService } from '@core/prisma/prisma.service';
 import { CouriersService } from '../services/couriers.service';
 import { CouriersRepository } from '../repositories/couriers.repository';
 import { VehicleType } from '../entities/courier.entity';
@@ -26,11 +32,66 @@ const mockCourier: any = {
   updatedAt: new Date(),
 };
 
+const mockCourierWithUser: any = {
+  ...mockCourier,
+  maxDailyCapacity: 30,
+  zoneCodes: ['Cairo-1'],
+  cashHeld: new Prisma.Decimal(0),
+  cashHeldLimit: new Prisma.Decimal(5000),
+  user: {
+    id: 'user-1',
+    name: 'Ahmed Hassan',
+    phone: '01012345678',
+    email: 'ahmed@trackora.test',
+    role: UserRole.COURIER,
+  },
+};
+
+const createCourierDto = {
+  name: 'Ahmed Hassan',
+  phone: '01012345678',
+  email: 'ahmed@trackora.test',
+  employeeId: 'EMP001',
+  vehicleType: VehicleType.MOTORCYCLE,
+  licensePlate: 'ABC123',
+  zoneCodes: ['Cairo-1'],
+  maxDailyCapacity: 30,
+  isActive: true,
+  isAvailable: true,
+};
+
 describe('CouriersService', () => {
   let service: CouriersService;
   let repository: CouriersRepository;
+  let prisma: {
+    $transaction: jest.Mock;
+    user: {
+      findUnique: jest.Mock;
+      create: jest.Mock;
+    };
+    zone: {
+      findMany: jest.Mock;
+    };
+    courier: {
+      create: jest.Mock;
+    };
+  };
 
   beforeEach(async () => {
+    prisma = {
+      $transaction: jest.fn((callback) => callback(prisma)),
+      user: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'user-1' }),
+      },
+      zone: {
+        findMany: jest.fn().mockResolvedValue([{ code: 'Cairo-1' }]),
+      },
+      courier: {
+        create: jest.fn().mockResolvedValue(mockCourierWithUser),
+      },
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CouriersService,
@@ -44,6 +105,7 @@ describe('CouriersService', () => {
             softDelete: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
 
@@ -56,35 +118,96 @@ describe('CouriersService', () => {
   });
 
   describe('create', () => {
-    it('should create courier', async () => {
-      jest.spyOn(repository, 'findByUserId').mockResolvedValueOnce(null);
+    it('should create courier with linked COURIER user', async () => {
+      const result = await service.create(createCourierDto);
 
-      const result = await service.create(
-        { employeeId: 'EMP001', zoneCodes: ['Cairo-1'] },
-        'user-1',
-      );
-
-      expect(result).toEqual(mockCourier);
-      expect(repository.create).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
-          employeeId: 'EMP001',
-          zoneCodes: ['Cairo-1'],
+          id: mockCourier.id,
           userId: 'user-1',
-          cashHeld: 0,
-          currentPerformanceScore: 50,
+          name: 'Ahmed Hassan',
+          phone: '01012345678',
+          email: 'ahmed@trackora.test',
+          zoneCodes: ['Cairo-1'],
+          maxDailyCapacity: 30,
+          user: expect.objectContaining({
+            id: 'user-1',
+            role: UserRole.COURIER,
+          }),
+        }),
+      );
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          name: 'Ahmed Hassan',
+          phone: '01012345678',
+          email: 'ahmed@trackora.test',
+          role: UserRole.COURIER,
+          isActive: true,
+        }),
+        select: { id: true },
+      });
+      expect(prisma.courier.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          employeeId: 'EMP001',
+          vehicleType: VehicleType.MOTORCYCLE,
+          licensePlate: 'ABC123',
+          zoneCodes: ['Cairo-1'],
+          maxDailyCapacity: 30,
+          isActive: true,
+          isAvailable: true,
+        }),
+        include: expect.any(Object),
+      });
+    });
+
+    it('should reject duplicate phone', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'existing-user' });
+
+      await expect(service.create(createCourierDto)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.courier.create).not.toHaveBeenCalled();
+    });
+
+    it('should reject invalid zoneCode', async () => {
+      prisma.zone.findMany.mockResolvedValueOnce([]);
+
+      try {
+        await service.create(createCourierDto);
+        fail('Expected invalid zoneCode to throw');
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as BadRequestException).getResponse()).toEqual(
+          expect.objectContaining({
+            field: 'zoneCodes',
+            invalidZoneCodes: ['Cairo-1'],
+          }),
+        );
+      }
+    });
+
+    it('should create User role as COURIER', async () => {
+      await service.create(createCourierDto);
+
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ role: UserRole.COURIER }),
         }),
       );
     });
 
-    it('should throw if courier already exists for user', async () => {
-      jest.spyOn(repository, 'findByUserId').mockResolvedValueOnce(mockCourier);
+    it('should link Courier to created User', async () => {
+      prisma.user.create.mockResolvedValueOnce({ id: 'created-user-id' });
 
-      await expect(
-        service.create(
-          { employeeId: 'EMP001', zoneCodes: ['Cairo-1'] },
-          'user-1',
-        ),
-      ).rejects.toThrow(ConflictException);
+      await service.create(createCourierDto);
+
+      expect(prisma.courier.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: 'created-user-id' }),
+        }),
+      );
     });
   });
 

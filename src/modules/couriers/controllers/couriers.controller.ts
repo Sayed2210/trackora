@@ -6,22 +6,26 @@ import {
   Patch,
   Body,
   ParseUUIDPipe,
-  Req,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { Request } from 'express';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CouriersService } from '../services/couriers.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
-import { CreateCourierDto } from '../dtos/create-courier.dto';
+import {
+  CourierResponseDto,
+  CreateCourierDto,
+} from '../dtos/create-courier.dto';
 import { UpdateZonesDto } from '../dtos/update-zones.dto';
 import { QueryCouriersDto } from '../dtos/query-couriers.dto';
 import { UpdateAvailabilityDto } from '../dtos/update-availability.dto';
-
-interface RequestWithUser extends Request {
-  user: { userId: string; role: UserRole };
-}
 
 @ApiTags('Couriers')
 @ApiBearerAuth()
@@ -31,8 +35,19 @@ export class CouriersController {
 
   @Post()
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
-  async create(@Body() dto: CreateCourierDto, @Req() req: RequestWithUser) {
-    return this.couriersService.create(dto, req.user.userId);
+  @ApiCreatedResponse({
+    description: 'Courier and linked user account created.',
+    type: CourierResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Validation failed, vehicleType is invalid, required fields are missing, or zoneCodes include inactive/unknown zones.',
+  })
+  @ApiConflictResponse({
+    description: 'Phone number or email is already registered.',
+  })
+  async create(@Body() dto: CreateCourierDto): Promise<CourierResponseDto> {
+    return this.couriersService.create(dto);
   }
 
   @Get()

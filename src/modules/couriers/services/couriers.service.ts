@@ -1,10 +1,17 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { Prisma, UserRole } from '@prisma/client';
+import { PrismaService } from '@core/prisma/prisma.service';
 import { CouriersRepository } from '../repositories/couriers.repository';
 import { Courier } from '../entities/courier.entity';
+import {
+  CourierResponseDto,
+  CreateCourierDto,
+} from '../dtos/create-courier.dto';
 
 export interface CourierListQuery {
   search?: string;
@@ -15,22 +22,110 @@ export interface CourierListQuery {
   limit?: number;
 }
 
+type CourierWithUser = Prisma.CourierGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        phone: true;
+        email: true;
+        role: true;
+      };
+    };
+  };
+}>;
+
 @Injectable()
 export class CouriersService {
-  constructor(private readonly couriersRepository: CouriersRepository) {}
+  constructor(
+    private readonly couriersRepository: CouriersRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
-  async create(data: Partial<Courier>, userId: string): Promise<Courier> {
-    const existing = await this.couriersRepository.findByUserId(userId);
-    if (existing) {
-      throw new ConflictException('Courier already exists for this user');
+  async create(dto: CreateCourierDto): Promise<CourierResponseDto> {
+    try {
+      const courier = await this.prisma.$transaction(async (tx) => {
+        const existingPhone = await tx.user.findUnique({
+          where: { phone: dto.phone },
+          select: { id: true },
+        });
+        if (existingPhone) {
+          throw new ConflictException('Phone number already registered');
+        }
+
+        if (dto.email) {
+          const existingEmail = await tx.user.findUnique({
+            where: { email: dto.email },
+            select: { id: true },
+          });
+          if (existingEmail) {
+            throw new ConflictException('Email already registered');
+          }
+        }
+
+        const zones = await tx.zone.findMany({
+          where: {
+            code: { in: dto.zoneCodes },
+            isActive: true,
+          },
+          select: { code: true },
+        });
+        const validZoneCodes = new Set(zones.map((zone) => zone.code));
+        const invalidZoneCodes = dto.zoneCodes.filter(
+          (zoneCode) => !validZoneCodes.has(zoneCode),
+        );
+        if (invalidZoneCodes.length > 0) {
+          throw new BadRequestException({
+            message: 'Invalid zoneCode',
+            field: 'zoneCodes',
+            invalidZoneCodes,
+          });
+        }
+
+        const isActive = dto.isActive ?? true;
+        const user = await tx.user.create({
+          data: {
+            name: dto.name,
+            phone: dto.phone,
+            email: dto.email,
+            role: UserRole.COURIER,
+            isActive,
+          },
+          select: { id: true },
+        });
+
+        return tx.courier.create({
+          data: {
+            userId: user.id,
+            employeeId: dto.employeeId,
+            vehicleType: dto.vehicleType,
+            licensePlate: dto.licensePlate,
+            zoneCodes: dto.zoneCodes,
+            maxDailyCapacity: dto.maxDailyCapacity ?? 25,
+            isActive,
+            isAvailable: dto.isAvailable ?? true,
+            cashHeld: 0,
+            currentPerformanceScore: 50,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        });
+      });
+
+      return this.toCourierResponse(courier);
+    } catch (error) {
+      this.handleCreateError(error);
     }
-
-    return this.couriersRepository.create({
-      ...data,
-      userId,
-      cashHeld: 0,
-      currentPerformanceScore: 50,
-    });
   }
 
   async findById(id: string): Promise<Courier> {
@@ -109,5 +204,58 @@ export class CouriersService {
   async remove(id: string): Promise<void> {
     await this.findById(id);
     await this.couriersRepository.softDelete(id);
+  }
+
+  private toCourierResponse(courier: CourierWithUser): CourierResponseDto {
+    return {
+      id: courier.id,
+      userId: courier.userId,
+      user: courier.user,
+      name: courier.user.name,
+      phone: courier.user.phone,
+      email: courier.user.email,
+      employeeId: courier.employeeId,
+      vehicleType: courier.vehicleType,
+      licensePlate: courier.licensePlate,
+      zoneCodes: courier.zoneCodes,
+      maxDailyCapacity: courier.maxDailyCapacity,
+      isActive: courier.isActive,
+      isAvailable: courier.isAvailable,
+      currentPerformanceScore: courier.currentPerformanceScore,
+      cashHeld: courier.cashHeld.toString(),
+      cashHeldLimit: courier.cashHeldLimit.toString(),
+      avgDeliveryTimeMinutes: courier.avgDeliveryTimeMinutes,
+      totalDelivered: courier.totalDelivered,
+      totalFailed: courier.totalFailed,
+      totalReturned: courier.totalReturned,
+      createdAt: courier.createdAt,
+      updatedAt: courier.updatedAt,
+    };
+  }
+
+  private handleCreateError(error: unknown): never {
+    if (
+      error instanceof ConflictException ||
+      error instanceof BadRequestException
+    ) {
+      throw error;
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(',')
+        : String(error.meta?.target ?? '');
+      if (target.includes('phone')) {
+        throw new ConflictException('Phone number already registered');
+      }
+      if (target.includes('email')) {
+        throw new ConflictException('Email already registered');
+      }
+    }
+
+    throw error;
   }
 }
