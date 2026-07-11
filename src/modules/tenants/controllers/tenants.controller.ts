@@ -68,38 +68,6 @@ export class TenantsController {
   @ApiCreatedResponse({
     description: 'Tenant onboarded successfully.',
     type: OnboardPlatformTenantResponseDto,
-    schema: {
-      example: {
-        tenant: {
-          id: 'tenant-uuid',
-          name: 'Cairo Express',
-          slug: 'cairo-express',
-          status: 'TRIAL',
-          currentPlanId: 'plan-uuid',
-        },
-        subscription: {
-          id: 'subscription-uuid',
-          tenantId: 'tenant-uuid',
-          planId: 'plan-uuid',
-          status: 'TRIALING',
-          paymentStatus: 'NOT_REQUIRED',
-          currentPeriodStart: '2026-06-27T00:00:00.000Z',
-          currentPeriodEnd: '2026-07-27T00:00:00.000Z',
-        },
-        owner: {
-          id: 'user-uuid',
-          tenantId: 'tenant-uuid',
-          name: 'Ahmed Ali',
-          phone: '01000000000',
-          email: 'owner@company.com',
-          role: 'SUPER_ADMIN',
-          isActive: true,
-        },
-        credentials: {
-          temporaryPassword: 'Trackora@12345',
-        },
-      },
-    },
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiForbiddenResponse({
