@@ -9,7 +9,14 @@ import {
   ParseUUIDPipe,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiQuery,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { AssignmentsService } from '../services/assignments.service';
 import { Roles } from '@common/decorators/roles.decorator';
@@ -22,6 +29,7 @@ import { CreateAssignmentDto } from '../dtos/create-assignment.dto';
 import { ReassignAssignmentDto } from '../dtos/reassign-assignment.dto';
 import { CancelAssignmentDto } from '../dtos/cancel-assignment.dto';
 import { QueryAssignmentsDto } from '../dtos/query-assignments.dto';
+import { PaginatedAssignmentsResponseDto } from '../dtos/assignment-response.dto';
 
 interface RequestWithUser extends Request {
   user: { userId: string; role: UserRole };
@@ -51,6 +59,9 @@ export class AssignmentsController {
   @ApiQuery({ name: 'to', required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ type: PaginatedAssignmentsResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid assignment query values.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async findAll(@Query() query: QueryAssignmentsDto) {
     return this.assignmentsService.findAll(
       {

@@ -1,9 +1,24 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiQuery,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { AdminDashboardService } from '../services/admin-dashboard.service';
 import { ReportsService } from '../services/reports.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
+import {
+  AdminDashboardResponseDto,
+  CourierPerformanceReportResponseDto,
+  FinancialSummaryResponseDto,
+  MerchantDeliveryReportResponseDto,
+} from '../dtos/admin-response.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -20,11 +35,17 @@ export class AdminController {
   ) {}
 
   @Get('dashboard')
+  @ApiOkResponse({ type: AdminDashboardResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async getDashboard() {
     return this.adminDashboardService.getDashboard();
   }
 
   @Get('financial-summary')
+  @ApiOkResponse({ type: FinancialSummaryResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async getFinancialSummary() {
     return this.adminDashboardService.getFinancialSummary();
   }
@@ -38,6 +59,14 @@ export class AdminController {
   @Post('reports/courier-performance')
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
+  @ApiCreatedResponse({
+    description: 'Courier performance report returned as JSON.',
+    type: CourierPerformanceReportResponseDto,
+    isArray: true,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid report date range.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async generateCourierPerformanceReport(
     @Query('from') from?: string,
     @Query('to') to?: string,
@@ -51,6 +80,14 @@ export class AdminController {
   @Post('reports/merchant-delivery')
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
+  @ApiCreatedResponse({
+    description: 'Merchant delivery report returned as JSON.',
+    type: MerchantDeliveryReportResponseDto,
+    isArray: true,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid report date range.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async generateMerchantDeliveryReport(
     @Query('from') from?: string,
     @Query('to') to?: string,

@@ -19,7 +19,11 @@ import {
   ApiQuery,
   ApiConsumes,
   ApiBody,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { ShipmentsService } from '../services/shipments.service';
@@ -30,6 +34,10 @@ import { UserRole } from '@modules/users/entities/user.entity';
 import { ShipmentStatus } from '../entities/shipment.entity';
 import { CreateShipmentDto } from '../dtos/create-shipment.dto';
 import { UpdateShipmentStatusDto } from '../dtos/update-shipment-status.dto';
+import {
+  PaginatedShipmentsResponseDto,
+  ShipmentResponseDto,
+} from '../dtos/shipment-response.dto';
 
 interface RequestWithUser extends Request {
   user: { userId: string; role: UserRole };
@@ -96,6 +104,9 @@ export class ShipmentsController {
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ type: PaginatedShipmentsResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid shipment query values.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async findAll(
     @Query('status') status?: ShipmentStatus | ShipmentStatus[],
     @Query('merchantId') merchantId?: string,
@@ -177,6 +188,10 @@ export class ShipmentsController {
 
   @Get(':id')
   @ApiBearerAuth()
+  @ApiOkResponse({ type: ShipmentResponseDto })
+  @ApiBadRequestResponse({ description: 'Shipment id must be a UUID.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiNotFoundResponse({ description: 'Shipment was not found.' })
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.shipmentsService.findById(id);
   }

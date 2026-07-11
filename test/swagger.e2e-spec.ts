@@ -177,6 +177,87 @@ describe('Swagger & API Automation Tests (e2e)', () => {
 
       expect(missingSuccessResponses).toEqual([]);
     });
+
+    it('should document scoped backend response DTOs and report JSON behavior', async () => {
+      const res = await request(httpServer).get('/api/docs-json');
+      const paths = res.body.paths;
+      const scopedResponses = [
+        ['get', '/v1/admin/dashboard', '200', 'AdminDashboardResponseDto'],
+        [
+          'get',
+          '/v1/admin/financial-summary',
+          '200',
+          'FinancialSummaryResponseDto',
+        ],
+        ['get', '/v1/admin/audit-logs', '200', 'PaginatedAuditLogsResponseDto'],
+        ['get', '/v1/zones', '200', 'PaginatedZonesResponseDto'],
+        ['get', '/v1/zones/{id}', '200', 'ZoneResponseDto'],
+        ['patch', '/v1/zones/{id}', '200', 'ZoneResponseDto'],
+        ['get', '/v1/shipments', '200', 'PaginatedShipmentsResponseDto'],
+        ['get', '/v1/shipments/{id}', '200', 'ShipmentResponseDto'],
+        ['get', '/v1/assignments', '200', 'PaginatedAssignmentsResponseDto'],
+        ['get', '/v1/couriers', '200', 'PaginatedCouriersResponseDto'],
+        ['get', '/v1/merchants', '200', 'PaginatedMerchantsResponseDto'],
+        ['get', '/v1/merchants/{id}', '200', 'MerchantResponseDto'],
+        [
+          'get',
+          '/v1/merchants/{id}/wallet',
+          '200',
+          'MerchantWalletResponseDto',
+        ],
+        [
+          'get',
+          '/v1/merchants/{id}/wallet/transactions',
+          '200',
+          'PaginatedWalletTransactionsResponseDto',
+        ],
+      ];
+
+      for (const [method, path, status, dto] of scopedResponses) {
+        expect(
+          paths[path][method].responses[status].content['application/json']
+            .schema.$ref,
+        ).toBe(`#/components/schemas/${dto}`);
+      }
+
+      const reportResponses = [
+        [
+          '/v1/admin/reports/courier-performance',
+          'CourierPerformanceReportResponseDto',
+        ],
+        [
+          '/v1/admin/reports/merchant-delivery',
+          'MerchantDeliveryReportResponseDto',
+        ],
+      ];
+
+      for (const [path, dto] of reportResponses) {
+        const schema =
+          paths[path].post.responses['201'].content['application/json'].schema;
+        expect(schema.type).toBe('array');
+        expect(schema.items.$ref).toBe(`#/components/schemas/${dto}`);
+      }
+
+      const deleteZoneResponse =
+        paths['/v1/zones/{id}'].delete.responses['200'];
+      expect(deleteZoneResponse.description).toContain('body is empty');
+      expect(deleteZoneResponse.content).toEqual({});
+    });
+
+    it('should retain relevant error responses for scoped operations', async () => {
+      const res = await request(httpServer).get('/api/docs-json');
+      const paths = res.body.paths;
+
+      expect(
+        Object.keys(paths['/v1/zones/{id}'].patch.responses).sort(),
+      ).toEqual(['200', '400', '401', '403', '404', '409']);
+      expect(
+        Object.keys(paths['/v1/merchants/{id}/wallet'].get.responses).sort(),
+      ).toEqual(['200', '400', '401', '403', '404']);
+      expect(
+        Object.keys(paths['/v1/admin/dashboard'].get.responses).sort(),
+      ).toEqual(['200', '401', '403']);
+    });
   });
 
   // ─────────────────────────────────────────────────────────────
