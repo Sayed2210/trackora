@@ -1,8 +1,17 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiQuery,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { AuditLogService } from '../services/audit-log.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
+import { PaginatedAuditLogsResponseDto } from '../dtos/admin-response.dto';
 
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
@@ -24,6 +33,10 @@ export class AuditLogsController {
   @ApiQuery({ name: 'to', required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ type: PaginatedAuditLogsResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid audit-log query values.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async findAll(
     @Query('userId') userId?: string,
     @Query('action') action?: string,

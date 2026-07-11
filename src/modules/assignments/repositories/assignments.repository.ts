@@ -62,7 +62,29 @@ export class AssignmentsRepository extends AbstractRepository<Assignment> {
       skip,
       take,
       orderBy,
-      include: { shipment: true, courier: { include: { user: true } } },
+      include: {
+        shipment: true,
+        courier: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                tenantId: true,
+                email: true,
+                phone: true,
+                role: true,
+                name: true,
+                avatarUrl: true,
+                isActive: true,
+                emailVerified: true,
+                phoneVerified: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+      },
     });
   }
 

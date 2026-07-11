@@ -13,8 +13,11 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiOkResponse,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { CouriersService } from '../services/couriers.service';
 import { Roles } from '@common/decorators/roles.decorator';
@@ -26,6 +29,7 @@ import {
 import { UpdateZonesDto } from '../dtos/update-zones.dto';
 import { QueryCouriersDto } from '../dtos/query-couriers.dto';
 import { UpdateAvailabilityDto } from '../dtos/update-availability.dto';
+import { PaginatedCouriersResponseDto } from '../dtos/courier-list-response.dto';
 
 @ApiTags('Couriers')
 @ApiBearerAuth()
@@ -58,6 +62,10 @@ export class CouriersController {
   @ApiQuery({ name: 'zoneCode', required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ type: PaginatedCouriersResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid courier query values.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Operations admin role is required.' })
   async findAll(@Query() query: QueryCouriersDto) {
     return this.couriersService.findAll({
       search: query.search,

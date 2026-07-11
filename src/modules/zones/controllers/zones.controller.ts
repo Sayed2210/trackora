@@ -9,13 +9,27 @@ import {
   Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiQuery,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { ZonesService } from '../services/zones.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { ZoneLevel } from '../entities/zone.entity';
 import { CreateZoneDto } from '../dtos/create-zone.dto';
 import { UpdateZoneDto } from '../dtos/update-zone.dto';
+import {
+  PaginatedZonesResponseDto,
+  ZoneResponseDto,
+} from '../dtos/zone-response.dto';
 // import { ListZonesDto } from '../dtos/list-zones.dto';
 
 @ApiTags('Zones')
@@ -37,6 +51,9 @@ export class ZonesController {
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ type: PaginatedZonesResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid zone query values.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async findAll(
     @Query('level') level?: ZoneLevel,
     @Query('parentId') parentId?: string,
@@ -56,6 +73,10 @@ export class ZonesController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: ZoneResponseDto })
+  @ApiBadRequestResponse({ description: 'Zone id must be a UUID.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiNotFoundResponse({ description: 'Zone was not found.' })
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.zonesService.findById(id);
   }
@@ -67,6 +88,16 @@ export class ZonesController {
 
   @Patch(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
+  @ApiOkResponse({ type: ZoneResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Zone id or update payload failed validation.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Operations admin role is required.' })
+  @ApiNotFoundResponse({ description: 'Zone or parent zone was not found.' })
+  @ApiConflictResponse({
+    description: 'Zone code already exists or parent assignment is invalid.',
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateZoneDto,
@@ -76,6 +107,14 @@ export class ZonesController {
 
   @Delete(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
+  @ApiOkResponse({
+    description: 'Zone deactivated successfully. Response body is empty.',
+    content: {},
+  })
+  @ApiBadRequestResponse({ description: 'Zone id must be a UUID.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({ description: 'Operations admin role is required.' })
+  @ApiNotFoundResponse({ description: 'Zone was not found.' })
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.zonesService.remove(id);
   }
