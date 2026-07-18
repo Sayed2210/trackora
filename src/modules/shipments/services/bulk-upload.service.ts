@@ -1,7 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-import { ShipmentsRepository } from '../repositories/shipments.repository';
+import { Prisma, UserRole, Zone } from '@prisma/client';
 import { TrackingNumberService } from './tracking-number.service';
 import { FraudDetectionService } from './fraud-detection.service';
 import {
@@ -9,8 +13,14 @@ import {
   ShipmentStatus,
   ShipmentType,
 } from '../entities/shipment.entity';
-import { Zone } from '@prisma/client';
 import * as XLSX from 'xlsx';
+
+export interface BulkUploadContext {
+  merchantId: string;
+  tenantId: string | null;
+  uploadedByUserId: string;
+  uploadedByRole: UserRole;
+}
 
 export interface BulkRow {
   customerName: string;
@@ -29,22 +39,7 @@ export interface BulkRow {
   preferredDeliveryDate?: string;
 }
 
-export interface BulkShipmentData {
-  customerName: string;
-  customerPhone: string;
-  customerPhone2?: string;
-  addressText: string;
-  address?: string | Record<string, unknown>;
-  type: string;
-  codAmount?: number | string;
-  productDescription: string;
-  productValue?: number | string;
-  weight?: number | string;
-  pieces?: number | string;
-  notes?: string;
-  zone?: string;
-  preferredDeliveryDate?: string;
-}
+export type BulkShipmentData = BulkRow;
 
 export interface BulkResult {
   totalRows: number;
@@ -54,18 +49,48 @@ export interface BulkResult {
   shipments?: Shipment[];
 }
 
+interface ValidatedBulkRow {
+  customerName: string;
+  customerPhone: string;
+  customerPhone2: string | null;
+  addressText: string;
+  address?: string | Record<string, unknown>;
+  type: ShipmentType;
+  codAmount: Prisma.Decimal;
+  codAmountNumber: number;
+  productDescription: string;
+  productValue: Prisma.Decimal;
+  weight: Prisma.Decimal;
+  pieces: number;
+  notes: string | null;
+  preferredDeliveryDate: Date | null;
+}
+
+type ResolvedMerchant = {
+  id: string;
+  tenantId: string | null;
+  isActive: boolean;
+};
+
+const ADMIN_UPLOAD_ROLES: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.OPERATIONS_MANAGER,
+];
+
 @Injectable()
 export class BulkUploadService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly shipmentsRepository: ShipmentsRepository,
     private readonly trackingNumberService: TrackingNumberService,
     private readonly fraudDetection: FraudDetectionService,
   ) {}
 
-  async processFile(buffer: Buffer, merchantId: string): Promise<BulkResult> {
+  async processFile(
+    buffer: Buffer,
+    context: BulkUploadContext,
+  ): Promise<BulkResult> {
     const rows = this.parseFile(buffer);
-    return this.processRows(rows, merchantId);
+    return this.processRows(rows, context);
   }
 
   private parseFile(buffer: Buffer): BulkRow[] {
@@ -77,8 +102,8 @@ export class BulkUploadService {
         defval: '',
       });
 
-      return raw.map((r) => {
-        const addressRaw = r['address'];
+      return raw.map((row) => {
+        const addressRaw = this.firstCellValue(row, ['address']);
         let address: string | Record<string, unknown> | undefined;
         if (typeof addressRaw === 'string' && addressRaw.trim()) {
           address = addressRaw.trim();
@@ -87,33 +112,47 @@ export class BulkUploadService {
         }
 
         return {
-          customerName: String(r['customerName'] || r['customer_name'] || ''),
-          customerPhone: String(
-            r['customerPhone'] || r['customer_phone'] || '',
-          ),
-          customerPhone2: String(
-            r['customerPhone2'] || r['customer_phone2'] || '',
-          ),
-          addressText: String(r['addressText'] || r['address_text'] || ''),
+          customerName: this.firstCellText(row, [
+            'customerName',
+            'customer_name',
+          ]),
+          customerPhone: this.firstCellText(row, [
+            'customerPhone',
+            'customer_phone',
+          ]),
+          customerPhone2: this.firstCellText(row, [
+            'customerPhone2',
+            'customer_phone2',
+          ]),
+          addressText: this.firstCellText(row, ['addressText', 'address_text']),
           address,
-          type: String(r['type'] || ''),
-          codAmount: (r['codAmount'] || r['cod_amount'] || undefined) as
+          type: this.firstCellText(row, ['type']),
+          codAmount: this.firstCellValue(row, ['codAmount', 'cod_amount']) as
             | number
             | string
             | undefined,
-          productDescription: String(
-            r['productDescription'] || r['product_description'] || '',
-          ),
-          productValue: (r['productValue'] ||
-            r['product_value'] ||
-            undefined) as number | string | undefined,
-          weight: (r['weight'] || undefined) as number | string | undefined,
-          pieces: (r['pieces'] || undefined) as number | string | undefined,
-          notes: String(r['notes'] || ''),
-          zone: String(r['zone'] || ''),
-          preferredDeliveryDate: String(
-            r['preferredDeliveryDate'] || r['preferred_delivery_date'] || '',
-          ),
+          productDescription: this.firstCellText(row, [
+            'productDescription',
+            'product_description',
+          ]),
+          productValue: this.firstCellValue(row, [
+            'productValue',
+            'product_value',
+          ]) as number | string | undefined,
+          weight: this.firstCellValue(row, ['weight']) as
+            | number
+            | string
+            | undefined,
+          pieces: this.firstCellValue(row, ['pieces']) as
+            | number
+            | string
+            | undefined,
+          notes: this.firstCellText(row, ['notes']),
+          zone: this.firstCellText(row, ['zone']),
+          preferredDeliveryDate: this.firstCellText(row, [
+            'preferredDeliveryDate',
+            'preferred_delivery_date',
+          ]),
         };
       });
     } catch {
@@ -125,8 +164,15 @@ export class BulkUploadService {
 
   private async processRows(
     rows: BulkRow[],
-    merchantId: string,
+    context: BulkUploadContext,
   ): Promise<BulkResult> {
+    this.assertAllowedContext(context);
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: context.merchantId },
+      select: { id: true, tenantId: true, isActive: true },
+    });
+    this.assertMerchantContext(merchant, context);
+
     if (rows.length === 0) {
       throw new BadRequestException('File contains no data rows');
     }
@@ -134,40 +180,36 @@ export class BulkUploadService {
       throw new BadRequestException('Maximum 5,000 rows allowed per upload');
     }
 
-    // Pre-load all zones for fast lookup
     const zones = await this.prisma.zone.findMany({
       where: { isActive: true },
       select: { id: true, code: true, nameAr: true },
     });
     const zoneByCode = new Map(
-      zones.map((z) => [z.code.toLowerCase().trim(), z]),
+      zones.map((zone) => [this.normalizeZoneValue(zone.code), zone]),
     );
     const zoneByNameAr = new Map(
-      zones.map((z) => [z.nameAr.toLowerCase().trim(), z]),
+      zones.map((zone) => [this.normalizeZoneValue(zone.nameAr), zone]),
     );
 
     const errors: Array<{ rowIndex: number; message: string }> = [];
     const validRows: Array<{
       rowIndex: number;
-      data: BulkShipmentData;
+      data: ValidatedBulkRow;
       zoneId?: string;
     }> = [];
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const rowNum = i + 2; // +1 for header, +1 for 0-index
+    for (let index = 0; index < rows.length; index++) {
+      const rowIndex = index + 2;
       const validation = this.validateRow(
-        row,
-        rowNum,
-        zones,
+        rows[index],
         zoneByCode,
         zoneByNameAr,
       );
       if (validation.error) {
-        errors.push({ rowIndex: rowNum, message: validation.error });
+        errors.push({ rowIndex, message: validation.error });
       } else {
         validRows.push({
-          rowIndex: rowNum,
+          rowIndex,
           data: validation.data!,
           zoneId: validation.zoneId,
         });
@@ -183,84 +225,89 @@ export class BulkUploadService {
       };
     }
 
-    // Generate tracking numbers in batch
     const trackingNumbers = await this.trackingNumberService.generateBatch(
       validRows.length,
     );
 
-    // Build shipment creates
-    const shipmentCreates = validRows.map((vr, idx) => {
-      const type = this.parseShipmentType(String(vr.data.type))!;
-      const codAmount =
-        type === ShipmentType.COD ? Number(vr.data.codAmount ?? 0) : 0;
+    const shipmentCreates: Prisma.ShipmentCreateManyInput[] = validRows.map(
+      (validRow, index) => {
+        const data = validRow.data;
+        const address = this.parseAddress(data.address, data.addressText);
 
-      const address = this.parseAddress(
-        vr.data.address,
-        String(vr.data.addressText),
-      );
+        return {
+          trackingNumber: trackingNumbers[index],
+          merchantId: context.merchantId,
+          tenantId: context.tenantId,
+          status: ShipmentStatus.PENDING,
+          type: data.type,
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          customerPhone2: data.customerPhone2,
+          address: address as Prisma.InputJsonValue,
+          addressText: data.addressText,
+          codAmount: data.codAmount,
+          productDescription: data.productDescription,
+          productValue: data.productValue,
+          weight: data.weight,
+          pieces: data.pieces,
+          notes: data.notes,
+          zoneId: validRow.zoneId ?? null,
+          preferredDeliveryDate: data.preferredDeliveryDate,
+          riskScore: this.fraudDetection.calculateRiskScore({
+            customerPhone: data.customerPhone,
+            addressText: data.addressText,
+            codAmount: data.codAmountNumber,
+            customerName: data.customerName,
+          }),
+          deliveryAttempts: 0,
+          autoDispatchEligible: true,
+          addressVerified: false,
+        };
+      },
+    );
 
-      return {
-        trackingNumber: trackingNumbers[idx],
-        merchantId,
-        status: ShipmentStatus.PENDING,
-        type,
-        customerName: String(vr.data.customerName),
-        customerPhone: String(vr.data.customerPhone),
-        customerPhone2: vr.data.customerPhone2?.trim() || null,
-        address,
-        addressText: String(vr.data.addressText),
-        codAmount,
-        productDescription: String(vr.data.productDescription),
-        productValue: Number(vr.data.productValue ?? 0),
-        weight: Number(vr.data.weight ?? 1),
-        pieces: Number(vr.data.pieces ?? 1),
-        notes: vr.data.notes?.trim() || null,
-        zoneId: vr.zoneId ?? null,
-        preferredDeliveryDate: vr.data.preferredDeliveryDate
-          ? new Date(vr.data.preferredDeliveryDate)
-          : null,
-        riskScore: this.fraudDetection.calculateRiskScore({
-          customerPhone: String(vr.data.customerPhone),
-          addressText: String(vr.data.addressText),
-          codAmount,
-          customerName: String(vr.data.customerName),
-        }),
-        deliveryAttempts: 0,
-        autoDispatchEligible: true,
-        addressVerified: false,
-      };
-    });
+    this.assertCreateDataContext(shipmentCreates, context);
 
-    // Insert in batches of 100
-    const BATCH_SIZE = 100;
+    const batchSize = 100;
     const createdShipments: Shipment[] = [];
 
-    for (let i = 0; i < shipmentCreates.length; i += BATCH_SIZE) {
-      const batch = shipmentCreates.slice(i, i + BATCH_SIZE);
+    for (let index = 0; index < shipmentCreates.length; index += batchSize) {
+      const batch = shipmentCreates.slice(index, index + batchSize);
       const result = await this.prisma.$transaction(async (tx) => {
-        await tx.shipment.createMany({
-          data: batch as unknown as Prisma.ShipmentCreateManyInput[],
+        const currentMerchant = await tx.merchant.findUnique({
+          where: { id: context.merchantId },
+          select: { id: true, tenantId: true, isActive: true },
         });
+        this.assertMerchantContext(currentMerchant, context);
+        this.assertCreateDataContext(batch, context);
 
-        // Fetch created shipments by tracking numbers to return them
+        await tx.shipment.createMany({ data: batch });
+
         const shipments = await tx.shipment.findMany({
           where: {
-            trackingNumber: { in: batch.map((s) => s.trackingNumber) },
+            trackingNumber: {
+              in: batch.map((shipment) => shipment.trackingNumber),
+            },
+            merchantId: context.merchantId,
+            tenantId: context.tenantId,
           },
         });
 
-        // Create status logs
-        const logData = shipments.map((s) => ({
-          shipmentId: s.id,
-          newStatus: ShipmentStatus.PENDING,
-          previousStatus: null as ShipmentStatus | null,
-          metadata: { riskScore: s.riskScore, source: 'bulk-upload' },
-        }));
+        const logData: Prisma.ShipmentStatusLogCreateManyInput[] =
+          shipments.map((shipment) => ({
+            shipmentId: shipment.id,
+            newStatus: ShipmentStatus.PENDING,
+            previousStatus: null,
+            changedByUserId: context.uploadedByUserId,
+            changedByRole: context.uploadedByRole,
+            metadata: {
+              riskScore: shipment.riskScore,
+              source: 'bulk-upload',
+            },
+          }));
 
         if (logData.length > 0) {
-          await tx.shipmentStatusLog.createMany({
-            data: logData as unknown as Prisma.ShipmentStatusLogCreateManyInput[],
-          });
+          await tx.shipmentStatusLog.createMany({ data: logData });
         }
 
         return shipments;
@@ -280,46 +327,83 @@ export class BulkUploadService {
 
   private validateRow(
     row: BulkRow,
-    rowNum: number,
-    _zones: Pick<Zone, 'id' | 'code' | 'nameAr'>[],
     zoneByCode: Map<string, Pick<Zone, 'id' | 'code' | 'nameAr'>>,
     zoneByNameAr: Map<string, Pick<Zone, 'id' | 'code' | 'nameAr'>>,
-  ): { error?: string; data?: BulkShipmentData; zoneId?: string } {
+  ): { error?: string; data?: ValidatedBulkRow; zoneId?: string } {
     const errors: string[] = [];
+    const customerName = row.customerName?.trim();
+    const customerPhone = row.customerPhone?.trim();
+    const customerPhone2 = row.customerPhone2?.trim() || null;
+    const addressText = row.addressText?.trim();
+    const productDescription = row.productDescription?.trim();
 
-    if (!row.customerName?.trim()) errors.push('customerName is required');
-    if (!row.customerPhone?.trim()) errors.push('customerPhone is required');
-    else if (!this.isValidEgyptianPhone(row.customerPhone.trim())) {
+    if (!customerName) errors.push('customerName is required');
+    if (!customerPhone) errors.push('customerPhone is required');
+    else if (!this.isValidEgyptianPhone(customerPhone)) {
       errors.push(
         'customerPhone must be a valid Egyptian phone (11 digits starting with 01)',
       );
     }
-
-    if (!row.addressText?.trim()) errors.push('addressText is required');
-    if (!row.productDescription?.trim())
+    if (!addressText) errors.push('addressText is required');
+    if (!productDescription) {
       errors.push('productDescription is required');
+    }
 
     const type = this.parseShipmentType(row.type);
-    if (!type)
+    if (!type) {
       errors.push(
         `type must be one of: ${Object.values(ShipmentType).join(', ')}`,
       );
-    if (
-      type === ShipmentType.COD &&
-      (row.codAmount === undefined || row.codAmount === '')
-    ) {
+    }
+
+    const hasCodAmount = this.hasCellValue(row.codAmount);
+    if (type === ShipmentType.COD && !hasCodAmount) {
       errors.push('codAmount is required for COD shipments');
+    }
+    const codAmount = hasCodAmount
+      ? this.parseDecimal(row.codAmount)
+      : this.zeroDecimalValue();
+    if (hasCodAmount && (!codAmount || codAmount.number < 0)) {
+      errors.push('codAmount must be finite and non-negative');
+    }
+
+    const productValue = this.hasCellValue(row.productValue)
+      ? this.parseDecimal(row.productValue)
+      : this.zeroDecimalValue();
+    if (!productValue || productValue.number < 0) {
+      errors.push('productValue must be finite and non-negative');
+    }
+
+    const weight = this.hasCellValue(row.weight)
+      ? this.parseDecimal(row.weight)
+      : this.oneDecimalValue();
+    if (!weight || weight.number <= 0) {
+      errors.push('weight must be finite and greater than zero');
+    }
+
+    const pieces = this.hasCellValue(row.pieces)
+      ? this.parseFiniteNumber(row.pieces)
+      : 1;
+    if (pieces === null || !Number.isInteger(pieces) || pieces <= 0) {
+      errors.push('pieces must be a positive integer');
+    }
+
+    const preferredDeliveryDate = row.preferredDeliveryDate?.trim()
+      ? this.parsePreferredDeliveryDate(row.preferredDeliveryDate)
+      : null;
+    if (row.preferredDeliveryDate?.trim() && !preferredDeliveryDate) {
+      errors.push('preferredDeliveryDate must be a valid date');
     }
 
     let zoneId: string | undefined;
     if (row.zone?.trim()) {
-      const zoneKey = row.zone.trim().toLowerCase();
+      const zoneKey = this.normalizeZoneValue(row.zone);
       const matched = zoneByCode.get(zoneKey) || zoneByNameAr.get(zoneKey);
       if (matched) {
         zoneId = matched.id;
       } else {
         errors.push(
-          `zone "${row.zone}" not found. Use an existing zone code or Arabic name.`,
+          `zone "${row.zone}" not found. Use an active zone code or Arabic name.`,
         );
       }
     }
@@ -329,9 +413,78 @@ export class BulkUploadService {
     }
 
     return {
-      data: row,
+      data: {
+        customerName,
+        customerPhone,
+        customerPhone2,
+        addressText,
+        address: row.address,
+        type: type!,
+        codAmount:
+          type === ShipmentType.COD
+            ? codAmount!.decimal
+            : new Prisma.Decimal(0),
+        codAmountNumber: type === ShipmentType.COD ? codAmount!.number : 0,
+        productDescription,
+        productValue: productValue!.decimal,
+        weight: weight!.decimal,
+        pieces: pieces!,
+        notes: row.notes?.trim() || null,
+        preferredDeliveryDate,
+      },
       zoneId,
     };
+  }
+
+  private assertAllowedContext(context: BulkUploadContext): void {
+    const allowedRoles = [UserRole.MERCHANT, ...ADMIN_UPLOAD_ROLES];
+    if (!allowedRoles.includes(context.uploadedByRole)) {
+      throw new ForbiddenException('Role cannot perform shipment bulk upload');
+    }
+    if (!context.merchantId || !context.uploadedByUserId) {
+      throw new ForbiddenException('Invalid bulk upload identity context');
+    }
+    if (context.tenantId === undefined) {
+      throw new ForbiddenException('Bulk upload tenant context is required');
+    }
+    if (
+      ADMIN_UPLOAD_ROLES.includes(context.uploadedByRole) &&
+      context.tenantId === null
+    ) {
+      throw new ForbiddenException('Admin bulk upload requires tenant context');
+    }
+  }
+
+  private assertMerchantContext(
+    merchant: ResolvedMerchant | null,
+    context: BulkUploadContext,
+  ): asserts merchant is ResolvedMerchant {
+    if (!merchant) {
+      throw new NotFoundException('Merchant not found');
+    }
+    if (!merchant.isActive) {
+      throw new ForbiddenException('Merchant profile is inactive');
+    }
+    if (
+      merchant.id !== context.merchantId ||
+      merchant.tenantId !== context.tenantId
+    ) {
+      throw new ForbiddenException('Merchant tenant context mismatch');
+    }
+  }
+
+  private assertCreateDataContext(
+    data: Prisma.ShipmentCreateManyInput[],
+    context: BulkUploadContext,
+  ): void {
+    const invalidContext = data.some(
+      (shipment) =>
+        shipment.merchantId !== context.merchantId ||
+        shipment.tenantId !== context.tenantId,
+    );
+    if (invalidContext) {
+      throw new ForbiddenException('Shipment bulk upload context mismatch');
+    }
   }
 
   private parseShipmentType(value: string): ShipmentType | null {
@@ -348,12 +501,12 @@ export class BulkUploadService {
   ): Record<string, unknown> {
     if (typeof raw === 'string' && raw.trim()) {
       try {
-        const parsed = JSON.parse(raw);
+        const parsed: unknown = JSON.parse(raw);
         if (typeof parsed === 'object' && parsed !== null) {
           return parsed as Record<string, unknown>;
         }
       } catch {
-        // not JSON, treat as text
+        // A non-JSON address cell is retained as free text.
       }
       return { text: raw.trim() };
     }
@@ -361,6 +514,102 @@ export class BulkUploadService {
       return raw;
     }
     return { text: fallbackText };
+  }
+
+  private parseDecimal(
+    value: number | string | undefined,
+  ): { decimal: Prisma.Decimal; number: number } | null {
+    const numberValue = this.parseFiniteNumber(value);
+    if (numberValue === null) return null;
+
+    try {
+      return {
+        decimal: new Prisma.Decimal(String(value).trim()),
+        number: numberValue,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private parseFiniteNumber(value: number | string | undefined): number | null {
+    if (!this.hasCellValue(value)) return null;
+    const parsed = Number(String(value).trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private zeroDecimalValue() {
+    return { decimal: new Prisma.Decimal(0), number: 0 };
+  }
+
+  private oneDecimalValue() {
+    return { decimal: new Prisma.Decimal(1), number: 1 };
+  }
+
+  private parsePreferredDeliveryDate(value: string): Date | null {
+    const normalized = value.trim();
+    if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+      const serial = Number(normalized);
+      if (!Number.isFinite(serial) || serial <= 0 || serial > 2_958_465) {
+        return null;
+      }
+      const excelEpoch = Date.UTC(1899, 11, 30);
+      const parsedExcelDate = new Date(
+        excelEpoch + Math.round(serial * 86_400_000),
+      );
+      return Number.isNaN(parsedExcelDate.getTime()) ? null : parsedExcelDate;
+    }
+
+    const calendarDate = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+    if (calendarDate) {
+      const year = Number(calendarDate[1]);
+      const month = Number(calendarDate[2]);
+      const day = Number(calendarDate[3]);
+      const validationDate = new Date(Date.UTC(year, month - 1, day));
+      if (
+        validationDate.getUTCFullYear() !== year ||
+        validationDate.getUTCMonth() !== month - 1 ||
+        validationDate.getUTCDate() !== day
+      ) {
+        return null;
+      }
+    }
+
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private firstCellValue(
+    row: Record<string, unknown>,
+    keys: string[],
+  ): unknown {
+    for (const key of keys) {
+      const value = row[key];
+      if (this.hasCellValue(value)) return value;
+    }
+    return undefined;
+  }
+
+  private firstCellText(row: Record<string, unknown>, keys: string[]): string {
+    const value = this.firstCellValue(row, keys);
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (value instanceof Date) return value.toISOString();
+    return '';
+  }
+
+  private hasCellValue(value: unknown): boolean {
+    return (
+      value !== undefined &&
+      value !== null &&
+      (typeof value !== 'string' || value.trim() !== '')
+    );
+  }
+
+  private normalizeZoneValue(value: string): string {
+    return value.trim().toLocaleLowerCase('ar-EG');
   }
 
   private isValidEgyptianPhone(phone: string): boolean {

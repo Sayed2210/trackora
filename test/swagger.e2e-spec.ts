@@ -9,6 +9,51 @@ import { App } from 'supertest/types';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { AppModule } from './../src/app.module';
 import { setupSwagger } from '@core/swagger/swagger.config';
+import { PrismaService } from '@core/prisma/prisma.service';
+import { RedisService } from '@infrastructure/cache/redis.service';
+
+process.env.JWT_SECRET ??= 'trackora-swagger-test-secret';
+
+const swaggerPrismaDelegate = {
+  findMany: jest.fn().mockResolvedValue([]),
+  findFirst: jest.fn().mockResolvedValue(null),
+  findUnique: jest.fn().mockResolvedValue(null),
+  create: jest.fn().mockImplementation(({ data }) =>
+    Promise.resolve({
+      id: '123e4567-e89b-42d3-a456-426614174099',
+      isActive: true,
+      ...data,
+    }),
+  ),
+  update: jest
+    .fn()
+    .mockImplementation(({ where, data }) =>
+      Promise.resolve({ ...where, ...data }),
+    ),
+  updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+  delete: jest.fn().mockResolvedValue({}),
+  count: jest.fn().mockResolvedValue(0),
+  aggregate: jest.fn().mockResolvedValue({}),
+  groupBy: jest.fn().mockResolvedValue([]),
+};
+
+const swaggerPrisma = new Proxy(
+  {},
+  {
+    get: () => swaggerPrismaDelegate,
+  },
+);
+
+const swaggerRedis = {
+  get: jest.fn().mockResolvedValue(null),
+  set: jest.fn().mockResolvedValue(undefined),
+  del: jest.fn().mockResolvedValue(undefined),
+  getJson: jest.fn().mockResolvedValue(null),
+  setJson: jest.fn().mockResolvedValue(undefined),
+  increment: jest.fn().mockResolvedValue(1),
+  expire: jest.fn().mockResolvedValue(undefined),
+  exists: jest.fn().mockResolvedValue(false),
+};
 
 describe('Swagger & API Automation Tests (e2e)', () => {
   let app: INestApplication<App>;
@@ -22,7 +67,12 @@ describe('Swagger & API Automation Tests (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(PrismaService)
+      .useValue(swaggerPrisma)
+      .overrideProvider(RedisService)
+      .useValue(swaggerRedis)
+      .compile();
 
     app = moduleFixture.createNestApplication();
 
@@ -47,7 +97,7 @@ describe('Swagger & API Automation Tests (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -136,11 +186,45 @@ describe('Swagger & API Automation Tests (e2e)', () => {
       expect(paths['/v1/merchants/{id}/kyc'].patch.requestBody).toBeDefined();
 
       const bulkUpload = paths['/v1/shipments/bulk-upload'].post;
+      expect(bulkUpload.security).toEqual([{ bearer: [] }]);
       expect(bulkUpload.requestBody.required).toBe(true);
       expect(
         bulkUpload.requestBody.content['multipart/form-data'].schema.properties
           .file.format,
       ).toBe('binary');
+
+      const adminBulkUpload =
+        paths['/v1/admin/merchants/{merchantId}/shipments/bulk-upload'].post;
+      expect(adminBulkUpload.security).toEqual([{ bearer: [] }]);
+      expect(adminBulkUpload.requestBody.required).toBe(true);
+      expect(
+        adminBulkUpload.requestBody.content['multipart/form-data'].schema
+          .properties.file.format,
+      ).toBe('binary');
+      expect(adminBulkUpload.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'merchantId',
+            in: 'path',
+            required: true,
+          }),
+        ]),
+      );
+
+      const resultSchema = res.body.components.schemas.BulkUploadResultDto;
+      expect(Object.keys(resultSchema.properties).sort()).toEqual([
+        'errors',
+        'failedCount',
+        'shipments',
+        'successCount',
+        'totalRows',
+      ]);
+      expect(resultSchema.required.sort()).toEqual([
+        'errors',
+        'failedCount',
+        'successCount',
+        'totalRows',
+      ]);
     });
 
     it('should only require bearer auth for protected shipment endpoints', async () => {
@@ -195,6 +279,13 @@ describe('Swagger & API Automation Tests (e2e)', () => {
         ['patch', '/v1/zones/{id}', '200', 'ZoneResponseDto'],
         ['get', '/v1/shipments', '200', 'PaginatedShipmentsResponseDto'],
         ['get', '/v1/shipments/{id}', '200', 'ShipmentResponseDto'],
+        ['post', '/v1/shipments/bulk-upload', '201', 'BulkUploadResultDto'],
+        [
+          'post',
+          '/v1/admin/merchants/{merchantId}/shipments/bulk-upload',
+          '201',
+          'BulkUploadResultDto',
+        ],
         ['get', '/v1/assignments', '200', 'PaginatedAssignmentsResponseDto'],
         ['get', '/v1/couriers', '200', 'PaginatedCouriersResponseDto'],
         ['get', '/v1/merchants', '200', 'PaginatedMerchantsResponseDto'],
@@ -257,6 +348,15 @@ describe('Swagger & API Automation Tests (e2e)', () => {
       expect(
         Object.keys(paths['/v1/admin/dashboard'].get.responses).sort(),
       ).toEqual(['200', '401', '403']);
+      expect(
+        Object.keys(paths['/v1/shipments/bulk-upload'].post.responses).sort(),
+      ).toEqual(['201', '400', '401', '403', '404']);
+      expect(
+        Object.keys(
+          paths['/v1/admin/merchants/{merchantId}/shipments/bulk-upload'].post
+            .responses,
+        ).sort(),
+      ).toEqual(['201', '400', '401', '403', '404']);
     });
   });
 
