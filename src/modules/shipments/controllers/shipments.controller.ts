@@ -45,14 +45,14 @@ export class ShipmentsController {
 
   @Post()
   @ApiBearerAuth()
-  @Roles(UserRole.MERCHANT)
+  @Roles(UserRole.MERCHANT, UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
   async create(@Body() dto: CreateShipmentDto, @Req() req: RequestWithUser) {
     return this.shipmentsService.create(dto, req.user.userId);
   }
 
   @Post('bulk-upload')
   @ApiBearerAuth()
-  @Roles(UserRole.MERCHANT)
+  @Roles(UserRole.MERCHANT, UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Bulk import shipments from an Excel file' })
   @ApiBody({
