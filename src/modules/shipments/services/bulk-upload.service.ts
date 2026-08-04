@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { ShipmentsRepository } from '../repositories/shipments.repository';
@@ -9,7 +13,7 @@ import {
   ShipmentStatus,
   ShipmentType,
 } from '../entities/shipment.entity';
-import { Zone } from '@prisma/client';
+import { UserRole, Zone } from '@prisma/client';
 import * as XLSX from 'xlsx';
 
 export interface BulkRow {
@@ -63,9 +67,25 @@ export class BulkUploadService {
     private readonly fraudDetection: FraudDetectionService,
   ) {}
 
-  async processFile(buffer: Buffer, merchantId: string): Promise<BulkResult> {
+  async processFile(
+    buffer: Buffer,
+    tenantId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    requestedMerchantId?: string,
+  ): Promise<BulkResult> {
+    const merchant = await this.prisma.merchant.findFirst({
+      where:
+        actorRole === UserRole.MERCHANT
+          ? { tenantId, userId: actorUserId, isActive: true }
+          : requestedMerchantId
+            ? { id: requestedMerchantId, tenantId, isActive: true }
+            : { tenantId, userId: actorUserId, isActive: true },
+      select: { id: true },
+    });
+    if (!merchant) throw new NotFoundException('Merchant not found');
     const rows = this.parseFile(buffer);
-    return this.processRows(rows, merchantId);
+    return this.processRows(rows, merchant.id, tenantId);
   }
 
   private parseFile(buffer: Buffer): BulkRow[] {
@@ -87,32 +107,34 @@ export class BulkUploadService {
         }
 
         return {
-          customerName: String(r['customerName'] || r['customer_name'] || ''),
-          customerPhone: String(
-            r['customerPhone'] || r['customer_phone'] || '',
+          customerName: this.toCellString(
+            r['customerName'] || r['customer_name'],
           ),
-          customerPhone2: String(
-            r['customerPhone2'] || r['customer_phone2'] || '',
+          customerPhone: this.toCellString(
+            r['customerPhone'] || r['customer_phone'],
           ),
-          addressText: String(r['addressText'] || r['address_text'] || ''),
+          customerPhone2: this.toCellString(
+            r['customerPhone2'] || r['customer_phone2'],
+          ),
+          addressText: this.toCellString(r['addressText'] || r['address_text']),
           address,
-          type: String(r['type'] || ''),
+          type: this.toCellString(r['type']),
           codAmount: (r['codAmount'] || r['cod_amount'] || undefined) as
             | number
             | string
             | undefined,
-          productDescription: String(
-            r['productDescription'] || r['product_description'] || '',
+          productDescription: this.toCellString(
+            r['productDescription'] || r['product_description'],
           ),
           productValue: (r['productValue'] ||
             r['product_value'] ||
             undefined) as number | string | undefined,
           weight: (r['weight'] || undefined) as number | string | undefined,
           pieces: (r['pieces'] || undefined) as number | string | undefined,
-          notes: String(r['notes'] || ''),
-          zone: String(r['zone'] || ''),
-          preferredDeliveryDate: String(
-            r['preferredDeliveryDate'] || r['preferred_delivery_date'] || '',
+          notes: this.toCellString(r['notes']),
+          zone: this.toCellString(r['zone']),
+          preferredDeliveryDate: this.toCellString(
+            r['preferredDeliveryDate'] || r['preferred_delivery_date'],
           ),
         };
       });
@@ -126,6 +148,7 @@ export class BulkUploadService {
   private async processRows(
     rows: BulkRow[],
     merchantId: string,
+    tenantId: string,
   ): Promise<BulkResult> {
     if (rows.length === 0) {
       throw new BadRequestException('File contains no data rows');
@@ -201,6 +224,7 @@ export class BulkUploadService {
 
       return {
         trackingNumber: trackingNumbers[idx],
+        tenantId,
         merchantId,
         status: ShipmentStatus.PENDING,
         type,
@@ -245,6 +269,7 @@ export class BulkUploadService {
         // Fetch created shipments by tracking numbers to return them
         const shipments = await tx.shipment.findMany({
           where: {
+            tenantId,
             trackingNumber: { in: batch.map((s) => s.trackingNumber) },
           },
         });
@@ -348,7 +373,7 @@ export class BulkUploadService {
   ): Record<string, unknown> {
     if (typeof raw === 'string' && raw.trim()) {
       try {
-        const parsed = JSON.parse(raw);
+        const parsed: unknown = JSON.parse(raw);
         if (typeof parsed === 'object' && parsed !== null) {
           return parsed as Record<string, unknown>;
         }
@@ -365,5 +390,16 @@ export class BulkUploadService {
 
   private isValidEgyptianPhone(phone: string): boolean {
     return /^01[0-25]\d{8}$/.test(phone);
+  }
+
+  private toCellString(value: unknown): string {
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
+      return String(value);
+    }
+    return '';
   }
 }

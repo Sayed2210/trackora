@@ -24,7 +24,11 @@ const mockWalletsService = {
 const mockAuthGuard = {
   canActivate: jest.fn((context: ExecutionContext) => {
     const request = context.switchToHttp().getRequest();
-    request.user = { userId: 'mock-user-id', role: UserRole.SUPER_ADMIN };
+    request.user = {
+      userId: 'mock-user-id',
+      role: UserRole.SUPER_ADMIN,
+      tenantId: 'tenant-1',
+    };
     return true;
   }),
 };
@@ -91,6 +95,7 @@ describe('MerchantsController (integration)', () => {
       expect(mockMerchantsService.create).toHaveBeenCalledWith(
         expect.objectContaining(dto),
         'mock-user-id',
+        'tenant-1',
       );
     });
   });
@@ -104,7 +109,10 @@ describe('MerchantsController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(mockMerchant);
-      expect(mockMerchantsService.findById).toHaveBeenCalledWith(TEST_UUID);
+      expect(mockMerchantsService.findById).toHaveBeenCalledWith(
+        TEST_UUID,
+        'tenant-1',
+      );
     });
   });
 
@@ -122,6 +130,7 @@ describe('MerchantsController (integration)', () => {
       expect(mockMerchantsService.updateKycStatus).toHaveBeenCalledWith(
         TEST_UUID,
         KycStatus.APPROVED,
+        'tenant-1',
       );
     });
   });
@@ -140,6 +149,7 @@ describe('MerchantsController (integration)', () => {
       expect(mockMerchantsService.updateFeeStructure).toHaveBeenCalledWith(
         TEST_UUID,
         expect.objectContaining({ commissionRate: '15', feePerShipment: '30' }),
+        'tenant-1',
       );
     });
   });
@@ -160,7 +170,10 @@ describe('MerchantsController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(balance);
-      expect(mockWalletsService.getBalance).toHaveBeenCalledWith(TEST_UUID);
+      expect(mockWalletsService.getBalance).toHaveBeenCalledWith(
+        TEST_UUID,
+        'tenant-1',
+      );
     });
   });
 
@@ -183,6 +196,7 @@ describe('MerchantsController (integration)', () => {
       expect(res.body).toEqual(txs);
       expect(mockWalletsService.getTransactions).toHaveBeenCalledWith(
         TEST_UUID,
+        'tenant-1',
         expect.objectContaining({
           type: 'COD_CREDIT',
           from: new Date('2024-05-01'),

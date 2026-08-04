@@ -42,13 +42,14 @@ export class AssignmentsService {
 
   async createManualAssignments(
     dto: CreateAssignmentDto,
+    tenantId: string,
     assignedByUserId?: string,
   ): Promise<{
     assignments: Assignment[];
     errors: Array<{ shipmentId: string; reason: string }>;
   }> {
     const courier = await this.prisma.courier.findFirst({
-      where: { id: dto.courierId, isActive: true },
+      where: { id: dto.courierId, tenantId, isActive: true },
       include: { user: true },
     });
 
@@ -62,9 +63,11 @@ export class AssignmentsService {
     const errors: Array<{ shipmentId: string; reason: string }> = [];
 
     // Check capacity for all shipments first
-    const activeCount = await this.assignmentsRepository.countActiveByCourierId(
-      dto.courierId,
-    );
+    const activeCount =
+      await this.assignmentsRepository.countActiveByCourierIdForTenant(
+        dto.courierId,
+        tenantId,
+      );
     const effectiveCapacity = Math.floor(courier.maxDailyCapacity * 0.9);
     const remainingCapacity = effectiveCapacity - activeCount;
 
@@ -87,6 +90,7 @@ export class AssignmentsService {
           shipmentId,
           dto.courierId,
           dto.type,
+          tenantId,
           assignedByUserId,
         );
         assignments.push(assignment);
@@ -103,6 +107,7 @@ export class AssignmentsService {
         shipmentId: assignment.shipmentId,
         courierId: assignment.courierId,
         type: assignment.assignmentType,
+        tenantId,
       });
     }
 
@@ -113,12 +118,13 @@ export class AssignmentsService {
     shipmentId: string,
     courierId: string,
     type: AssignmentType,
+    tenantId: string,
     assignedByUserId?: string,
   ): Promise<Assignment> {
     return this.prisma.$transaction(async (tx) => {
       // Lock shipment for update to prevent race conditions
-      const shipment = await tx.shipment.findUnique({
-        where: { id: shipmentId },
+      const shipment = await tx.shipment.findFirst({
+        where: { id: shipmentId, tenantId },
       });
 
       if (!shipment) {
@@ -154,7 +160,7 @@ export class AssignmentsService {
       });
 
       await tx.shipment.update({
-        where: { id: shipmentId },
+        where: { id: shipmentId, tenantId },
         data: { assignedCourierId: courierId },
       });
 
@@ -165,11 +171,15 @@ export class AssignmentsService {
   async reassign(
     assignmentId: string,
     newCourierId: string,
+    tenantId: string,
     reason?: string,
     reassignedByUserId?: string,
   ): Promise<Assignment> {
     const currentAssignment =
-      await this.assignmentsRepository.findById(assignmentId);
+      await this.assignmentsRepository.findByIdForTenant(
+        assignmentId,
+        tenantId,
+      );
     if (!currentAssignment) {
       throw new NotFoundException('Assignment not found');
     }
@@ -181,7 +191,7 @@ export class AssignmentsService {
     }
 
     const newCourier = await this.prisma.courier.findFirst({
-      where: { id: newCourierId, isActive: true },
+      where: { id: newCourierId, tenantId, isActive: true },
       include: { user: true },
     });
 
@@ -192,7 +202,10 @@ export class AssignmentsService {
     this.validateCourierAvailability(newCourier);
 
     const activeCount =
-      await this.assignmentsRepository.countActiveByCourierId(newCourierId);
+      await this.assignmentsRepository.countActiveByCourierIdForTenant(
+        newCourierId,
+        tenantId,
+      );
     const effectiveCapacity = Math.floor(newCourier.maxDailyCapacity * 0.9);
     if (activeCount >= effectiveCapacity) {
       throw new ForbiddenException(
@@ -224,7 +237,7 @@ export class AssignmentsService {
 
       // Update shipment courier
       await tx.shipment.update({
-        where: { id: currentAssignment.shipmentId },
+        where: { id: currentAssignment.shipmentId, tenantId },
         data: { assignedCourierId: newCourierId },
       });
 
@@ -234,6 +247,7 @@ export class AssignmentsService {
         shipmentId: currentAssignment.shipmentId,
         courierId: currentAssignment.courierId,
         reason: 'Reassigned',
+        tenantId,
       });
 
       this.eventEmitter.emit('assignment.created', {
@@ -241,14 +255,22 @@ export class AssignmentsService {
         shipmentId: newAssignment.shipmentId,
         courierId: newAssignment.courierId,
         type: newAssignment.assignmentType,
+        tenantId,
       });
 
       return newAssignment;
     });
   }
 
-  async cancel(assignmentId: string, reason?: string): Promise<Assignment> {
-    const assignment = await this.assignmentsRepository.findById(assignmentId);
+  async cancel(
+    assignmentId: string,
+    tenantId: string,
+    reason?: string,
+  ): Promise<Assignment> {
+    const assignment = await this.assignmentsRepository.findByIdForTenant(
+      assignmentId,
+      tenantId,
+    );
     if (!assignment) {
       throw new NotFoundException('Assignment not found');
     }
@@ -261,7 +283,7 @@ export class AssignmentsService {
 
     const cancelled = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.assignment.update({
-        where: { id: assignmentId },
+        where: { id: assignmentId, shipment: { tenantId } },
         data: {
           status: AssignmentStatus.CANCELLED,
           cancelledAt: new Date(),
@@ -271,7 +293,7 @@ export class AssignmentsService {
 
       // Remove courier from shipment
       await tx.shipment.update({
-        where: { id: assignment.shipmentId },
+        where: { id: assignment.shipmentId, tenantId },
         data: { assignedCourierId: null },
       });
 
@@ -283,12 +305,14 @@ export class AssignmentsService {
       shipmentId: assignment.shipmentId,
       courierId: assignment.courierId,
       reason: reason || 'Cancelled by admin',
+      tenantId,
     });
 
     return cancelled;
   }
 
   async findAll(
+    tenantId: string,
     filters: AssignmentFilters,
     page = 1,
     limit = 20,
@@ -297,23 +321,37 @@ export class AssignmentsService {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      this.assignmentsRepository.findWithFilters(where, skip, limit),
-      this.assignmentsRepository.countWithFilters(where),
+      this.assignmentsRepository.findWithFiltersForTenant(
+        tenantId,
+        where,
+        skip,
+        limit,
+      ),
+      this.assignmentsRepository.countWithFiltersForTenant(tenantId, where),
     ]);
 
     return { data, total, page, limit };
   }
 
-  async findById(id: string): Promise<Assignment> {
-    const assignment = await this.assignmentsRepository.findById(id);
+  async findById(id: string, tenantId: string): Promise<Assignment> {
+    const assignment = await this.assignmentsRepository.findByIdForTenant(
+      id,
+      tenantId,
+    );
     if (!assignment) {
       throw new NotFoundException('Assignment not found');
     }
     return assignment;
   }
 
-  async completeAssignment(assignmentId: string): Promise<Assignment> {
-    const assignment = await this.assignmentsRepository.findById(assignmentId);
+  async completeAssignment(
+    assignmentId: string,
+    tenantId: string,
+  ): Promise<Assignment> {
+    const assignment = await this.assignmentsRepository.findByIdForTenant(
+      assignmentId,
+      tenantId,
+    );
     if (!assignment) {
       throw new NotFoundException('Assignment not found');
     }
@@ -324,12 +362,16 @@ export class AssignmentsService {
       );
     }
 
-    const completed = await this.assignmentsRepository.complete(assignmentId);
+    const completed = await this.assignmentsRepository.completeForTenant(
+      assignmentId,
+      tenantId,
+    );
 
     this.eventEmitter.emit('assignment.completed', {
       assignmentId: completed.id,
       shipmentId: completed.shipmentId,
       courierId: completed.courierId,
+      tenantId,
     });
 
     return completed;

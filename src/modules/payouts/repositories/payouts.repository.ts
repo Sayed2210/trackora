@@ -14,21 +14,28 @@ export interface PayoutFilters {
 export class PayoutsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findMany(filters: PayoutFilters, skip: number, take: number) {
+  findManyForTenant(
+    tenantId: string,
+    filters: PayoutFilters,
+    skip: number,
+    take: number,
+  ) {
     return this.prisma.payout.findMany({
-      where: this.buildWhere(filters),
+      where: { ...this.buildWhere(filters), tenantId },
       orderBy: { createdAt: 'desc' },
       skip,
       take,
     });
   }
 
-  count(filters: PayoutFilters) {
-    return this.prisma.payout.count({ where: this.buildWhere(filters) });
+  countForTenant(tenantId: string, filters: PayoutFilters) {
+    return this.prisma.payout.count({
+      where: { ...this.buildWhere(filters), tenantId },
+    });
   }
 
-  findById(id: string) {
-    return this.prisma.payout.findUnique({ where: { id } });
+  findByIdForTenant(id: string, tenantId: string) {
+    return this.prisma.payout.findFirst({ where: { id, tenantId } });
   }
 
   private buildWhere(filters: PayoutFilters): Prisma.PayoutWhereInput {

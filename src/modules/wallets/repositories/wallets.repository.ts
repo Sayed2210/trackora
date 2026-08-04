@@ -18,7 +18,17 @@ export class WalletsRepository extends AbstractRepository<Wallet> {
     throw new Error('Wallet soft delete not allowed');
   }
 
-  async findByMerchantId(merchantId: string): Promise<Wallet | null> {
-    return this.delegate.findUnique({ where: { merchantId } });
+  async findByMerchantIdForTenant(
+    merchantId: string,
+    tenantId: string,
+  ): Promise<Wallet | null> {
+    return this.delegate.findFirst({ where: { merchantId, tenantId } });
+  }
+
+  async findByIdForTenant(
+    id: string,
+    tenantId: string,
+  ): Promise<Wallet | null> {
+    return this.delegate.findFirst({ where: { id, tenantId } });
   }
 }

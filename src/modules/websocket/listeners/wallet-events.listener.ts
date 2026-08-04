@@ -28,7 +28,7 @@ export class WalletEventsListener {
     };
 
     await this.broadcastAndBuffer(
-      `merchant:${payload.merchantId}`,
+      `tenant:${payload.tenantId}:merchant:${payload.merchantId}`,
       event,
       data,
     );

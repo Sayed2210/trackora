@@ -33,10 +33,11 @@ export class PayoutsService {
   async findAll(
     query: ListPayoutsDto,
     user: { userId: string; role: UserRole },
+    tenantId: string,
   ) {
     const merchantId =
       user.role === UserRole.MERCHANT
-        ? await this.getMerchantIdForUser(user.userId)
+        ? await this.getMerchantIdForUser(user.userId, tenantId)
         : query.merchantId;
 
     const page = query.page ?? 1;
@@ -50,8 +51,13 @@ export class PayoutsService {
     };
 
     const [data, total] = await Promise.all([
-      this.payoutsRepository.findMany(filters, (page - 1) * limit, limit),
-      this.payoutsRepository.count(filters),
+      this.payoutsRepository.findManyForTenant(
+        tenantId,
+        filters,
+        (page - 1) * limit,
+        limit,
+      ),
+      this.payoutsRepository.countForTenant(tenantId, filters),
     ]);
 
     return {
@@ -62,8 +68,8 @@ export class PayoutsService {
     };
   }
 
-  async requestPayout(userId: string, dto: CreatePayoutDto) {
-    const merchantId = await this.getMerchantIdForUser(userId);
+  async requestPayout(userId: string, dto: CreatePayoutDto, tenantId: string) {
+    const merchantId = await this.getMerchantIdForUser(userId, tenantId);
     if (dto.amount < MIN_PAYOUT_AMOUNT) {
       throw new BadRequestException(
         `Minimum payout amount is ${MIN_PAYOUT_AMOUNT} EGP`,
@@ -71,7 +77,9 @@ export class PayoutsService {
     }
 
     const payout = await this.prisma.$transaction(async (tx) => {
-      const wallet = await tx.wallet.findUnique({ where: { merchantId } });
+      const wallet = await tx.wallet.findFirst({
+        where: { merchantId, tenantId },
+      });
       if (!wallet) {
         throw new NotFoundException('Wallet not found for merchant');
       }
@@ -85,6 +93,7 @@ export class PayoutsService {
       const existingPayout = await tx.payout.findFirst({
         where: {
           merchantId,
+          tenantId,
           status: { in: OPEN_PAYOUT_STATUSES },
         },
       });
@@ -98,6 +107,7 @@ export class PayoutsService {
       const created = await tx.payout.create({
         data: {
           merchantId,
+          tenantId,
           amount,
           method: dto.method,
           destination: dto.destination as Prisma.InputJsonValue,
@@ -131,15 +141,15 @@ export class PayoutsService {
     return this.toResponse(payout);
   }
 
-  async approve(id: string, adminUserId: string) {
-    const payout = await this.payoutsRepository.findById(id);
+  async approve(id: string, adminUserId: string, tenantId: string) {
+    const payout = await this.payoutsRepository.findByIdForTenant(id, tenantId);
     if (!payout) throw new NotFoundException('Payout not found');
     if (payout.status !== PayoutStatus.PENDING) {
       throw new BadRequestException('Only pending payouts can be approved');
     }
 
     const updated = await this.prisma.payout.update({
-      where: { id },
+      where: { id, tenantId },
       data: {
         status: PayoutStatus.APPROVED,
         approvedByUserId: adminUserId,
@@ -148,8 +158,8 @@ export class PayoutsService {
     return this.toResponse(updated);
   }
 
-  async complete(id: string, referenceNumber: string) {
-    const payout = await this.payoutsRepository.findById(id);
+  async complete(id: string, referenceNumber: string, tenantId: string) {
+    const payout = await this.payoutsRepository.findByIdForTenant(id, tenantId);
     if (!payout) throw new NotFoundException('Payout not found');
     const completableStatuses: PayoutStatus[] = [
       PayoutStatus.APPROVED,
@@ -162,7 +172,7 @@ export class PayoutsService {
     }
 
     const updated = await this.prisma.payout.update({
-      where: { id },
+      where: { id, tenantId },
       data: {
         status: PayoutStatus.COMPLETED,
         referenceNumber,
@@ -173,8 +183,8 @@ export class PayoutsService {
     return this.toResponse(updated);
   }
 
-  async reject(id: string, reason: string) {
-    const payout = await this.payoutsRepository.findById(id);
+  async reject(id: string, reason: string, tenantId: string) {
+    const payout = await this.payoutsRepository.findByIdForTenant(id, tenantId);
     if (!payout) throw new NotFoundException('Payout not found');
     const rejectableStatuses: PayoutStatus[] = [
       PayoutStatus.PENDING,
@@ -186,8 +196,8 @@ export class PayoutsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const wallet = await tx.wallet.findUnique({
-        where: { merchantId: payout.merchantId },
+      const wallet = await tx.wallet.findFirst({
+        where: { merchantId: payout.merchantId, tenantId },
       });
       if (!wallet) {
         throw new NotFoundException('Wallet not found for merchant');
@@ -197,7 +207,7 @@ export class PayoutsService {
       const nextBalance = Number(wallet.balance) + amount;
 
       const rejected = await tx.payout.update({
-        where: { id },
+        where: { id, tenantId },
         data: {
           status: PayoutStatus.REJECTED,
           rejectionReason: reason,
@@ -230,9 +240,12 @@ export class PayoutsService {
     return this.toResponse(updated);
   }
 
-  private async getMerchantIdForUser(userId: string): Promise<string> {
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { userId },
+  private async getMerchantIdForUser(
+    userId: string,
+    tenantId: string,
+  ): Promise<string> {
+    const merchant = await this.prisma.merchant.findFirst({
+      where: { userId, tenantId },
       select: { id: true },
     });
     if (!merchant) {

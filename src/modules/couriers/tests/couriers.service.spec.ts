@@ -98,11 +98,11 @@ describe('CouriersService', () => {
         {
           provide: CouriersRepository,
           useValue: {
-            findByUserId: jest.fn(),
-            findById: jest.fn(),
+            findByUserIdForTenant: jest.fn(),
+            findByIdForTenant: jest.fn(),
             create: jest.fn().mockResolvedValue(mockCourier),
-            update: jest.fn().mockResolvedValue(mockCourier),
-            softDelete: jest.fn().mockResolvedValue(undefined),
+            updateForTenant: jest.fn().mockResolvedValue(mockCourier),
+            softDeleteForTenant: jest.fn().mockResolvedValue(undefined),
           },
         },
         { provide: PrismaService, useValue: prisma },
@@ -119,7 +119,7 @@ describe('CouriersService', () => {
 
   describe('create', () => {
     it('should create courier with linked COURIER user', async () => {
-      const result = await service.create(createCourierDto);
+      const result = await service.create(createCourierDto, 'tenant-1');
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -165,9 +165,9 @@ describe('CouriersService', () => {
     it('should reject duplicate phone', async () => {
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'existing-user' });
 
-      await expect(service.create(createCourierDto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.create(createCourierDto, 'tenant-1'),
+      ).rejects.toThrow(ConflictException);
       expect(prisma.courier.create).not.toHaveBeenCalled();
     });
 
@@ -175,7 +175,7 @@ describe('CouriersService', () => {
       prisma.zone.findMany.mockResolvedValueOnce([]);
 
       try {
-        await service.create(createCourierDto);
+        await service.create(createCourierDto, 'tenant-1');
         fail('Expected invalid zoneCode to throw');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
@@ -189,7 +189,7 @@ describe('CouriersService', () => {
     });
 
     it('should create User role as COURIER', async () => {
-      await service.create(createCourierDto);
+      await service.create(createCourierDto, 'tenant-1');
 
       expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -201,7 +201,7 @@ describe('CouriersService', () => {
     it('should link Courier to created User', async () => {
       prisma.user.create.mockResolvedValueOnce({ id: 'created-user-id' });
 
-      await service.create(createCourierDto);
+      await service.create(createCourierDto, 'tenant-1');
 
       expect(prisma.courier.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -213,16 +213,18 @@ describe('CouriersService', () => {
 
   describe('findById', () => {
     it('should return courier', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockCourier);
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockCourier);
 
-      const result = await service.findById('courier-1');
+      const result = await service.findById('courier-1', 'tenant-1');
       expect(result).toEqual(mockCourier);
     });
 
     it('should throw NotFoundException if not found', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(null);
+      jest.spyOn(repository, 'findByIdForTenant').mockResolvedValueOnce(null);
 
-      await expect(service.findById('invalid')).rejects.toThrow(
+      await expect(service.findById('invalid', 'tenant-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -230,44 +232,69 @@ describe('CouriersService', () => {
 
   describe('updateZones', () => {
     it('should update zone codes', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockCourier);
-      jest.spyOn(repository, 'update').mockResolvedValueOnce({
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockCourier);
+      jest.spyOn(repository, 'updateForTenant').mockResolvedValueOnce({
         ...mockCourier,
         zoneCodes: ['Alexandria-1'],
       });
 
-      const result = await service.updateZones('courier-1', ['Alexandria-1']);
+      const result = await service.updateZones(
+        'courier-1',
+        ['Alexandria-1'],
+        'tenant-1',
+      );
 
       expect(result.zoneCodes).toEqual(['Alexandria-1']);
-      expect(repository.update).toHaveBeenCalledWith('courier-1', {
-        zoneCodes: ['Alexandria-1'],
-      });
+      expect(repository.updateForTenant).toHaveBeenCalledWith(
+        'courier-1',
+        'tenant-1',
+        {
+          zoneCodes: ['Alexandria-1'],
+        },
+      );
     });
   });
 
   describe('updateAvailability', () => {
     it('should update availability', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockCourier);
-      jest.spyOn(repository, 'update').mockResolvedValueOnce({
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockCourier);
+      jest.spyOn(repository, 'updateForTenant').mockResolvedValueOnce({
         ...mockCourier,
         isAvailable: false,
       });
 
-      const result = await service.updateAvailability('courier-1', false);
+      const result = await service.updateAvailability(
+        'courier-1',
+        false,
+        'tenant-1',
+      );
 
       expect(result.isAvailable).toBe(false);
-      expect(repository.update).toHaveBeenCalledWith('courier-1', {
-        isAvailable: false,
-      });
+      expect(repository.updateForTenant).toHaveBeenCalledWith(
+        'courier-1',
+        'tenant-1',
+        {
+          isAvailable: false,
+        },
+      );
     });
   });
 
   describe('remove', () => {
     it('should soft delete courier', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockCourier);
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockCourier);
 
-      await service.remove('courier-1');
-      expect(repository.softDelete).toHaveBeenCalledWith('courier-1');
+      await service.remove('courier-1', 'tenant-1');
+      expect(repository.softDeleteForTenant).toHaveBeenCalledWith(
+        'courier-1',
+        'tenant-1',
+      );
     });
   });
 });

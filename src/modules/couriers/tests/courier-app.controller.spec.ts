@@ -63,9 +63,12 @@ describe('CourierAppController (integration)', () => {
     it('should call getTasks with courier id from req.user', async () => {
       jest.spyOn(service, 'getTasks').mockResolvedValue([mockTask]);
 
-      const result = await controller.getTasks(mockReq);
+      const result = await controller.getTasks(mockReq, 'tenant-1');
 
-      expect(service.getTasks).toHaveBeenCalledWith('mock-courier-id');
+      expect(service.getTasks).toHaveBeenCalledWith(
+        'mock-courier-id',
+        'tenant-1',
+      );
       expect(result).toHaveLength(1);
       expect(result[0].trackingNumber).toBe('TRK-240502-1234');
     });
@@ -83,12 +86,18 @@ describe('CourierAppController (integration)', () => {
         status: ShipmentStatus.DELIVERED,
       } as any);
 
-      const result = await controller.updateTaskStatus('ship-1', dto, mockReq);
+      const result = await controller.updateTaskStatus(
+        'ship-1',
+        dto,
+        mockReq,
+        'tenant-1',
+      );
 
       expect(service.updateTaskStatus).toHaveBeenCalledWith(
         'mock-courier-id',
         'ship-1',
         dto,
+        'tenant-1',
       );
       expect(result.status).toBe(ShipmentStatus.DELIVERED);
     });
@@ -98,11 +107,16 @@ describe('CourierAppController (integration)', () => {
     it('should call getTaskById with correct params', async () => {
       jest.spyOn(service, 'getTaskById').mockResolvedValue(mockTask);
 
-      const result = await controller.getTaskById('ship-1', mockReq);
+      const result = await controller.getTaskById(
+        'ship-1',
+        mockReq,
+        'tenant-1',
+      );
 
       expect(service.getTaskById).toHaveBeenCalledWith(
         'mock-courier-id',
         'ship-1',
+        'tenant-1',
       );
       expect(result.shipmentId).toBe('ship-1');
     });
@@ -121,9 +135,13 @@ describe('CourierAppController (integration)', () => {
         amount: 1500,
       } as any);
 
-      const result = await controller.logDeposit(dto, mockReq);
+      const result = await controller.logDeposit(dto, mockReq, 'tenant-1');
 
-      expect(service.logDeposit).toHaveBeenCalledWith('mock-courier-id', dto);
+      expect(service.logDeposit).toHaveBeenCalledWith(
+        'mock-courier-id',
+        dto,
+        'tenant-1',
+      );
       expect(result.amount).toBe(1500);
     });
   });
@@ -148,9 +166,13 @@ describe('CourierAppController (integration)', () => {
         conflicts: [],
       });
 
-      const result = await controller.syncUpdates(dto, mockReq);
+      const result = await controller.syncUpdates(dto, mockReq, 'tenant-1');
 
-      expect(service.syncUpdates).toHaveBeenCalledWith('mock-courier-id', dto);
+      expect(service.syncUpdates).toHaveBeenCalledWith(
+        'mock-courier-id',
+        dto,
+        'tenant-1',
+      );
       expect(result.processed).toBe(1);
     });
   });
@@ -167,9 +189,12 @@ describe('CourierAppController (integration)', () => {
         weeklyTrend: [],
       } as any);
 
-      const result = await controller.getPerformance(mockReq);
+      const result = await controller.getPerformance(mockReq, 'tenant-1');
 
-      expect(service.getPerformance).toHaveBeenCalledWith('mock-courier-id');
+      expect(service.getPerformance).toHaveBeenCalledWith(
+        'mock-courier-id',
+        'tenant-1',
+      );
       expect(result.score).toBe(87);
       expect(result.successRate).toBe(93.5);
     });

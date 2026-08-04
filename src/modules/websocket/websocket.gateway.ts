@@ -9,10 +9,13 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { ImpersonationStatus, UserRole } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { WebSocketService } from './websocket.service';
+import { getPermissionsForRole } from '@common/constants/permissions.constant';
+import { resolveEffectiveTenantId } from '@common/tenant/effective-tenant';
+import { ImpersonationContext } from '@common/interfaces/request-context.interface';
 
 interface SocketAuth {
   token?: string;
@@ -23,6 +26,7 @@ interface SocketData {
   role: UserRole;
   merchantId: string | null;
   courierId: string | null;
+  tenantId: string;
 }
 
 @WSGateway({
@@ -67,9 +71,10 @@ export class WebSocketGateway
       const payload = await this.jwtService.verifyAsync<{
         sub: string;
         role: UserRole;
+        impersonationContext?: ImpersonationContext;
       }>(token);
       const userId: string = payload.sub;
-      const role: UserRole = payload.role;
+      let role: UserRole = payload.role;
 
       const user = await this.prisma.user.findUnique({
         where: { id: userId, isActive: true },
@@ -82,12 +87,39 @@ export class WebSocketGateway
         client.disconnect(true);
         return;
       }
+      role = user.role;
+
+      if (payload.impersonationContext) {
+        const session = await this.prisma.impersonationSession.findUnique({
+          where: { id: payload.impersonationContext.sessionId },
+        });
+        if (
+          !session ||
+          session.status !== ImpersonationStatus.ACTIVE ||
+          session.expiresAt <= new Date() ||
+          session.actorUserId !== payload.impersonationContext.actorUserId ||
+          session.targetUserId !== user.id ||
+          session.tenantId !== payload.impersonationContext.tenantId ||
+          user.tenantId !== session.tenantId
+        ) {
+          throw new Error('Invalid impersonation context');
+        }
+      }
+
+      const tenantId = resolveEffectiveTenantId({
+        userId: user.id,
+        role: user.role,
+        permissions: getPermissionsForRole(user.role),
+        tenantId: payload.impersonationContext?.tenantId ?? user.tenantId,
+        impersonationContext: payload.impersonationContext,
+      });
 
       client.data = {
         userId,
         role,
         merchantId: user.merchant?.id || null,
         courierId: user.courier?.id || null,
+        tenantId,
       };
 
       await this.joinRoleRooms(client);
@@ -111,7 +143,16 @@ export class WebSocketGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { trackingNumber: string },
   ): Promise<void> {
-    const room = `shipment:${data.trackingNumber}`;
+    const { tenantId } = client.data as SocketData;
+    const shipment = await this.prisma.shipment.findFirst({
+      where: { trackingNumber: data.trackingNumber, tenantId },
+      select: { id: true },
+    });
+    if (!shipment) {
+      client.emit('error', { message: 'Shipment not found' });
+      return;
+    }
+    const room = `tenant:${tenantId}:shipment:${data.trackingNumber}`;
     await client.join(room);
     client.emit('subscribed', { room });
   }
@@ -121,7 +162,8 @@ export class WebSocketGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { trackingNumber: string },
   ): Promise<void> {
-    const room = `shipment:${data.trackingNumber}`;
+    const { tenantId } = client.data as SocketData;
+    const room = `tenant:${tenantId}:shipment:${data.trackingNumber}`;
     await client.leave(room);
     client.emit('unsubscribed', { room });
   }
@@ -133,8 +175,13 @@ export class WebSocketGateway
   ): Promise<void> {
     const socketData = client.data as SocketData;
     const { userId, role, merchantId, courierId } = socketData;
-    const rooms =
-      data.rooms || this.getDefaultRooms(userId, role, merchantId, courierId);
+    const rooms = this.getDefaultRooms(
+      userId,
+      role,
+      merchantId,
+      courierId,
+      socketData.tenantId,
+    );
 
     for (const roomId of rooms) {
       const events = await this.wsService.getMissedEvents(
@@ -151,21 +198,21 @@ export class WebSocketGateway
 
   private async joinRoleRooms(client: Socket): Promise<void> {
     const socketData = client.data as SocketData;
-    const { userId, role, merchantId, courierId } = socketData;
+    const { userId, role, merchantId, courierId, tenantId } = socketData;
 
     if (merchantId) {
-      await client.join(`merchant:${merchantId}`);
+      await client.join(`tenant:${tenantId}:merchant:${merchantId}`);
     }
 
     if (courierId) {
-      await client.join(`courier:${courierId}`);
+      await client.join(`tenant:${tenantId}:courier:${courierId}`);
     }
 
     if (WebSocketGateway.ADMIN_ROLES.includes(role)) {
-      await client.join('admin:dashboard');
+      await client.join(`tenant:${tenantId}:admin:dashboard`);
     }
 
-    await client.join(`user:${userId}`);
+    await client.join(`tenant:${tenantId}:user:${userId}`);
   }
 
   private getDefaultRooms(
@@ -173,12 +220,13 @@ export class WebSocketGateway
     role: UserRole,
     merchantId: string | null,
     courierId: string | null,
+    tenantId: string,
   ): string[] {
-    const rooms: string[] = [`user:${userId}`];
-    if (merchantId) rooms.push(`merchant:${merchantId}`);
-    if (courierId) rooms.push(`courier:${courierId}`);
+    const rooms: string[] = [`tenant:${tenantId}:user:${userId}`];
+    if (merchantId) rooms.push(`tenant:${tenantId}:merchant:${merchantId}`);
+    if (courierId) rooms.push(`tenant:${tenantId}:courier:${courierId}`);
     if (WebSocketGateway.ADMIN_ROLES.includes(role)) {
-      rooms.push('admin:dashboard');
+      rooms.push(`tenant:${tenantId}:admin:dashboard`);
     }
     return rooms;
   }

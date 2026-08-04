@@ -13,11 +13,20 @@ const actorUserId = '123e4567-e89b-42d3-a456-426614174013';
 describe('JwtStrategy platform and impersonation context', () => {
   let strategy: JwtStrategy;
   let prisma: {
+    user: { findUnique: jest.Mock };
     impersonationSession: { findUnique: jest.Mock; update: jest.Mock };
   };
 
   beforeEach(() => {
     prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: actorUserId,
+          tenantId: null,
+          role: UserRole.PLATFORM_OWNER,
+          isActive: true,
+        }),
+      },
       impersonationSession: {
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -46,8 +55,17 @@ describe('JwtStrategy platform and impersonation context', () => {
   });
 
   it('uses target tenant-user role and permissions for active impersonation tokens', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: targetUserId,
+      tenantId,
+      role: UserRole.MERCHANT,
+      isActive: true,
+    });
     prisma.impersonationSession.findUnique.mockResolvedValueOnce({
       id: sessionId,
+      actorUserId,
+      targetUserId,
+      tenantId,
       status: ImpersonationStatus.ACTIVE,
       expiresAt: new Date(Date.now() + 60_000),
     });

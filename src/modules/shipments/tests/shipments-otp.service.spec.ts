@@ -33,7 +33,7 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
   let redis: RedisService;
 
   const mockShipmentsRepository = {
-    findById: jest.fn(),
+    findByIdForTenant: jest.fn(),
     update: jest
       .fn()
       .mockImplementation((id, data) =>
@@ -97,7 +97,7 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
   });
 
   it('should verify correct OTP and allow delivery', async () => {
-    mockShipmentsRepository.findById.mockResolvedValue(mockShipment);
+    mockShipmentsRepository.findByIdForTenant.mockResolvedValue(mockShipment);
 
     const dto: UpdateShipmentStatusDto = {
       newStatus: ShipmentStatus.DELIVERED,
@@ -105,7 +105,7 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
       collectedCash: 500,
     };
 
-    const result = await service.updateStatus('ship-1', dto);
+    const result = await service.updateStatus('ship-1', 'tenant-1', dto);
 
     expect(result.status).toBe(ShipmentStatus.DELIVERED);
     expect(bcrypt.compare).toHaveBeenCalledWith('1234', '$2a$10$hashedotp');
@@ -113,7 +113,7 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
   });
 
   it('should reject wrong OTP with remaining attempts', async () => {
-    mockShipmentsRepository.findById.mockResolvedValue(mockShipment);
+    mockShipmentsRepository.findByIdForTenant.mockResolvedValue(mockShipment);
     mockRedis.get.mockResolvedValue('1');
     (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
@@ -123,13 +123,13 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
       collectedCash: 500,
     };
 
-    await expect(service.updateStatus('ship-1', dto)).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.updateStatus('ship-1', 'tenant-1', dto),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('should lock OTP after 3 failed attempts', async () => {
-    mockShipmentsRepository.findById.mockResolvedValue(mockShipment);
+    mockShipmentsRepository.findByIdForTenant.mockResolvedValue(mockShipment);
     mockRedis.get.mockResolvedValue('3');
 
     const dto: UpdateShipmentStatusDto = {
@@ -138,26 +138,26 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
       collectedCash: 500,
     };
 
-    await expect(service.updateStatus('ship-1', dto)).rejects.toThrow(
-      ForbiddenException,
-    );
+    await expect(
+      service.updateStatus('ship-1', 'tenant-1', dto),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('should reject delivery without OTP', async () => {
-    mockShipmentsRepository.findById.mockResolvedValue(mockShipment);
+    mockShipmentsRepository.findByIdForTenant.mockResolvedValue(mockShipment);
 
     const dto: UpdateShipmentStatusDto = {
       newStatus: ShipmentStatus.DELIVERED,
       collectedCash: 500,
     };
 
-    await expect(service.updateStatus('ship-1', dto)).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.updateStatus('ship-1', 'tenant-1', dto),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('should generate hashed OTP when transitioning to OUT_FOR_DELIVERY for COD', async () => {
-    mockShipmentsRepository.findById.mockResolvedValue({
+    mockShipmentsRepository.findByIdForTenant.mockResolvedValue({
       ...mockShipment,
       status: ShipmentStatus.PICKED_UP,
       customerOtp: null,
@@ -167,7 +167,7 @@ describe('ShipmentsService — OTP Validation (integration) TASK-111', () => {
       newStatus: ShipmentStatus.OUT_FOR_DELIVERY,
     };
 
-    await service.updateStatus('ship-1', dto);
+    await service.updateStatus('ship-1', 'tenant-1', dto);
 
     expect(bcrypt.hash).toHaveBeenCalled();
     expect(mockRedis.set).toHaveBeenCalledWith(

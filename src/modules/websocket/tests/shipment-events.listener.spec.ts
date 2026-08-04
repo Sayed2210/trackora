@@ -45,6 +45,7 @@ describe('ShipmentEventsListener', () => {
   describe('handleStatusChanged', () => {
     it('should broadcast to merchant, courier, and tracking rooms', async () => {
       const payload = {
+        tenantId: 'tenant-1',
         shipmentId: 'ship-1',
         trackingNumber: 'TRK-001',
         merchantId: 'merchant-1',
@@ -58,14 +59,21 @@ describe('ShipmentEventsListener', () => {
 
       await listener.handleStatusChanged(payload);
 
-      expect(wsGateway.server.to).toHaveBeenCalledWith('merchant:merchant-1');
-      expect(wsGateway.server.to).toHaveBeenCalledWith('courier:courier-1');
-      expect(wsGateway.server.to).toHaveBeenCalledWith('shipment:TRK-001');
+      expect(wsGateway.server.to).toHaveBeenCalledWith(
+        'tenant:tenant-1:merchant:merchant-1',
+      );
+      expect(wsGateway.server.to).toHaveBeenCalledWith(
+        'tenant:tenant-1:courier:courier-1',
+      );
+      expect(wsGateway.server.to).toHaveBeenCalledWith(
+        'tenant:tenant-1:shipment:TRK-001',
+      );
       expect(wsService.bufferEvent).toHaveBeenCalledTimes(3);
     });
 
     it('should not broadcast to courier room when courierId is undefined', async () => {
       const payload = {
+        tenantId: 'tenant-1',
         shipmentId: 'ship-1',
         trackingNumber: 'TRK-001',
         merchantId: 'merchant-1',
@@ -79,8 +87,12 @@ describe('ShipmentEventsListener', () => {
 
       await listener.handleStatusChanged(payload);
 
-      expect(wsGateway.server.to).toHaveBeenCalledWith('merchant:merchant-1');
-      expect(wsGateway.server.to).toHaveBeenCalledWith('shipment:TRK-001');
+      expect(wsGateway.server.to).toHaveBeenCalledWith(
+        'tenant:tenant-1:merchant:merchant-1',
+      );
+      expect(wsGateway.server.to).toHaveBeenCalledWith(
+        'tenant:tenant-1:shipment:TRK-001',
+      );
       expect(wsService.bufferEvent).toHaveBeenCalledTimes(2);
     });
   });
@@ -88,6 +100,7 @@ describe('ShipmentEventsListener', () => {
   describe('handleShipmentCreated', () => {
     it('should broadcast to merchant room', async () => {
       const payload = {
+        tenantId: 'tenant-1',
         shipmentId: 'ship-1',
         trackingNumber: 'TRK-001',
         merchantId: 'merchant-1',
@@ -98,7 +111,9 @@ describe('ShipmentEventsListener', () => {
 
       await listener.handleShipmentCreated(payload);
 
-      expect(wsGateway.server.to).toHaveBeenCalledWith('merchant:merchant-1');
+      expect(wsGateway.server.to).toHaveBeenCalledWith(
+        'tenant:tenant-1:merchant:merchant-1',
+      );
       expect(wsService.bufferEvent).toHaveBeenCalledTimes(1);
     });
   });

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { ShipmentStatus, ShipmentType } from '@prisma/client';
 
@@ -42,16 +42,21 @@ export interface MerchantAnalyticsData {
 export class MerchantDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard(merchantId: string): Promise<MerchantDashboardData> {
+  async getDashboard(
+    merchantId: string,
+    tenantId: string,
+  ): Promise<MerchantDashboardData> {
+    await this.assertMerchant(merchantId, tenantId);
     const [total, pending, inTransit, delivered, returned, avgCod, recent] =
       await Promise.all([
-        this.prisma.shipment.count({ where: { merchantId } }),
+        this.prisma.shipment.count({ where: { merchantId, tenantId } }),
         this.prisma.shipment.count({
-          where: { merchantId, status: ShipmentStatus.PENDING },
+          where: { merchantId, tenantId, status: ShipmentStatus.PENDING },
         }),
         this.prisma.shipment.count({
           where: {
             merchantId,
+            tenantId,
             status: {
               in: [
                 ShipmentStatus.PICKED_UP,
@@ -62,17 +67,17 @@ export class MerchantDashboardService {
           },
         }),
         this.prisma.shipment.count({
-          where: { merchantId, status: ShipmentStatus.DELIVERED },
+          where: { merchantId, tenantId, status: ShipmentStatus.DELIVERED },
         }),
         this.prisma.shipment.count({
-          where: { merchantId, status: ShipmentStatus.RETURNED },
+          where: { merchantId, tenantId, status: ShipmentStatus.RETURNED },
         }),
         this.prisma.shipment.aggregate({
-          where: { merchantId, type: ShipmentType.COD },
+          where: { merchantId, tenantId, type: ShipmentType.COD },
           _avg: { codAmount: true },
         }),
         this.prisma.shipment.findMany({
-          where: { merchantId },
+          where: { merchantId, tenantId },
           orderBy: { createdAt: 'desc' },
           take: 5,
           select: {
@@ -114,8 +119,10 @@ export class MerchantDashboardService {
 
   async getAnalytics(
     merchantId: string,
+    tenantId: string,
     days = 30,
   ): Promise<MerchantAnalyticsData> {
+    await this.assertMerchant(merchantId, tenantId);
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
 
@@ -123,6 +130,7 @@ export class MerchantDashboardService {
     const shipments = await this.prisma.shipment.findMany({
       where: {
         merchantId,
+        tenantId,
         status: { in: [ShipmentStatus.DELIVERED, ShipmentStatus.RETURNED] },
         deliveredAt: { gte: fromDate },
       },
@@ -161,6 +169,7 @@ export class MerchantDashboardService {
       by: ['returnReason'],
       where: {
         merchantId,
+        tenantId,
         status: ShipmentStatus.RETURNED,
         returnedAt: { gte: fromDate },
       },
@@ -185,6 +194,7 @@ export class MerchantDashboardService {
       by: ['zoneId'],
       where: {
         merchantId,
+        tenantId,
         status: { in: [ShipmentStatus.DELIVERED, ShipmentStatus.RETURNED] },
       },
       _count: { id: true },
@@ -205,10 +215,20 @@ export class MerchantDashboardService {
         const zoneId = z.zoneId || undefined;
         const [deliveredCount, failedCount] = await Promise.all([
           this.prisma.shipment.count({
-            where: { merchantId, zoneId, status: ShipmentStatus.DELIVERED },
+            where: {
+              merchantId,
+              tenantId,
+              zoneId,
+              status: ShipmentStatus.DELIVERED,
+            },
           }),
           this.prisma.shipment.count({
-            where: { merchantId, zoneId, status: ShipmentStatus.RETURNED },
+            where: {
+              merchantId,
+              tenantId,
+              zoneId,
+              status: ShipmentStatus.RETURNED,
+            },
           }),
         ]);
         const completed = deliveredCount + failedCount;
@@ -228,6 +248,7 @@ export class MerchantDashboardService {
     const codShipments = await this.prisma.shipment.findMany({
       where: {
         merchantId,
+        tenantId,
         type: ShipmentType.COD,
         status: ShipmentStatus.DELIVERED,
         deliveredAt: { gte: fromDate },
@@ -263,5 +284,13 @@ export class MerchantDashboardService {
       zonePerformance,
       codTrend,
     };
+  }
+
+  private async assertMerchant(merchantId: string, tenantId: string) {
+    const merchant = await this.prisma.merchant.findFirst({
+      where: { id: merchantId, tenantId },
+      select: { id: true },
+    });
+    if (!merchant) throw new NotFoundException('Merchant not found');
   }
 }

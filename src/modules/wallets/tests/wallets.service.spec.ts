@@ -25,6 +25,7 @@ describe('WalletsService', () => {
   };
 
   const mockPrisma = {
+    merchant: { findFirst: jest.fn().mockResolvedValue({ id: 'merchant-1' }) },
     wallet: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
@@ -38,8 +39,8 @@ describe('WalletsService', () => {
         {
           provide: WalletsRepository,
           useValue: {
-            findByMerchantId: jest.fn(),
-            findById: jest.fn(),
+            findByMerchantIdForTenant: jest.fn(),
+            findByIdForTenant: jest.fn(),
             create: jest.fn().mockResolvedValue(mockWallet),
           },
         },
@@ -74,14 +75,15 @@ describe('WalletsService', () => {
   describe('create', () => {
     it('should create a new wallet', async () => {
       jest
-        .spyOn(walletsRepository, 'findByMerchantId')
+        .spyOn(walletsRepository, 'findByMerchantIdForTenant')
         .mockResolvedValueOnce(null);
 
-      const result = await service.create('merchant-1');
+      const result = await service.create('merchant-1', 'tenant-1');
 
       expect(result).toEqual(mockWallet);
       expect(walletsRepository.create).toHaveBeenCalledWith({
         merchantId: 'merchant-1',
+        tenantId: 'tenant-1',
         balance: 0,
         pendingBalance: 0,
         totalCredited: 0,
@@ -93,10 +95,10 @@ describe('WalletsService', () => {
 
     it('should return existing wallet if already exists', async () => {
       jest
-        .spyOn(walletsRepository, 'findByMerchantId')
+        .spyOn(walletsRepository, 'findByMerchantIdForTenant')
         .mockResolvedValueOnce(mockWallet as any);
 
-      const result = await service.create('merchant-1');
+      const result = await service.create('merchant-1', 'tenant-1');
 
       expect(result).toEqual(mockWallet);
       expect(walletsRepository.create).not.toHaveBeenCalled();
@@ -106,14 +108,15 @@ describe('WalletsService', () => {
   describe('findByMerchantId', () => {
     it('should return wallet by merchant id', async () => {
       jest
-        .spyOn(walletsRepository, 'findByMerchantId')
+        .spyOn(walletsRepository, 'findByMerchantIdForTenant')
         .mockResolvedValueOnce(mockWallet as any);
 
-      const result = await service.findByMerchantId('merchant-1');
+      const result = await service.findByMerchantId('merchant-1', 'tenant-1');
 
       expect(result).toEqual(mockWallet);
-      expect(walletsRepository.findByMerchantId).toHaveBeenCalledWith(
+      expect(walletsRepository.findByMerchantIdForTenant).toHaveBeenCalledWith(
         'merchant-1',
+        'tenant-1',
       );
     });
   });
@@ -121,23 +124,26 @@ describe('WalletsService', () => {
   describe('findById', () => {
     it('should return wallet by id', async () => {
       jest
-        .spyOn(walletsRepository, 'findById')
+        .spyOn(walletsRepository, 'findByIdForTenant')
         .mockResolvedValueOnce(mockWallet as any);
 
-      const result = await service.findById('wallet-1');
+      const result = await service.findById('wallet-1', 'tenant-1');
 
       expect(result).toEqual(mockWallet);
-      expect(walletsRepository.findById).toHaveBeenCalledWith('wallet-1');
+      expect(walletsRepository.findByIdForTenant).toHaveBeenCalledWith(
+        'wallet-1',
+        'tenant-1',
+      );
     });
   });
 
   describe('getBalance', () => {
     it('should return wallet balance as numbers', async () => {
       jest
-        .spyOn(walletsRepository, 'findByMerchantId')
+        .spyOn(walletsRepository, 'findByMerchantIdForTenant')
         .mockResolvedValueOnce(mockWallet as any);
 
-      const result = await service.getBalance('merchant-1');
+      const result = await service.getBalance('merchant-1', 'tenant-1');
 
       expect(result).toEqual({
         id: 'wallet-1',
@@ -154,22 +160,22 @@ describe('WalletsService', () => {
 
     it('should throw NotFoundException if wallet not found', async () => {
       jest
-        .spyOn(walletsRepository, 'findByMerchantId')
+        .spyOn(walletsRepository, 'findByMerchantIdForTenant')
         .mockResolvedValueOnce(null);
 
-      await expect(service.getBalance('merchant-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.getBalance('merchant-1', 'tenant-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('getTransactions', () => {
     it('should return transactions for merchant', async () => {
       jest
-        .spyOn(walletsRepository, 'findByMerchantId')
+        .spyOn(walletsRepository, 'findByMerchantIdForTenant')
         .mockResolvedValueOnce(mockWallet as any);
 
-      const result = await service.getTransactions('merchant-1', {
+      const result = await service.getTransactions('merchant-1', 'tenant-1', {
         type: TransactionType.COD_CREDIT,
         page: 1,
         limit: 10,
@@ -183,6 +189,7 @@ describe('WalletsService', () => {
       });
       expect(transactionsService.getTransactions).toHaveBeenCalledWith(
         'wallet-1',
+        'tenant-1',
         expect.objectContaining({
           type: TransactionType.COD_CREDIT,
           page: 1,
@@ -193,12 +200,12 @@ describe('WalletsService', () => {
 
     it('should throw NotFoundException if wallet not found', async () => {
       jest
-        .spyOn(walletsRepository, 'findByMerchantId')
+        .spyOn(walletsRepository, 'findByMerchantIdForTenant')
         .mockResolvedValueOnce(null);
 
-      await expect(service.getTransactions('merchant-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.getTransactions('merchant-1', 'tenant-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

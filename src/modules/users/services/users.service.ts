@@ -7,12 +7,12 @@ import { User } from '../entities/user.entity';
 export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  async findAll(): Promise<User[]> {
-    return this.usersRepository.findActiveUsers();
+  async findAll(tenantId: string): Promise<User[]> {
+    return this.usersRepository.findActiveUsersForTenant(tenantId);
   }
 
-  async findById(id: string): Promise<User> {
-    const user = await this.usersRepository.findById(id);
+  async findById(id: string, tenantId: string): Promise<User> {
+    const user = await this.usersRepository.findByIdForTenant(id, tenantId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -30,17 +30,21 @@ export class UsersService {
     return this.usersRepository.create(data);
   }
 
-  async update(id: string, data: Partial<User>): Promise<User> {
-    await this.findById(id);
+  async update(
+    id: string,
+    data: Partial<User>,
+    tenantId: string,
+  ): Promise<User> {
+    await this.findById(id, tenantId);
     if (data.passwordHash) {
       data.passwordHash = await bcrypt.hash(data.passwordHash, 12);
     }
-    return this.usersRepository.update(id, data);
+    return this.usersRepository.updateForTenant(id, tenantId, data);
   }
 
-  async remove(id: string): Promise<void> {
-    await this.findById(id);
-    await this.usersRepository.softDelete(id);
+  async remove(id: string, tenantId: string): Promise<void> {
+    await this.findById(id, tenantId);
+    await this.usersRepository.softDeleteForTenant(id, tenantId);
   }
 
   async validateCredentials(

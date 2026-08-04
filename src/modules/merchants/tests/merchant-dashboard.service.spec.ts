@@ -6,6 +6,7 @@ describe('MerchantDashboardService', () => {
   let service: MerchantDashboardService;
 
   const mockPrisma = {
+    merchant: { findFirst: jest.fn().mockResolvedValue({ id: 'merchant-1' }) },
     shipment: {
       count: jest.fn().mockResolvedValue(0),
       aggregate: jest.fn().mockResolvedValue({ _avg: { codAmount: 0 } }),
@@ -55,7 +56,7 @@ describe('MerchantDashboardService', () => {
         },
       ]);
 
-      const result = await service.getDashboard('merchant-1');
+      const result = await service.getDashboard('merchant-1', 'tenant-1');
 
       expect(result.counts.total).toBe(100);
       expect(result.counts.pending).toBe(10);
@@ -73,7 +74,7 @@ describe('MerchantDashboardService', () => {
       mockPrisma.shipment.findMany.mockResolvedValue([]);
       mockPrisma.shipment.groupBy.mockResolvedValue([]);
 
-      const result = await service.getAnalytics('merchant-1', 7);
+      const result = await service.getAnalytics('merchant-1', 'tenant-1', 7);
 
       expect(result.successRate).toEqual({
         current: 0,

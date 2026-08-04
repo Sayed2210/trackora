@@ -14,7 +14,7 @@ import {
 
 const mockPrisma = {
   courier: {
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
   },
   shipment: {
@@ -28,6 +28,7 @@ const mockPrisma = {
   courierCashDeposit: {
     create: jest.fn(),
   },
+  user: { findFirst: jest.fn().mockResolvedValue({ id: 'admin-1' }) },
   $transaction: jest.fn((fn) => fn(mockPrisma)),
 };
 
@@ -58,7 +59,7 @@ describe('CourierAppService', () => {
 
   describe('getTasks', () => {
     it('should return masked tasks for courier', async () => {
-      mockPrisma.courier.findUnique.mockResolvedValue({ id: 'courier-1' });
+      mockPrisma.courier.findFirst.mockResolvedValue({ id: 'courier-1' });
       mockPrisma.shipment.findMany.mockResolvedValue([
         {
           id: 'ship-1',
@@ -72,7 +73,7 @@ describe('CourierAppService', () => {
         },
       ]);
 
-      const result = await service.getTasks('courier-1');
+      const result = await service.getTasks('courier-user-1', 'tenant-1');
 
       expect(result).toHaveLength(1);
       expect(result[0].customerPhoneMasked).toBe('0100*****567');
@@ -80,8 +81,8 @@ describe('CourierAppService', () => {
     });
 
     it('should throw if courier not found', async () => {
-      mockPrisma.courier.findUnique.mockResolvedValue(null);
-      await expect(service.getTasks('unknown')).rejects.toThrow(
+      mockPrisma.courier.findFirst.mockResolvedValue(null);
+      await expect(service.getTasks('unknown', 'tenant-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -89,6 +90,7 @@ describe('CourierAppService', () => {
 
   describe('updateTaskStatus', () => {
     it('should update status and complete assignment on delivery', async () => {
+      mockPrisma.courier.findFirst.mockResolvedValue({ id: 'courier-1' });
       mockPrisma.shipment.findFirst.mockResolvedValue({
         id: 'ship-1',
         assignedCourierId: 'courier-1',
@@ -104,31 +106,43 @@ describe('CourierAppService', () => {
         id: 'assign-1',
       });
 
-      const result = await service.updateTaskStatus('courier-1', 'ship-1', {
-        status: ShipmentStatus.DELIVERED,
-        collectedCash: 500,
-        otp: '1234',
-      });
+      const result = await service.updateTaskStatus(
+        'courier-1',
+        'ship-1',
+        {
+          status: ShipmentStatus.DELIVERED,
+          collectedCash: 500,
+          otp: '1234',
+        },
+        'tenant-1',
+      );
 
       expect(result.status).toBe(ShipmentStatus.DELIVERED);
       expect(mockAssignmentsService.completeAssignment).toHaveBeenCalledWith(
         'assign-1',
+        'tenant-1',
       );
     });
 
     it('should throw if shipment not assigned to courier', async () => {
+      mockPrisma.courier.findFirst.mockResolvedValue({ id: 'courier-1' });
       mockPrisma.shipment.findFirst.mockResolvedValue(null);
       await expect(
-        service.updateTaskStatus('courier-1', 'ship-1', {
-          status: ShipmentStatus.DELIVERED,
-        }),
+        service.updateTaskStatus(
+          'courier-1',
+          'ship-1',
+          {
+            status: ShipmentStatus.DELIVERED,
+          },
+          'tenant-1',
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('logDeposit', () => {
     it('should create deposit and decrement cashHeld', async () => {
-      mockPrisma.courier.findUnique.mockResolvedValue({
+      mockPrisma.courier.findFirst.mockResolvedValue({
         id: 'courier-1',
         cashHeld: 3000,
       });
@@ -137,37 +151,45 @@ describe('CourierAppService', () => {
         amount: 1500,
       });
 
-      const result = await service.logDeposit('courier-1', {
-        amount: 1500,
-        depositedTo: 'admin-1',
-        notes: 'Daily',
-      });
+      const result = await service.logDeposit(
+        'courier-1',
+        {
+          amount: 1500,
+          depositedTo: 'admin-1',
+          notes: 'Daily',
+        },
+        'tenant-1',
+      );
 
       expect(result.amount).toBe(1500);
       expect(mockPrisma.courier.update).toHaveBeenCalledWith({
-        where: { id: 'courier-1' },
+        where: { id: 'courier-1', tenantId: 'tenant-1' },
         data: { cashHeld: { decrement: 1500 } },
       });
     });
 
     it('should throw if deposit exceeds cashHeld', async () => {
-      mockPrisma.courier.findUnique.mockResolvedValue({
+      mockPrisma.courier.findFirst.mockResolvedValue({
         id: 'courier-1',
         cashHeld: 1000,
       });
 
       await expect(
-        service.logDeposit('courier-1', {
-          amount: 1500,
-          depositedTo: 'admin-1',
-        }),
+        service.logDeposit(
+          'courier-1',
+          {
+            amount: 1500,
+            depositedTo: 'admin-1',
+          },
+          'tenant-1',
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('getPerformance', () => {
     it('should return performance metrics', async () => {
-      mockPrisma.courier.findUnique.mockResolvedValue({
+      mockPrisma.courier.findFirst.mockResolvedValue({
         id: 'courier-1',
         currentPerformanceScore: 87,
         totalDelivered: 245,
@@ -178,7 +200,7 @@ describe('CourierAppService', () => {
         user: { name: 'Ahmed' },
       });
 
-      const result = await service.getPerformance('courier-1');
+      const result = await service.getPerformance('courier-1', 'tenant-1');
 
       expect(result.score).toBe(87);
       expect(result.successRate).toBeCloseTo(93.5, 1);
@@ -186,7 +208,7 @@ describe('CourierAppService', () => {
     });
 
     it('should handle zero deliveries', async () => {
-      mockPrisma.courier.findUnique.mockResolvedValue({
+      mockPrisma.courier.findFirst.mockResolvedValue({
         id: 'courier-1',
         currentPerformanceScore: 50,
         totalDelivered: 0,
@@ -197,7 +219,7 @@ describe('CourierAppService', () => {
         user: { name: 'New Courier' },
       });
 
-      const result = await service.getPerformance('courier-1');
+      const result = await service.getPerformance('courier-1', 'tenant-1');
 
       expect(result.successRate).toBe(0);
     });
@@ -205,6 +227,7 @@ describe('CourierAppService', () => {
 
   describe('syncUpdates', () => {
     it('should process status updates and reject conflicts', async () => {
+      mockPrisma.courier.findFirst.mockResolvedValue({ id: 'courier-1' });
       mockPrisma.shipment.findFirst
         .mockResolvedValueOnce({
           id: 'ship-1',
@@ -219,24 +242,28 @@ describe('CourierAppService', () => {
 
       mockShipmentsService.updateStatus.mockResolvedValue({ id: 'ship-1' });
 
-      const result = await service.syncUpdates('courier-1', {
-        updates: [
-          {
-            id: 'offline-1',
-            shipmentId: 'ship-1',
-            action: SyncAction.STATUS_UPDATE,
-            payload: { status: 'DELIVERED', collectedCash: 500 },
-            timestamp: new Date().toISOString(),
-          },
-          {
-            id: 'offline-2',
-            shipmentId: 'ship-2',
-            action: SyncAction.STATUS_UPDATE,
-            payload: { status: 'FAILED' },
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
+      const result = await service.syncUpdates(
+        'courier-1',
+        {
+          updates: [
+            {
+              id: 'offline-1',
+              shipmentId: 'ship-1',
+              action: SyncAction.STATUS_UPDATE,
+              payload: { status: 'DELIVERED', collectedCash: 500 },
+              timestamp: new Date().toISOString(),
+            },
+            {
+              id: 'offline-2',
+              shipmentId: 'ship-2',
+              action: SyncAction.STATUS_UPDATE,
+              payload: { status: 'FAILED' },
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        },
+        'tenant-1',
+      );
 
       expect(result.processed).toBe(1);
       expect(result.conflicts).toHaveLength(1);

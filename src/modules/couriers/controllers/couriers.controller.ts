@@ -30,6 +30,7 @@ import { UpdateZonesDto } from '../dtos/update-zones.dto';
 import { QueryCouriersDto } from '../dtos/query-couriers.dto';
 import { UpdateAvailabilityDto } from '../dtos/update-availability.dto';
 import { PaginatedCouriersResponseDto } from '../dtos/courier-list-response.dto';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 
 @ApiTags('Couriers')
 @ApiBearerAuth()
@@ -50,8 +51,11 @@ export class CouriersController {
   @ApiConflictResponse({
     description: 'Phone number or email is already registered.',
   })
-  async create(@Body() dto: CreateCourierDto): Promise<CourierResponseDto> {
-    return this.couriersService.create(dto);
+  async create(
+    @Body() dto: CreateCourierDto,
+    @EffectiveTenantId() tenantId: string,
+  ): Promise<CourierResponseDto> {
+    return this.couriersService.create(dto, tenantId);
   }
 
   @Get()
@@ -66,8 +70,11 @@ export class CouriersController {
   @ApiBadRequestResponse({ description: 'Invalid courier query values.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiForbiddenResponse({ description: 'Operations admin role is required.' })
-  async findAll(@Query() query: QueryCouriersDto) {
-    return this.couriersService.findAll({
+  async findAll(
+    @Query() query: QueryCouriersDto,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.couriersService.findAll(tenantId, {
       search: query.search,
       isActive: this.parseBoolean(query.isActive),
       isAvailable: this.parseBoolean(query.isAvailable),
@@ -78,8 +85,11 @@ export class CouriersController {
   }
 
   @Get(':id')
-  async findById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.couriersService.findById(id);
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.couriersService.findById(id, tenantId);
   }
 
   @Patch(':id/zones')
@@ -87,16 +97,22 @@ export class CouriersController {
   async updateZones(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateZonesDto,
+    @EffectiveTenantId() tenantId: string,
   ) {
-    return this.couriersService.updateZones(id, dto.zoneCodes);
+    return this.couriersService.updateZones(id, dto.zoneCodes, tenantId);
   }
 
   @Patch(':id/availability')
   async updateAvailability(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAvailabilityDto,
+    @EffectiveTenantId() tenantId: string,
   ) {
-    return this.couriersService.updateAvailability(id, dto.isAvailable);
+    return this.couriersService.updateAvailability(
+      id,
+      dto.isAvailable,
+      tenantId,
+    );
   }
 
   private parseBoolean(value?: string): boolean | undefined {

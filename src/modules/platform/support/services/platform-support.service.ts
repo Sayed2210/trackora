@@ -12,7 +12,6 @@ import {
   TenantStatus,
   UserRole,
 } from '@prisma/client';
-import { getPermissionsForRole } from '@common/constants/permissions.constant';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import { TokenPayload } from '@modules/auth/entities/auth.entity';
 import { PlatformAuditLogService } from '@modules/platform/audit-logs/services/platform-audit-log.service';
@@ -183,6 +182,10 @@ export class PlatformSupportService {
       : await this.supportRepository.findDefaultTenantUser(tenantId);
     if (!targetUser)
       throw new NotFoundException('Target tenant user not found');
+
+    // A newly issued impersonation token is a scope switch. Revoke every older
+    // active session for this actor before issuing the new tenant context.
+    await this.supportRepository.endActiveSessionsForActor(context.user.userId);
 
     const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
     const session = await this.supportRepository.createImpersonationSession({

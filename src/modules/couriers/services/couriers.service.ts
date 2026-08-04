@@ -43,7 +43,10 @@ export class CouriersService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async create(dto: CreateCourierDto): Promise<CourierResponseDto> {
+  async create(
+    dto: CreateCourierDto,
+    tenantId: string,
+  ): Promise<CourierResponseDto> {
     try {
       const courier = await this.prisma.$transaction(async (tx) => {
         const existingPhone = await tx.user.findUnique({
@@ -90,6 +93,7 @@ export class CouriersService {
             phone: dto.phone,
             email: dto.email,
             role: UserRole.COURIER,
+            tenantId,
             isActive,
           },
           select: { id: true },
@@ -98,6 +102,7 @@ export class CouriersService {
         return tx.courier.create({
           data: {
             userId: user.id,
+            tenantId,
             employeeId: dto.employeeId,
             vehicleType: dto.vehicleType,
             licensePlate: dto.licensePlate,
@@ -128,37 +133,46 @@ export class CouriersService {
     }
   }
 
-  async findById(id: string): Promise<Courier> {
-    const courier = await this.couriersRepository.findById(id);
+  async findById(id: string, tenantId: string): Promise<Courier> {
+    const courier = await this.couriersRepository.findByIdForTenant(
+      id,
+      tenantId,
+    );
     if (!courier) {
       throw new NotFoundException('Courier not found');
     }
     return courier;
   }
 
-  async findByUserId(userId: string): Promise<Courier | null> {
-    return this.couriersRepository.findByUserId(userId);
+  async findByUserId(
+    userId: string,
+    tenantId: string,
+  ): Promise<Courier | null> {
+    return this.couriersRepository.findByUserIdForTenant(userId, tenantId);
   }
 
-  async findAll(query: CourierListQuery = {}) {
+  async findAll(tenantId: string, query: CourierListQuery = {}) {
     const page = Math.max(query.page ?? 1, 1);
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
     const skip = (page - 1) * limit;
 
-    const { data, total } = await this.couriersRepository.findWithFilters(
-      {
-        search: query.search,
-        isActive: query.isActive,
-        isAvailable: query.isAvailable,
-        zoneCode: query.zoneCode,
-      },
-      skip,
-      limit,
-    );
+    const { data, total } =
+      await this.couriersRepository.findWithFiltersForTenant(
+        tenantId,
+        {
+          search: query.search,
+          isActive: query.isActive,
+          isAvailable: query.isAvailable,
+          zoneCode: query.zoneCode,
+        },
+        skip,
+        limit,
+      );
 
     const activeTaskCounts =
       await this.couriersRepository.countActiveTasksByCourierIds(
         data.map((courier) => courier.id),
+        tenantId,
       );
 
     return {
@@ -191,19 +205,29 @@ export class CouriersService {
     };
   }
 
-  async updateZones(id: string, zoneCodes: string[]): Promise<Courier> {
-    await this.findById(id);
-    return this.couriersRepository.update(id, { zoneCodes });
+  async updateZones(
+    id: string,
+    zoneCodes: string[],
+    tenantId: string,
+  ): Promise<Courier> {
+    await this.findById(id, tenantId);
+    return this.couriersRepository.updateForTenant(id, tenantId, { zoneCodes });
   }
 
-  async updateAvailability(id: string, isAvailable: boolean): Promise<Courier> {
-    await this.findById(id);
-    return this.couriersRepository.update(id, { isAvailable });
+  async updateAvailability(
+    id: string,
+    isAvailable: boolean,
+    tenantId: string,
+  ): Promise<Courier> {
+    await this.findById(id, tenantId);
+    return this.couriersRepository.updateForTenant(id, tenantId, {
+      isAvailable,
+    });
   }
 
-  async remove(id: string): Promise<void> {
-    await this.findById(id);
-    await this.couriersRepository.softDelete(id);
+  async remove(id: string, tenantId: string): Promise<void> {
+    await this.findById(id, tenantId);
+    await this.couriersRepository.softDeleteForTenant(id, tenantId);
   }
 
   private toCourierResponse(courier: CourierWithUser): CourierResponseDto {
@@ -245,9 +269,14 @@ export class CouriersService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      const target = Array.isArray(error.meta?.target)
-        ? error.meta.target.join(',')
-        : String(error.meta?.target ?? '');
+      const rawTarget = error.meta?.target;
+      const target = Array.isArray(rawTarget)
+        ? rawTarget
+            .filter((value): value is string => typeof value === 'string')
+            .join(',')
+        : typeof rawTarget === 'string'
+          ? rawTarget
+          : '';
       if (target.includes('phone')) {
         throw new ConflictException('Phone number already registered');
       }

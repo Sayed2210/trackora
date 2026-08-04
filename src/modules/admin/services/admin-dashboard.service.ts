@@ -29,7 +29,7 @@ export interface FinancialSummaryData {
 export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard(): Promise<AdminDashboardData> {
+  async getDashboard(tenantId: string): Promise<AdminDashboardData> {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -43,23 +43,26 @@ export class AdminDashboardService {
       couriersOffline,
     ] = await Promise.all([
       this.prisma.shipment.count({
-        where: { createdAt: { gte: startOfDay } },
+        where: { tenantId, createdAt: { gte: startOfDay } },
       }),
       this.prisma.shipment.count({
         where: {
           status: ShipmentStatus.DELIVERED,
+          tenantId,
           deliveredAt: { gte: startOfDay },
         },
       }),
       this.prisma.shipment.count({
         where: {
           status: ShipmentStatus.FAILED,
+          tenantId,
           updatedAt: { gte: startOfDay },
         },
       }),
       this.prisma.shipment.aggregate({
         where: {
           type: ShipmentType.COD,
+          tenantId,
           status: ShipmentStatus.DELIVERED,
           deliveredAt: { gte: startOfDay },
         },
@@ -68,14 +71,15 @@ export class AdminDashboardService {
       this.prisma.shipment.count({
         where: {
           status: ShipmentStatus.PENDING,
+          tenantId,
           assignedCourierId: null,
         },
       }),
       this.prisma.courier.count({
-        where: { isActive: true, isAvailable: true },
+        where: { tenantId, isActive: true, isAvailable: true },
       }),
       this.prisma.courier.count({
-        where: { isActive: true, isAvailable: false },
+        where: { tenantId, isActive: true, isAvailable: false },
       }),
     ]);
 
@@ -92,7 +96,7 @@ export class AdminDashboardService {
     };
   }
 
-  async getFinancialSummary(): Promise<FinancialSummaryData> {
+  async getFinancialSummary(tenantId: string): Promise<FinancialSummaryData> {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -101,20 +105,26 @@ export class AdminDashboardService {
         this.prisma.shipment.aggregate({
           where: {
             type: ShipmentType.COD,
+            tenantId,
             status: ShipmentStatus.DELIVERED,
             deliveredAt: { gte: startOfDay },
           },
           _sum: { collectedCash: true },
         }),
         this.prisma.payout.count({
-          where: { status: { in: ['PENDING', 'APPROVED', 'PROCESSING'] } },
+          where: {
+            tenantId,
+            status: { in: ['PENDING', 'APPROVED', 'PROCESSING'] },
+          },
         }),
         this.prisma.courier.aggregate({
+          where: { tenantId },
           _sum: { cashHeld: true },
         }),
         this.prisma.shipment.aggregate({
           where: {
             type: ShipmentType.COD,
+            tenantId,
             status: {
               in: [
                 ShipmentStatus.DELIVERED,

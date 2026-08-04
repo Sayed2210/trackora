@@ -12,14 +12,23 @@ export class WalletsService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async create(merchantId: string): Promise<Wallet> {
-    const existing = await this.walletsRepository.findByMerchantId(merchantId);
+  async create(merchantId: string, tenantId: string): Promise<Wallet> {
+    const merchant = await this.prisma.merchant.findFirst({
+      where: { id: merchantId, tenantId },
+      select: { id: true },
+    });
+    if (!merchant) throw new NotFoundException('Merchant not found');
+    const existing = await this.walletsRepository.findByMerchantIdForTenant(
+      merchantId,
+      tenantId,
+    );
     if (existing) {
       return existing;
     }
 
     return this.walletsRepository.create({
       merchantId,
+      tenantId,
       balance: 0,
       pendingBalance: 0,
       totalCredited: 0,
@@ -29,15 +38,24 @@ export class WalletsService {
     });
   }
 
-  async findByMerchantId(merchantId: string): Promise<Wallet | null> {
-    return this.walletsRepository.findByMerchantId(merchantId);
+  async findByMerchantId(
+    merchantId: string,
+    tenantId: string,
+  ): Promise<Wallet | null> {
+    return this.walletsRepository.findByMerchantIdForTenant(
+      merchantId,
+      tenantId,
+    );
   }
 
-  async findById(id: string): Promise<Wallet | null> {
-    return this.walletsRepository.findById(id);
+  async findById(id: string, tenantId: string): Promise<Wallet | null> {
+    return this.walletsRepository.findByIdForTenant(id, tenantId);
   }
 
-  async getBalance(merchantId: string): Promise<{
+  async getBalance(
+    merchantId: string,
+    tenantId: string,
+  ): Promise<{
     id: string;
     merchantId: string;
     balance: number;
@@ -48,7 +66,10 @@ export class WalletsService {
     currency: string;
     updatedAt: Date;
   }> {
-    const wallet = await this.walletsRepository.findByMerchantId(merchantId);
+    const wallet = await this.walletsRepository.findByMerchantIdForTenant(
+      merchantId,
+      tenantId,
+    );
     if (!wallet) {
       throw new NotFoundException('Wallet not found for merchant');
     }
@@ -69,6 +90,7 @@ export class WalletsService {
 
   async getTransactions(
     merchantId: string,
+    tenantId: string,
     options: {
       page?: number;
       limit?: number;
@@ -82,17 +104,27 @@ export class WalletsService {
     page: number;
     limit: number;
   }> {
-    const wallet = await this.walletsRepository.findByMerchantId(merchantId);
+    const wallet = await this.walletsRepository.findByMerchantIdForTenant(
+      merchantId,
+      tenantId,
+    );
     if (!wallet) {
       throw new NotFoundException('Wallet not found for merchant');
     }
 
-    return this.transactionsService.getTransactions(wallet.id, options);
+    return this.transactionsService.getTransactions(
+      wallet.id,
+      tenantId,
+      options,
+    );
   }
 
-  async getOrCreateWallet(merchantId: string): Promise<Wallet> {
-    const wallet = await this.findByMerchantId(merchantId);
+  async getOrCreateWallet(
+    merchantId: string,
+    tenantId: string,
+  ): Promise<Wallet> {
+    const wallet = await this.findByMerchantId(merchantId, tenantId);
     if (wallet) return wallet;
-    return this.create(merchantId);
+    return this.create(merchantId, tenantId);
   }
 }

@@ -6,6 +6,7 @@ import { TransactionType, ShipmentType } from '@prisma/client';
 
 interface ShipmentDeliveredEvent {
   shipmentId: string;
+  tenantId: string;
   merchantId: string;
   courierId?: string;
   codAmount: number;
@@ -49,27 +50,28 @@ export class ShipmentDeliveredListener {
   private async processCodCreditAtomic(
     event: ShipmentDeliveredEvent,
   ): Promise<void> {
-    const { shipmentId, merchantId, codAmount } = event;
+    const { shipmentId, merchantId, tenantId, codAmount } = event;
 
     for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
       try {
         await this.prisma.$transaction(async (tx) => {
-          const merchant = await tx.merchant.findUnique({
-            where: { id: merchantId },
+          const merchant = await tx.merchant.findFirst({
+            where: { id: merchantId, tenantId },
           });
 
           if (!merchant) {
             throw new Error(`Merchant not found: ${merchantId}`);
           }
 
-          let wallet = await tx.wallet.findUnique({
-            where: { merchantId },
+          let wallet = await tx.wallet.findFirst({
+            where: { merchantId, tenantId },
           });
 
           if (!wallet) {
             wallet = await tx.wallet.create({
               data: {
                 merchantId,
+                tenantId,
                 balance: 0,
                 pendingBalance: 0,
                 totalCredited: 0,
@@ -179,6 +181,7 @@ export class ShipmentDeliveredListener {
           this.eventEmitter.emit('wallet.balance_updated', {
             walletId: wallet.id,
             merchantId,
+            tenantId,
             balance: newBalance,
             transactionType: 'COD_CREDIT',
             amount: netCredit,

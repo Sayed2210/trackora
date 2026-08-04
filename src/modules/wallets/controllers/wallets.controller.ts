@@ -12,6 +12,7 @@ import { TransactionsService } from '../services/transactions.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { WalletTransactionsQueryDto } from '../dtos/wallet-transactions-query.dto';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 
 @ApiTags('Wallets')
 @ApiBearerAuth()
@@ -24,8 +25,11 @@ export class WalletsController {
 
   @Get(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.FINANCE_ADMIN)
-  async findById(@Param('id', ParseUUIDPipe) id: string) {
-    const wallet = await this.walletsService.findById(id);
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    const wallet = await this.walletsService.findById(id, tenantId);
     if (!wallet) {
       throw new NotFoundException('Wallet not found');
     }
@@ -37,13 +41,14 @@ export class WalletsController {
   async getTransactions(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: WalletTransactionsQueryDto,
+    @EffectiveTenantId() tenantId: string,
   ) {
-    const wallet = await this.walletsService.findById(id);
+    const wallet = await this.walletsService.findById(id, tenantId);
     if (!wallet) {
       throw new NotFoundException('Wallet not found');
     }
 
-    return this.transactionsService.getTransactions(id, {
+    return this.transactionsService.getTransactions(id, tenantId, {
       page: query.page,
       limit: query.limit,
       type: query.type,

@@ -20,9 +20,10 @@ export class AssignmentEventsListener {
     shipmentId: string;
     courierId: string;
     type: string;
+    tenantId: string;
   }): Promise<void> {
-    const shipment = await this.prisma.shipment.findUnique({
-      where: { id: payload.shipmentId },
+    const shipment = await this.prisma.shipment.findFirst({
+      where: { id: payload.shipmentId, tenantId: payload.tenantId },
     });
 
     if (!shipment) return;
@@ -38,7 +39,11 @@ export class AssignmentEventsListener {
       assignmentType: payload.type,
     };
 
-    await this.broadcastAndBuffer(`courier:${payload.courierId}`, event, data);
+    await this.broadcastAndBuffer(
+      `tenant:${payload.tenantId}:courier:${payload.courierId}`,
+      event,
+      data,
+    );
   }
 
   @OnEvent('assignment.cancelled')
@@ -47,9 +52,10 @@ export class AssignmentEventsListener {
     shipmentId: string;
     courierId: string;
     reason: string;
+    tenantId: string;
   }): Promise<void> {
-    const shipment = await this.prisma.shipment.findUnique({
-      where: { id: payload.shipmentId },
+    const shipment = await this.prisma.shipment.findFirst({
+      where: { id: payload.shipmentId, tenantId: payload.tenantId },
     });
 
     const event = 'assignment:cancelled';
@@ -59,7 +65,11 @@ export class AssignmentEventsListener {
       reason: payload.reason,
     };
 
-    await this.broadcastAndBuffer(`courier:${payload.courierId}`, event, data);
+    await this.broadcastAndBuffer(
+      `tenant:${payload.tenantId}:courier:${payload.courierId}`,
+      event,
+      data,
+    );
   }
 
   private async broadcastAndBuffer(

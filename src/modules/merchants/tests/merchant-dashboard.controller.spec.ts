@@ -29,6 +29,15 @@ describe('MerchantDashboardController (integration)', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = {
+        userId: 'merchant-user',
+        role: 'MERCHANT',
+        tenantId: 'tenant-1',
+        permissions: [],
+      };
+      next();
+    });
     await app.init();
   });
 
@@ -55,7 +64,10 @@ describe('MerchantDashboardController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(dashboard);
-      expect(mockDashboardService.getDashboard).toHaveBeenCalledWith(TEST_UUID);
+      expect(mockDashboardService.getDashboard).toHaveBeenCalledWith(
+        TEST_UUID,
+        'tenant-1',
+      );
     });
   });
 
@@ -71,6 +83,7 @@ describe('MerchantDashboardController (integration)', () => {
       expect(res.body).toEqual(analytics);
       expect(mockDashboardService.getAnalytics).toHaveBeenCalledWith(
         TEST_UUID,
+        'tenant-1',
         30,
       );
     });
@@ -86,6 +99,7 @@ describe('MerchantDashboardController (integration)', () => {
       expect(res.body).toEqual(analytics);
       expect(mockDashboardService.getAnalytics).toHaveBeenCalledWith(
         TEST_UUID,
+        'tenant-1',
         7,
       );
     });

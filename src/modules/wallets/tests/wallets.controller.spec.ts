@@ -51,6 +51,15 @@ describe('WalletsController (integration)', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = {
+        userId: 'admin-1',
+        role: 'SUPER_ADMIN',
+        tenantId: 'tenant-1',
+        permissions: [],
+      };
+      next();
+    });
     await app.init();
   });
 
@@ -82,7 +91,10 @@ describe('WalletsController (integration)', () => {
       expect(response.body).toEqual(wallet);
       expect(mockPrisma.wallet.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: '11111111-1111-1111-1111-111111111111' },
+          where: {
+            id: '11111111-1111-1111-1111-111111111111',
+            tenantId: 'tenant-1',
+          },
         }),
       );
     });

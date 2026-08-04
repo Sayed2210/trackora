@@ -63,10 +63,11 @@ describe('AssignmentsController (integration)', () => {
         errors: [],
       });
 
-      const result = await controller.create(dto, mockReq);
+      const result = await controller.create(dto, 'tenant-1', mockReq);
 
       expect(service.createManualAssignments).toHaveBeenCalledWith(
         dto,
+        'tenant-1',
         'mock-user-id',
       );
       expect(result.assignments).toHaveLength(1);
@@ -88,9 +89,10 @@ describe('AssignmentsController (integration)', () => {
         limit: 20,
       });
 
-      const result = await controller.findAll(query);
+      const result = await controller.findAll(query, 'tenant-1');
 
       expect(service.findAll).toHaveBeenCalledWith(
+        'tenant-1',
         expect.objectContaining({
           courierId: 'courier-1',
           status: AssignmentStatus.ACTIVE,
@@ -104,9 +106,9 @@ describe('AssignmentsController (integration)', () => {
     it('should call findById with correct id', async () => {
       jest.spyOn(service, 'findById').mockResolvedValue(mockAssignment as any);
 
-      const result = await controller.findById('assignment-1');
+      const result = await controller.findById('assignment-1', 'tenant-1');
 
-      expect(service.findById).toHaveBeenCalledWith('assignment-1');
+      expect(service.findById).toHaveBeenCalledWith('assignment-1', 'tenant-1');
       expect(result.id).toBe('assignment-1');
     });
   });
@@ -123,11 +125,17 @@ describe('AssignmentsController (integration)', () => {
         courierId: 'courier-2',
       } as any);
 
-      const result = await controller.reassign('assignment-1', dto, mockReq);
+      const result = await controller.reassign(
+        'assignment-1',
+        dto,
+        'tenant-1',
+        mockReq,
+      );
 
       expect(service.reassign).toHaveBeenCalledWith(
         'assignment-1',
         'courier-2',
+        'tenant-1',
         'Overloaded',
         'mock-user-id',
       );
@@ -144,10 +152,11 @@ describe('AssignmentsController (integration)', () => {
         status: AssignmentStatus.CANCELLED,
       } as any);
 
-      const result = await controller.cancel('assignment-1', dto);
+      const result = await controller.cancel('assignment-1', dto, 'tenant-1');
 
       expect(service.cancel).toHaveBeenCalledWith(
         'assignment-1',
+        'tenant-1',
         'Customer postponed',
       );
       expect(result.status).toBe(AssignmentStatus.CANCELLED);
