@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
-import { ShipmentStatus, ShipmentType } from '@prisma/client';
+import { ShipmentStatus } from '@prisma/client';
 
 export interface DailyReport {
   date: string;
@@ -35,13 +35,17 @@ export interface MerchantDeliveryReport {
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generateDailyReport(dateStr: string): Promise<DailyReport> {
+  async generateDailyReport(
+    dateStr: string,
+    tenantId: string,
+  ): Promise<DailyReport> {
     const date = new Date(dateStr);
     const nextDay = new Date(date);
     nextDay.setDate(nextDay.getDate() + 1);
 
     const shipments = await this.prisma.shipment.findMany({
       where: {
+        tenantId,
         createdAt: { gte: date, lt: nextDay },
       },
       select: {
@@ -93,7 +97,7 @@ export class ReportsService {
     const couriers =
       courierIds.length > 0
         ? await this.prisma.courier.findMany({
-            where: { id: { in: courierIds } },
+            where: { id: { in: courierIds }, tenantId },
             include: { user: { select: { name: true } } },
           })
         : [];
@@ -114,6 +118,7 @@ export class ReportsService {
   }
 
   async generateCourierPerformanceReport(
+    tenantId: string,
     from?: Date,
     to?: Date,
   ): Promise<CourierPerformanceReport[]> {
@@ -125,6 +130,7 @@ export class ReportsService {
     }
 
     const couriers = await this.prisma.courier.findMany({
+      where: { tenantId },
       include: {
         user: { select: { name: true } },
         assignments: {
@@ -152,6 +158,7 @@ export class ReportsService {
   }
 
   async generateMerchantDeliveryReport(
+    tenantId: string,
     from?: Date,
     to?: Date,
   ): Promise<MerchantDeliveryReport[]> {
@@ -163,10 +170,12 @@ export class ReportsService {
     }
 
     const merchants = await this.prisma.merchant.findMany({
+      where: { tenantId },
       include: {
         user: { select: { name: true } },
         shipments: {
           where: {
+            tenantId,
             status: { in: [ShipmentStatus.DELIVERED, ShipmentStatus.RETURNED] },
             ...dateWhere,
           },

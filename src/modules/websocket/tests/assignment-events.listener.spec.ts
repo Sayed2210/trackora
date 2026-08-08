@@ -40,7 +40,7 @@ describe('AssignmentEventsListener', () => {
           provide: PrismaService,
           useValue: {
             shipment: {
-              findUnique: jest.fn().mockResolvedValue(mockShipment),
+              findFirst: jest.fn().mockResolvedValue(mockShipment),
             },
           },
         },
@@ -58,11 +58,14 @@ describe('AssignmentEventsListener', () => {
       shipmentId: 'ship-1',
       courierId: 'courier-1',
       type: 'MANUAL',
+      tenantId: 'tenant-1',
     });
 
-    expect(wsGateway.server.to).toHaveBeenCalledWith('courier:courier-1');
+    expect(wsGateway.server.to).toHaveBeenCalledWith(
+      'tenant:tenant-1:courier:courier-1',
+    );
     expect(wsService.bufferEvent).toHaveBeenCalledWith(
-      'courier:courier-1',
+      'tenant:tenant-1:courier:courier-1',
       'assignment:created',
       expect.objectContaining({ assignmentId: 'assign-1' }),
     );
@@ -74,11 +77,14 @@ describe('AssignmentEventsListener', () => {
       shipmentId: 'ship-1',
       courierId: 'courier-1',
       reason: 'Reassigned',
+      tenantId: 'tenant-1',
     });
 
-    expect(wsGateway.server.to).toHaveBeenCalledWith('courier:courier-1');
+    expect(wsGateway.server.to).toHaveBeenCalledWith(
+      'tenant:tenant-1:courier:courier-1',
+    );
     expect(wsService.bufferEvent).toHaveBeenCalledWith(
-      'courier:courier-1',
+      'tenant:tenant-1:courier:courier-1',
       'assignment:cancelled',
       expect.objectContaining({ assignmentId: 'assign-1' }),
     );

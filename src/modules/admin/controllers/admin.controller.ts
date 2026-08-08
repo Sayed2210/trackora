@@ -13,6 +13,7 @@ import { AdminDashboardService } from '../services/admin-dashboard.service';
 import { ReportsService } from '../services/reports.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 import {
   AdminDashboardResponseDto,
   CourierPerformanceReportResponseDto,
@@ -38,22 +39,25 @@ export class AdminController {
   @ApiOkResponse({ type: AdminDashboardResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiForbiddenResponse({ description: 'Admin role is required.' })
-  async getDashboard() {
-    return this.adminDashboardService.getDashboard();
+  async getDashboard(@EffectiveTenantId() tenantId: string) {
+    return this.adminDashboardService.getDashboard(tenantId);
   }
 
   @Get('financial-summary')
   @ApiOkResponse({ type: FinancialSummaryResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiForbiddenResponse({ description: 'Admin role is required.' })
-  async getFinancialSummary() {
-    return this.adminDashboardService.getFinancialSummary();
+  async getFinancialSummary(@EffectiveTenantId() tenantId: string) {
+    return this.adminDashboardService.getFinancialSummary(tenantId);
   }
 
   @Post('reports/daily')
   @ApiQuery({ name: 'date', required: true, type: String })
-  async generateDailyReport(@Query('date') date: string) {
-    return this.reportsService.generateDailyReport(date);
+  async generateDailyReport(
+    @Query('date') date: string,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.reportsService.generateDailyReport(date, tenantId);
   }
 
   @Post('reports/courier-performance')
@@ -68,10 +72,12 @@ export class AdminController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async generateCourierPerformanceReport(
+    @EffectiveTenantId() tenantId: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
     return this.reportsService.generateCourierPerformanceReport(
+      tenantId,
       from ? new Date(from) : undefined,
       to ? new Date(to) : undefined,
     );
@@ -89,10 +95,12 @@ export class AdminController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async generateMerchantDeliveryReport(
+    @EffectiveTenantId() tenantId: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
     return this.reportsService.generateMerchantDeliveryReport(
+      tenantId,
       from ? new Date(from) : undefined,
       to ? new Date(to) : undefined,
     );

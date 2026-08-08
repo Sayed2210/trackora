@@ -36,6 +36,8 @@ import { Roles } from '@common/decorators/roles.decorator';
 import { Public } from '@common/decorators/public.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { ShipmentStatus } from '../entities/shipment.entity';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
+import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import { CreateShipmentDto } from '../dtos/create-shipment.dto';
 import { UpdateShipmentStatusDto } from '../dtos/update-shipment-status.dto';
 import {
@@ -46,7 +48,7 @@ import { BulkUploadResultDto } from '../dtos/bulk-upload-result.dto';
 import { PrismaService } from '@core/prisma/prisma.service';
 
 interface RequestWithUser extends Request {
-  user: { userId: string; role: UserRole };
+  user: AuthenticatedRequestUser;
 }
 
 @ApiTags('Shipments')
@@ -61,8 +63,17 @@ export class ShipmentsController {
   @Post()
   @ApiBearerAuth()
   @Roles(UserRole.MERCHANT, UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
-  async create(@Body() dto: CreateShipmentDto, @Req() req: RequestWithUser) {
-    return this.shipmentsService.create(dto, req.user.userId);
+  async create(
+    @Body() dto: CreateShipmentDto,
+    @EffectiveTenantId() tenantId: string,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.shipmentsService.create(
+      dto,
+      tenantId,
+      req.user.userId,
+      req.user.role,
+    );
   }
 
   @Post('bulk-upload')
@@ -84,6 +95,12 @@ export class ShipmentsController {
           type: 'string',
           format: 'binary',
           description: 'Excel workbook containing up to 5,000 shipments.',
+        },
+        merchantId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Tenant admin target merchant. Ignored for merchant users.',
         },
       },
     },
@@ -107,36 +124,20 @@ export class ShipmentsController {
   @UseInterceptors(FileInterceptor('file'))
   async bulkUpload(
     @UploadedFile() file: { buffer: Buffer } | undefined,
+    @Body('merchantId') merchantId: string | undefined,
+    @EffectiveTenantId() tenantId: string,
     @Req() req: RequestWithUser,
   ) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
-
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { userId: req.user.userId },
-      select: {
-        id: true,
-        tenantId: true,
-        isActive: true,
-      },
-    });
-
-    if (!merchant) {
-      throw new NotFoundException(
-        'Merchant profile not found for authenticated user',
-      );
-    }
-    if (!merchant.isActive) {
-      throw new ForbiddenException('Merchant profile is inactive');
-    }
-
-    return this.bulkUploadService.processFile(file.buffer, {
-      merchantId: merchant.id,
-      tenantId: merchant.tenantId,
-      uploadedByUserId: req.user.userId,
-      uploadedByRole: req.user.role,
-    });
+    return this.bulkUploadService.processFile(
+      file.buffer,
+      tenantId,
+      req.user.userId,
+      req.user.role,
+      merchantId,
+    );
   }
 
   @Get()
@@ -160,6 +161,7 @@ export class ShipmentsController {
   @ApiBadRequestResponse({ description: 'Invalid shipment query values.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async findAll(
+    @EffectiveTenantId() tenantId: string,
     @Query('status') status?: ShipmentStatus | ShipmentStatus[],
     @Query('merchantId') merchantId?: string,
     @Query('courierId') courierId?: string,
@@ -172,6 +174,7 @@ export class ShipmentsController {
     @Query('limit') limit?: string,
   ) {
     return this.shipmentsService.findAll(
+      tenantId,
       {
         status,
         merchantId,
@@ -205,6 +208,7 @@ export class ShipmentsController {
   @ApiQuery({ name: 'cursor', required: false })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async findAllCursor(
+    @EffectiveTenantId() tenantId: string,
     @Query('status') status?: ShipmentStatus | ShipmentStatus[],
     @Query('merchantId') merchantId?: string,
     @Query('courierId') courierId?: string,
@@ -217,6 +221,7 @@ export class ShipmentsController {
     @Query('limit') limit?: string,
   ) {
     return this.shipmentsService.findAllCursor(
+      tenantId,
       {
         status,
         merchantId,
@@ -235,7 +240,7 @@ export class ShipmentsController {
   @Public()
   @Get('tracking/:trackingNumber')
   async findByTrackingNumber(@Param('trackingNumber') trackingNumber: string) {
-    return this.shipmentsService.findByTrackingNumber(trackingNumber);
+    return this.shipmentsService.findPublicTracking(trackingNumber);
   }
 
   @Get(':id')
@@ -244,14 +249,20 @@ export class ShipmentsController {
   @ApiBadRequestResponse({ description: 'Shipment id must be a UUID.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiNotFoundResponse({ description: 'Shipment was not found.' })
-  async findById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.shipmentsService.findById(id);
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.shipmentsService.findById(id, tenantId);
   }
 
   @Get(':id/timeline')
   @ApiBearerAuth()
-  async getTimeline(@Param('id', ParseUUIDPipe) id: string) {
-    return this.shipmentsService.getTimeline(id);
+  async getTimeline(
+    @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.shipmentsService.getTimeline(id, tenantId);
   }
 
   @Patch(':id/status')
@@ -259,11 +270,13 @@ export class ShipmentsController {
   @Roles(UserRole.COURIER, UserRole.OPERATIONS_MANAGER)
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
     @Body() dto: UpdateShipmentStatusDto,
     @Req() req: RequestWithUser,
   ) {
     return this.shipmentsService.updateStatus(
       id,
+      tenantId,
       dto,
       req.user.userId,
       req.user.role,

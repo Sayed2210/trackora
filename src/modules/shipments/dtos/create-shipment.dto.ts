@@ -7,11 +7,21 @@ import {
   ValidateIf,
   IsObject,
   IsDateString,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { ShipmentType } from '../entities/shipment.entity';
 
 export class CreateShipmentDto {
+  @ApiProperty({
+    required: false,
+    description:
+      'Required for tenant admins creating on behalf of a merchant; ignored for merchant users.',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  merchantId?: string;
+
   @ApiProperty()
   @IsString()
   @IsNotEmpty()

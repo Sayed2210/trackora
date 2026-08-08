@@ -144,6 +144,13 @@ export class PlatformSupportRepository {
     });
   }
 
+  async endActiveSessionsForActor(actorUserId: string) {
+    return this.prisma.impersonationSession.updateMany({
+      where: { actorUserId, status: ImpersonationStatus.ACTIVE },
+      data: { status: ImpersonationStatus.ENDED, endedAt: new Date() },
+    });
+  }
+
   async findSessionById(
     id: string,
   ): Promise<ImpersonationSessionWithDetails | null> {

@@ -26,11 +26,12 @@ describe('PayoutsController', () => {
     });
     const req = { user: { userId: 'user-1', role: UserRole.MERCHANT } } as any;
 
-    await controller.findAll({ status: PayoutStatus.PENDING }, req);
+    await controller.findAll({ status: PayoutStatus.PENDING }, req, 'tenant-1');
 
     expect(service.findAll).toHaveBeenCalledWith(
       { status: PayoutStatus.PENDING },
       req.user,
+      'tenant-1',
     );
   });
 
@@ -40,37 +41,55 @@ describe('PayoutsController', () => {
     await controller.create(
       { amount: 600, method: PayoutMethod.INSTAPAY, destination: {} },
       { user: { userId: 'user-1', role: UserRole.MERCHANT } } as any,
+      'tenant-1',
     );
 
-    expect(service.requestPayout).toHaveBeenCalledWith('user-1', {
-      amount: 600,
-      method: PayoutMethod.INSTAPAY,
-      destination: {},
-    });
+    expect(service.requestPayout).toHaveBeenCalledWith(
+      'user-1',
+      {
+        amount: 600,
+        method: PayoutMethod.INSTAPAY,
+        destination: {},
+      },
+      'tenant-1',
+    );
   });
 
   it('approves, completes, and rejects payouts', async () => {
-    await controller.approve('11111111-1111-1111-1111-111111111111', {
-      user: { userId: 'admin-1', role: UserRole.FINANCE_ADMIN },
-    } as any);
-    await controller.complete('11111111-1111-1111-1111-111111111111', {
-      referenceNumber: 'REF-1',
-    });
-    await controller.reject('11111111-1111-1111-1111-111111111111', {
-      reason: 'Invalid account',
-    });
+    await controller.approve(
+      '11111111-1111-1111-1111-111111111111',
+      { user: { userId: 'admin-1', role: UserRole.FINANCE_ADMIN } } as any,
+      'tenant-1',
+    );
+    await controller.complete(
+      '11111111-1111-1111-1111-111111111111',
+      {
+        referenceNumber: 'REF-1',
+      },
+      'tenant-1',
+    );
+    await controller.reject(
+      '11111111-1111-1111-1111-111111111111',
+      {
+        reason: 'Invalid account',
+      },
+      'tenant-1',
+    );
 
     expect(service.approve).toHaveBeenCalledWith(
       '11111111-1111-1111-1111-111111111111',
       'admin-1',
+      'tenant-1',
     );
     expect(service.complete).toHaveBeenCalledWith(
       '11111111-1111-1111-1111-111111111111',
       'REF-1',
+      'tenant-1',
     );
     expect(service.reject).toHaveBeenCalledWith(
       '11111111-1111-1111-1111-111111111111',
       'Invalid account',
+      'tenant-1',
     );
   });
 });

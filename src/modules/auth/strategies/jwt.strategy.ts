@@ -30,6 +30,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, tenantId: true, role: true, isActive: true },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
     if (payload.impersonationContext) {
       const session = await this.prisma.impersonationSession.findUnique({
         where: { id: payload.impersonationContext.sessionId },
@@ -44,13 +52,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         });
         throw new ForbiddenException('Impersonation session expired');
       }
+      if (
+        session.actorUserId !== payload.impersonationContext.actorUserId ||
+        session.targetUserId !== payload.sub ||
+        session.targetUserId !== payload.impersonationContext.targetUserId ||
+        session.tenantId !== payload.impersonationContext.tenantId ||
+        user.tenantId !== session.tenantId
+      ) {
+        throw new UnauthorizedException('Invalid impersonation context');
+      }
     }
 
     return {
-      userId: payload.sub,
-      role: payload.role,
-      permissions: getPermissionsForRole(payload.role),
-      tenantId: payload.impersonationContext?.tenantId,
+      userId: user.id,
+      role: user.role,
+      permissions: getPermissionsForRole(user.role),
+      tenantId:
+        payload.impersonationContext?.tenantId ?? user.tenantId ?? undefined,
       impersonationContext: payload.impersonationContext,
     };
   }

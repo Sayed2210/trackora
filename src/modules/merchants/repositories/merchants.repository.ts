@@ -23,12 +23,31 @@ export class MerchantsRepository extends AbstractRepository<Merchant> {
     return { isActive: true };
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.delegate.update({ where: { id }, data: { isActive: false } });
+  softDelete(): Promise<void> {
+    throw new Error('Use softDeleteForTenant for tenant-owned merchants');
   }
 
-  async findByUserId(userId: string): Promise<Merchant | null> {
-    return this.delegate.findFirst({ where: { ...this.baseWhere, userId } });
+  async softDeleteForTenant(id: string, tenantId: string): Promise<void> {
+    await this.delegate.update({
+      where: { id, tenantId },
+      data: { isActive: false },
+    });
+  }
+
+  async findByIdForTenant(
+    id: string,
+    tenantId: string,
+  ): Promise<Merchant | null> {
+    return this.delegate.findFirst({ where: { id, tenantId } });
+  }
+
+  async findByUserIdForTenant(
+    userId: string,
+    tenantId: string,
+  ): Promise<Merchant | null> {
+    return this.delegate.findFirst({
+      where: { ...this.baseWhere, userId, tenantId },
+    });
   }
 
   async findByKycStatus(status: KycStatus): Promise<Merchant[]> {
@@ -41,16 +60,33 @@ export class MerchantsRepository extends AbstractRepository<Merchant> {
     return this.delegate.findMany({ where: this.baseWhere });
   }
 
-  async findMany(
+  async findManyForTenant(
+    tenantId: string,
     where: MerchantFilter,
     orderBy: { createdAt: 'asc' | 'desc' } = { createdAt: 'desc' },
     skip?: number,
     take?: number,
   ): Promise<Merchant[]> {
-    return this.delegate.findMany({ where, orderBy, skip, take });
+    return this.delegate.findMany({
+      where: { ...where, tenantId },
+      orderBy,
+      skip,
+      take,
+    });
   }
 
-  async count(where: MerchantFilter): Promise<number> {
-    return this.delegate.count({ where });
+  async countForTenant(
+    tenantId: string,
+    where: MerchantFilter,
+  ): Promise<number> {
+    return this.delegate.count({ where: { ...where, tenantId } });
+  }
+
+  async updateForTenant(
+    id: string,
+    tenantId: string,
+    data: Record<string, unknown>,
+  ): Promise<Merchant> {
+    return this.delegate.update({ where: { id, tenantId }, data });
   }
 }

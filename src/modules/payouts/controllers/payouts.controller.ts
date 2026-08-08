@@ -27,6 +27,7 @@ import {
   PayoutResponseDto,
 } from '../dtos/payout-response.dto';
 import { PayoutsService } from '../services/payouts.service';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 
 interface RequestWithUser extends Request {
   user: { userId: string; role: UserRole };
@@ -41,15 +42,23 @@ export class PayoutsController {
   @Get()
   @Roles(UserRole.MERCHANT, UserRole.SUPER_ADMIN, UserRole.FINANCE_ADMIN)
   @ApiOkResponse({ type: PaginatedPayoutsResponseDto })
-  async findAll(@Query() query: ListPayoutsDto, @Req() req: RequestWithUser) {
-    return this.payoutsService.findAll(query, req.user);
+  async findAll(
+    @Query() query: ListPayoutsDto,
+    @Req() req: RequestWithUser,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.payoutsService.findAll(query, req.user, tenantId);
   }
 
   @Post()
   @Roles(UserRole.MERCHANT)
   @ApiCreatedResponse({ type: PayoutResponseDto })
-  async create(@Body() dto: CreatePayoutDto, @Req() req: RequestWithUser) {
-    return this.payoutsService.requestPayout(req.user.userId, dto);
+  async create(
+    @Body() dto: CreatePayoutDto,
+    @Req() req: RequestWithUser,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.payoutsService.requestPayout(req.user.userId, dto, tenantId);
   }
 
   @Patch(':id/approve')
@@ -58,8 +67,9 @@ export class PayoutsController {
   async approve(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: RequestWithUser,
+    @EffectiveTenantId() tenantId: string,
   ) {
-    return this.payoutsService.approve(id, req.user.userId);
+    return this.payoutsService.approve(id, req.user.userId, tenantId);
   }
 
   @Patch(':id/complete')
@@ -68,8 +78,9 @@ export class PayoutsController {
   async complete(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CompletePayoutDto,
+    @EffectiveTenantId() tenantId: string,
   ) {
-    return this.payoutsService.complete(id, dto.referenceNumber);
+    return this.payoutsService.complete(id, dto.referenceNumber, tenantId);
   }
 
   @Patch(':id/reject')
@@ -78,7 +89,8 @@ export class PayoutsController {
   async reject(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectPayoutDto,
+    @EffectiveTenantId() tenantId: string,
   ) {
-    return this.payoutsService.reject(id, dto.reason);
+    return this.payoutsService.reject(id, dto.reason, tenantId);
   }
 }

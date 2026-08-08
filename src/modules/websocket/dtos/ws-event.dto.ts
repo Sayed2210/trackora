@@ -1,6 +1,7 @@
 import { ShipmentStatus, ShipmentType } from '@prisma/client';
 
 export interface WsShipmentStatusChangedEvent {
+  tenantId: string;
   shipmentId: string;
   trackingNumber: string;
   merchantId: string;
@@ -13,6 +14,7 @@ export interface WsShipmentStatusChangedEvent {
 }
 
 export interface WsShipmentCreatedEvent {
+  tenantId: string;
   shipmentId: string;
   trackingNumber: string;
   merchantId: string;
@@ -22,6 +24,7 @@ export interface WsShipmentCreatedEvent {
 }
 
 export interface WsAssignmentCreatedEvent {
+  tenantId: string;
   assignmentId: string;
   shipmentId: string;
   courierId: string;
@@ -33,6 +36,7 @@ export interface WsAssignmentCreatedEvent {
 }
 
 export interface WsAssignmentCancelledEvent {
+  tenantId: string;
   assignmentId: string;
   courierId: string;
   trackingNumber: string;
@@ -40,6 +44,7 @@ export interface WsAssignmentCancelledEvent {
 }
 
 export interface WsWalletBalanceUpdatedEvent {
+  tenantId: string;
   walletId: string;
   merchantId: string;
   balance: number;
@@ -49,6 +54,7 @@ export interface WsWalletBalanceUpdatedEvent {
 }
 
 export interface WsAdminStatsEvent {
+  tenantId: string;
   activeShipments: number;
   deliveredToday: number;
   failedToday: number;

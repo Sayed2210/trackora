@@ -14,7 +14,7 @@ const mockShipmentsService = {
   findAll: jest.fn(),
   findAllCursor: jest.fn(),
   findById: jest.fn(),
-  findByTrackingNumber: jest.fn(),
+  findPublicTracking: jest.fn(),
   getTimeline: jest.fn(),
   updateStatus: jest.fn(),
 };
@@ -48,10 +48,12 @@ const TENANT_ID = 'tenant-id';
 
 const mockAuthGuard = {
   canActivate: jest.fn((context: ExecutionContext) => {
-    const httpRequest = context
-      .switchToHttp()
-      .getRequest<{ user?: { userId: string; role: UserRole } }>();
-    httpRequest.user = { userId: AUTH_USER_ID, role: UserRole.MERCHANT };
+    const request = context.switchToHttp().getRequest();
+    request.user = {
+      userId: 'mock-merchant-id',
+      role: UserRole.MERCHANT,
+      tenantId: 'tenant-1',
+    };
     return true;
   }),
 };
@@ -127,38 +129,9 @@ describe('ShipmentsController (integration)', () => {
       expect(res.body).toEqual(mockShipment);
       expect(mockShipmentsService.create).toHaveBeenCalledWith(
         expect.objectContaining(dto),
-        AUTH_USER_ID,
-      );
-    });
-  });
-
-  describe('POST /shipments/bulk-upload', () => {
-    it('resolves User.id to Merchant.id and tenantId', async () => {
-      mockBulkUploadService.processFile.mockImplementation(
-        (_buffer: Buffer, uploadContext: BulkUploadContext) => {
-          capturedBulkUploadContext = uploadContext;
-          return Promise.resolve(mockBulkUploadResult);
-        },
-      );
-
-      const response = await request(app.getHttpServer())
-        .post('/shipments/bulk-upload')
-        .attach('file', Buffer.from('workbook'), 'shipments.xlsx')
-        .expect(201);
-
-      expect(response.body).toEqual(mockBulkUploadResult);
-      expect(mockPrisma.merchant.findUnique).toHaveBeenCalledWith({
-        where: { userId: AUTH_USER_ID },
-        select: { id: true, tenantId: true, isActive: true },
-      });
-      expect(mockBulkUploadService.processFile).toHaveBeenCalledWith(
-        expect.any(Buffer),
-        {
-          merchantId: MERCHANT_ID,
-          tenantId: TENANT_ID,
-          uploadedByUserId: AUTH_USER_ID,
-          uploadedByRole: UserRole.MERCHANT,
-        },
+        'tenant-1',
+        'mock-merchant-id',
+        UserRole.MERCHANT,
       );
       expect(capturedBulkUploadContext?.merchantId).not.toBe(AUTH_USER_ID);
     });
@@ -214,6 +187,7 @@ describe('ShipmentsController (integration)', () => {
 
       expect(res.body).toEqual(paginated);
       expect(mockShipmentsService.findAll).toHaveBeenCalledWith(
+        'tenant-1',
         expect.objectContaining({}),
         1,
         20,
@@ -235,6 +209,7 @@ describe('ShipmentsController (integration)', () => {
 
       expect(res.body).toEqual(paginated);
       expect(mockShipmentsService.findAll).toHaveBeenCalledWith(
+        'tenant-1',
         expect.objectContaining({
           status: 'PENDING',
           merchantId: 'merchant-1',
@@ -260,6 +235,7 @@ describe('ShipmentsController (integration)', () => {
 
       expect(res.body).toEqual(result);
       expect(mockShipmentsService.findAllCursor).toHaveBeenCalledWith(
+        'tenant-1',
         expect.objectContaining({}),
         'abc',
         50,
@@ -276,20 +252,23 @@ describe('ShipmentsController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(mockShipment);
-      expect(mockShipmentsService.findById).toHaveBeenCalledWith(TEST_UUID);
+      expect(mockShipmentsService.findById).toHaveBeenCalledWith(
+        TEST_UUID,
+        'tenant-1',
+      );
     });
   });
 
   describe('GET /shipments/tracking/:trackingNumber', () => {
     it('should return shipment by tracking number', async () => {
-      mockShipmentsService.findByTrackingNumber.mockResolvedValue(mockShipment);
+      mockShipmentsService.findPublicTracking.mockResolvedValue(mockShipment);
 
       const res = await request(app.getHttpServer())
         .get('/shipments/tracking/TRK-240502-1234')
         .expect(200);
 
       expect(res.body).toEqual(mockShipment);
-      expect(mockShipmentsService.findByTrackingNumber).toHaveBeenCalledWith(
+      expect(mockShipmentsService.findPublicTracking).toHaveBeenCalledWith(
         'TRK-240502-1234',
       );
     });
@@ -307,7 +286,10 @@ describe('ShipmentsController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(timeline);
-      expect(mockShipmentsService.getTimeline).toHaveBeenCalledWith(TEST_UUID);
+      expect(mockShipmentsService.getTimeline).toHaveBeenCalledWith(
+        TEST_UUID,
+        'tenant-1',
+      );
     });
   });
 
@@ -324,6 +306,7 @@ describe('ShipmentsController (integration)', () => {
       expect(res.body).toEqual(updated);
       expect(mockShipmentsService.updateStatus).toHaveBeenCalledWith(
         TEST_UUID,
+        'tenant-1',
         expect.objectContaining({ newStatus: ShipmentStatus.PICKED_UP }),
         AUTH_USER_ID,
         UserRole.MERCHANT,

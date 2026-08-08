@@ -24,7 +24,11 @@ export class AdminEventsListener {
       codCollectedToday: payload.codCollectedToday,
     };
 
-    await this.broadcastAndBuffer('admin:dashboard', event, data);
+    await this.broadcastAndBuffer(
+      `tenant:${payload.tenantId}:admin:dashboard`,
+      event,
+      data,
+    );
   }
 
   private async broadcastAndBuffer(

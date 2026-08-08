@@ -16,8 +16,15 @@ export class MerchantsService {
     private readonly walletsService: WalletsService,
   ) {}
 
-  async create(dto: CreateMerchantDto, userId: string): Promise<Merchant> {
-    const existing = await this.merchantsRepository.findByUserId(userId);
+  async create(
+    dto: CreateMerchantDto,
+    userId: string,
+    tenantId: string,
+  ): Promise<Merchant> {
+    const existing = await this.merchantsRepository.findByUserIdForTenant(
+      userId,
+      tenantId,
+    );
     if (existing) {
       throw new ConflictException('Merchant already exists for this user');
     }
@@ -33,12 +40,14 @@ export class MerchantsService {
         ? parseFloat(dto.feePerShipment)
         : undefined,
       userId,
+      tenantId,
       kycStatus: KycStatus.PENDING,
     });
   }
 
   async findAll(
     query: ListMerchantsDto,
+    tenantId: string,
   ): Promise<{ data: Merchant[]; total: number; page: number; limit: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -60,48 +69,67 @@ export class MerchantsService {
     }
 
     const [data, total] = await Promise.all([
-      this.merchantsRepository.findMany(
+      this.merchantsRepository.findManyForTenant(
+        tenantId,
         where,
         { createdAt: 'desc' },
         skip,
         limit,
       ),
-      this.merchantsRepository.count(where),
+      this.merchantsRepository.countForTenant(tenantId, where),
     ]);
 
     return { data, total, page, limit };
   }
 
-  async findById(id: string): Promise<Merchant> {
-    const merchant = await this.merchantsRepository.findById(id);
+  async findById(id: string, tenantId: string): Promise<Merchant> {
+    const merchant = await this.merchantsRepository.findByIdForTenant(
+      id,
+      tenantId,
+    );
     if (!merchant) {
       throw new NotFoundException('Merchant not found');
     }
     return merchant;
   }
 
-  async findByUserId(userId: string): Promise<Merchant | null> {
-    return this.merchantsRepository.findByUserId(userId);
+  async findByUserId(
+    userId: string,
+    tenantId: string,
+  ): Promise<Merchant | null> {
+    return this.merchantsRepository.findByUserIdForTenant(userId, tenantId);
   }
 
-  async updateKycStatus(id: string, status: KycStatus): Promise<Merchant> {
-    const merchant = await this.findById(id);
-    const updated = await this.merchantsRepository.update(id, {
-      kycStatus: status,
-    });
+  async updateKycStatus(
+    id: string,
+    status: KycStatus,
+    tenantId: string,
+  ): Promise<Merchant> {
+    const merchant = await this.findById(id, tenantId);
+    const updated = await this.merchantsRepository.updateForTenant(
+      id,
+      tenantId,
+      {
+        kycStatus: status,
+      },
+    );
 
     if (
       status === KycStatus.APPROVED &&
       merchant.kycStatus !== KycStatus.APPROVED
     ) {
-      await this.walletsService.create(id);
+      await this.walletsService.create(id, tenantId);
     }
 
     return updated;
   }
 
-  async updateFeeStructure(id: string, dto: UpdateFeesDto): Promise<Merchant> {
-    await this.findById(id);
+  async updateFeeStructure(
+    id: string,
+    dto: UpdateFeesDto,
+    tenantId: string,
+  ): Promise<Merchant> {
+    await this.findById(id, tenantId);
     const data: Record<string, unknown> = {};
     if (dto.commissionRate !== undefined) {
       data.commissionRate = parseFloat(dto.commissionRate);
@@ -109,11 +137,11 @@ export class MerchantsService {
     if (dto.feePerShipment !== undefined) {
       data.feePerShipment = parseFloat(dto.feePerShipment);
     }
-    return this.merchantsRepository.update(id, data);
+    return this.merchantsRepository.updateForTenant(id, tenantId, data);
   }
 
-  async remove(id: string): Promise<void> {
-    await this.findById(id);
-    await this.merchantsRepository.softDelete(id);
+  async remove(id: string, tenantId: string): Promise<void> {
+    await this.findById(id, tenantId);
+    await this.merchantsRepository.softDeleteForTenant(id, tenantId);
   }
 }

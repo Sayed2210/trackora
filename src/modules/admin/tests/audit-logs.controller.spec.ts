@@ -24,6 +24,15 @@ describe('AuditLogsController (integration)', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = {
+        userId: 'admin-1',
+        role: 'SUPER_ADMIN',
+        tenantId: 'tenant-1',
+        permissions: [],
+      };
+      next();
+    });
     await app.init();
   });
 
@@ -51,6 +60,7 @@ describe('AuditLogsController (integration)', () => {
 
       expect(res.body).toEqual(logs);
       expect(mockAuditLogService.findAll).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
         userId: undefined,
         action: undefined,
         entityType: undefined,
@@ -79,6 +89,7 @@ describe('AuditLogsController (integration)', () => {
 
       expect(res.body).toEqual(logs);
       expect(mockAuditLogService.findAll).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
         userId: 'user-1',
         action: 'UPDATE',
         entityType: 'Shipment',

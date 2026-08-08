@@ -49,18 +49,18 @@ export class CourierAppService {
     private readonly assignmentsService: AssignmentsService,
   ) {}
 
-  async getTaskById(courierId: string, shipmentId: string): Promise<Task> {
-    const courier = await this.prisma.courier.findUnique({
-      where: { id: courierId },
-    });
-    if (!courier) {
-      throw new NotFoundException('Courier not found');
-    }
+  async getTaskById(
+    userId: string,
+    shipmentId: string,
+    tenantId: string,
+  ): Promise<Task> {
+    const courier = await this.getCourierForUser(userId, tenantId);
 
     const shipment = await this.prisma.shipment.findFirst({
       where: {
         id: shipmentId,
-        assignedCourierId: courierId,
+        assignedCourierId: courier.id,
+        tenantId,
         status: {
           in: [
             ShipmentStatus.PICKED_UP,
@@ -102,17 +102,13 @@ export class CourierAppService {
     };
   }
 
-  async getTasks(courierId: string): Promise<Task[]> {
-    const courier = await this.prisma.courier.findUnique({
-      where: { id: courierId },
-    });
-    if (!courier) {
-      throw new NotFoundException('Courier not found');
-    }
+  async getTasks(userId: string, tenantId: string): Promise<Task[]> {
+    const courier = await this.getCourierForUser(userId, tenantId);
 
     const shipments = await this.prisma.shipment.findMany({
       where: {
-        assignedCourierId: courierId,
+        assignedCourierId: courier.id,
+        tenantId,
         status: {
           in: [
             ShipmentStatus.PICKED_UP,
@@ -148,13 +144,15 @@ export class CourierAppService {
   }
 
   async updateTaskStatus(
-    courierId: string,
+    userId: string,
     shipmentId: string,
     dto: UpdateTaskStatusDto,
+    tenantId: string,
   ) {
+    const courier = await this.getCourierForUser(userId, tenantId);
     // Verify shipment belongs to this courier
     const shipment = await this.prisma.shipment.findFirst({
-      where: { id: shipmentId, assignedCourierId: courierId },
+      where: { id: shipmentId, assignedCourierId: courier.id, tenantId },
     });
     if (!shipment) {
       throw new ForbiddenException('Shipment not assigned to this courier');
@@ -162,6 +160,7 @@ export class CourierAppService {
 
     const updated = await this.shipmentsService.updateStatus(
       shipmentId,
+      tenantId,
       {
         newStatus: dto.status,
         otp: dto.otp,
@@ -170,7 +169,7 @@ export class CourierAppService {
         gpsLocation: dto.gpsLocation,
         returnReason: dto.returnReason,
       },
-      courierId,
+      userId,
       'COURIER',
     );
 
@@ -184,19 +183,26 @@ export class CourierAppService {
         where: { shipmentId, status: AssignmentStatus.ACTIVE },
       });
       if (assignment) {
-        await this.assignmentsService.completeAssignment(assignment.id);
+        await this.assignmentsService.completeAssignment(
+          assignment.id,
+          tenantId,
+        );
       }
     }
 
     return updated;
   }
 
-  async logDeposit(courierId: string, dto: CourierDepositDto) {
-    const courier = await this.prisma.courier.findUnique({
-      where: { id: courierId },
-    });
-    if (!courier) {
-      throw new NotFoundException('Courier not found');
+  async logDeposit(userId: string, dto: CourierDepositDto, tenantId: string) {
+    const courier = await this.getCourierForUser(userId, tenantId);
+
+    if (dto.depositedTo) {
+      const recipient = await this.prisma.user.findFirst({
+        where: { id: dto.depositedTo, tenantId, isActive: true },
+        select: { id: true },
+      });
+      if (!recipient)
+        throw new NotFoundException('Deposit recipient not found');
     }
 
     const amount = dto.amount;
@@ -212,7 +218,7 @@ export class CourierAppService {
       // Create deposit record
       const deposit = await tx.courierCashDeposit.create({
         data: {
-          courierId,
+          courierId: courier.id,
           amount,
           verifiedByUserId: dto.depositedTo,
           notes: dto.notes || null,
@@ -221,7 +227,7 @@ export class CourierAppService {
 
       // Decrease courier cashHeld
       await tx.courier.update({
-        where: { id: courierId },
+        where: { id: courier.id, tenantId },
         data: {
           cashHeld: { decrement: amount },
         },
@@ -231,14 +237,12 @@ export class CourierAppService {
     });
   }
 
-  async getPerformance(courierId: string) {
-    const courier = await this.prisma.courier.findUnique({
-      where: { id: courierId },
+  async getPerformance(userId: string, tenantId: string) {
+    const courier = await this.prisma.courier.findFirst({
+      where: { userId, tenantId },
       include: { user: true },
     });
-    if (!courier) {
-      throw new NotFoundException('Courier not found');
-    }
+    if (!courier) throw new NotFoundException('Courier not found');
 
     const total =
       courier.totalDelivered + courier.totalFailed + courier.totalReturned;
@@ -259,9 +263,11 @@ export class CourierAppService {
   }
 
   async syncUpdates(
-    courierId: string,
+    userId: string,
     dto: SyncUpdatesDto,
+    tenantId: string,
   ): Promise<SyncResult> {
+    const courier = await this.getCourierForUser(userId, tenantId);
     const result: SyncResult = {
       processed: 0,
       failed: 0,
@@ -271,7 +277,11 @@ export class CourierAppService {
     for (const update of dto.updates) {
       try {
         const shipment = await this.prisma.shipment.findFirst({
-          where: { id: update.shipmentId, assignedCourierId: courierId },
+          where: {
+            id: update.shipmentId,
+            assignedCourierId: courier.id,
+            tenantId,
+          },
         });
 
         if (!shipment) {
@@ -321,16 +331,21 @@ export class CourierAppService {
             continue;
           }
 
-          await this.updateTaskStatus(courierId, update.shipmentId, {
-            status: payload.status,
-            collectedCash: payload.collectedCash,
-            otp: payload.otp,
-            notes: payload.notes,
-            gpsLocation: payload.gpsLocation,
-            returnReason: payload.returnReason as
-              | import('@prisma/client').ReturnReason
-              | undefined,
-          });
+          await this.updateTaskStatus(
+            userId,
+            update.shipmentId,
+            {
+              status: payload.status,
+              collectedCash: payload.collectedCash,
+              otp: payload.otp,
+              notes: payload.notes,
+              gpsLocation: payload.gpsLocation,
+              returnReason: payload.returnReason as
+                | import('@prisma/client').ReturnReason
+                | undefined,
+            },
+            tenantId,
+          );
 
           result.processed++;
         }
@@ -343,6 +358,14 @@ export class CourierAppService {
     }
 
     return result;
+  }
+
+  private async getCourierForUser(userId: string, tenantId: string) {
+    const courier = await this.prisma.courier.findFirst({
+      where: { userId, tenantId, isActive: true },
+    });
+    if (!courier) throw new NotFoundException('Courier not found');
+    return courier;
   }
 
   private maskPhone(phone: string): string {

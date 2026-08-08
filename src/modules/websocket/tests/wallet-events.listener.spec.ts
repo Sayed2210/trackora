@@ -37,6 +37,7 @@ describe('WalletEventsListener', () => {
 
   it('should broadcast wallet:balance_updated to merchant room', async () => {
     const payload = {
+      tenantId: 'tenant-1',
       walletId: 'wallet-1',
       merchantId: 'merchant-1',
       balance: 950,
@@ -47,9 +48,11 @@ describe('WalletEventsListener', () => {
 
     await listener.handleWalletBalanceUpdated(payload);
 
-    expect(wsGateway.server.to).toHaveBeenCalledWith('merchant:merchant-1');
+    expect(wsGateway.server.to).toHaveBeenCalledWith(
+      'tenant:tenant-1:merchant:merchant-1',
+    );
     expect(wsService.bufferEvent).toHaveBeenCalledWith(
-      'merchant:merchant-1',
+      'tenant:tenant-1:merchant:merchant-1',
       'wallet:balance_updated',
       expect.objectContaining({ walletId: 'wallet-1' }),
     );

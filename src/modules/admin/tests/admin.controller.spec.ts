@@ -35,6 +35,15 @@ describe('AdminController (integration)', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = {
+        userId: 'admin-1',
+        role: 'SUPER_ADMIN',
+        tenantId: 'tenant-1',
+        permissions: [],
+      };
+      next();
+    });
     await app.init();
   });
 
@@ -56,7 +65,9 @@ describe('AdminController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(dashboard);
-      expect(mockDashboardService.getDashboard).toHaveBeenCalled();
+      expect(mockDashboardService.getDashboard).toHaveBeenCalledWith(
+        'tenant-1',
+      );
     });
   });
 
@@ -70,7 +81,9 @@ describe('AdminController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(summary);
-      expect(mockDashboardService.getFinancialSummary).toHaveBeenCalled();
+      expect(mockDashboardService.getFinancialSummary).toHaveBeenCalledWith(
+        'tenant-1',
+      );
     });
   });
 
@@ -86,6 +99,7 @@ describe('AdminController (integration)', () => {
       expect(res.body).toEqual(report);
       expect(mockReportsService.generateDailyReport).toHaveBeenCalledWith(
         '2024-05-01',
+        'tenant-1',
       );
     });
   });
@@ -106,7 +120,11 @@ describe('AdminController (integration)', () => {
       expect(res.body).toEqual(report);
       expect(
         mockReportsService.generateCourierPerformanceReport,
-      ).toHaveBeenCalledWith(new Date('2024-05-01'), new Date('2024-05-31'));
+      ).toHaveBeenCalledWith(
+        'tenant-1',
+        new Date('2024-05-01'),
+        new Date('2024-05-31'),
+      );
     });
 
     it('should generate report without date range', async () => {
@@ -122,7 +140,7 @@ describe('AdminController (integration)', () => {
       expect(res.body).toEqual(report);
       expect(
         mockReportsService.generateCourierPerformanceReport,
-      ).toHaveBeenCalledWith(undefined, undefined);
+      ).toHaveBeenCalledWith('tenant-1', undefined, undefined);
     });
   });
 
@@ -140,7 +158,7 @@ describe('AdminController (integration)', () => {
       expect(res.body).toEqual(report);
       expect(
         mockReportsService.generateMerchantDeliveryReport,
-      ).toHaveBeenCalledWith(undefined, undefined);
+      ).toHaveBeenCalledWith('tenant-1', undefined, undefined);
     });
   });
 });

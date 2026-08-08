@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
-import { Prisma, Transaction, TransactionType, Wallet } from '@prisma/client';
+import { Prisma, Transaction, TransactionType } from '@prisma/client';
 
 interface CreateTransactionInput {
   walletId: string;
@@ -50,6 +50,14 @@ export class TransactionsService {
             throw new NotFoundException(
               `Wallet not found for id ${input.walletId}`,
             );
+          }
+
+          if (input.shipmentId) {
+            const shipment = await tx.shipment.findFirst({
+              where: { id: input.shipmentId, tenantId: wallet.tenantId },
+              select: { id: true },
+            });
+            if (!shipment) throw new NotFoundException('Shipment not found');
           }
 
           const amount = Math.abs(input.amount);
@@ -129,9 +137,9 @@ export class TransactionsService {
     );
   }
 
-  async getRunningBalance(walletId: string): Promise<number> {
-    const wallet = await this.prisma.wallet.findUnique({
-      where: { id: walletId },
+  async getRunningBalance(walletId: string, tenantId: string): Promise<number> {
+    const wallet = await this.prisma.wallet.findFirst({
+      where: { id: walletId, tenantId },
     });
     if (!wallet) {
       throw new NotFoundException('Wallet not found');
@@ -141,6 +149,7 @@ export class TransactionsService {
 
   async getTransactions(
     walletId: string,
+    tenantId: string,
     options: {
       page?: number;
       limit?: number;
@@ -158,7 +167,10 @@ export class TransactionsService {
     const limit = options.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: Record<string, unknown> = { walletId };
+    const where: Record<string, unknown> = {
+      walletId,
+      wallet: { tenantId },
+    };
     if (options.type) where.type = options.type;
     if (options.from || options.to) {
       where.createdAt = {};
