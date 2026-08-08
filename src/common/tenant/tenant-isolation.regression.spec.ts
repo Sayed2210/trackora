@@ -171,12 +171,7 @@ describe('P0 tenant isolation regression', () => {
     const prisma = {
       merchant: { findFirst: jest.fn().mockResolvedValue(null) },
     } as unknown as PrismaService;
-    const service = new BulkUploadService(
-      prisma,
-      {} as ShipmentsRepository,
-      {} as never,
-      {} as never,
-    );
+    const service = new BulkUploadService(prisma, {} as never, {} as never);
 
     await expect(
       service.processFile(
@@ -188,8 +183,8 @@ describe('P0 tenant isolation regression', () => {
       ),
     ).rejects.toThrow(NotFoundException);
     expect(prisma.merchant.findFirst).toHaveBeenCalledWith({
-      where: { id: 'merchant-a', tenantId: tenantB, isActive: true },
-      select: { id: true },
+      where: { id: 'merchant-a', tenantId: tenantB },
+      select: { id: true, tenantId: true, isActive: true },
     });
   });
 

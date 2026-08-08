@@ -11,8 +11,6 @@ import {
   UploadedFile,
   BadRequestException,
   Req,
-  ForbiddenException,
-  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -45,7 +43,6 @@ import {
   ShipmentResponseDto,
 } from '../dtos/shipment-response.dto';
 import { BulkUploadResultDto } from '../dtos/bulk-upload-result.dto';
-import { PrismaService } from '@core/prisma/prisma.service';
 
 interface RequestWithUser extends Request {
   user: AuthenticatedRequestUser;
@@ -57,7 +54,6 @@ export class ShipmentsController {
   constructor(
     private readonly shipmentsService: ShipmentsService,
     private readonly bulkUploadService: BulkUploadService,
-    private readonly prisma: PrismaService,
   ) {}
 
   @Post()
