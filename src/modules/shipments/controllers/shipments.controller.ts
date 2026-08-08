@@ -11,6 +11,8 @@ import {
   UploadedFile,
   BadRequestException,
   Req,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -24,6 +26,8 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiUnauthorizedResponse,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { ShipmentsService } from '../services/shipments.service';
@@ -40,6 +44,8 @@ import {
   PaginatedShipmentsResponseDto,
   ShipmentResponseDto,
 } from '../dtos/shipment-response.dto';
+import { BulkUploadResultDto } from '../dtos/bulk-upload-result.dto';
+import { PrismaService } from '@core/prisma/prisma.service';
 
 interface RequestWithUser extends Request {
   user: AuthenticatedRequestUser;
@@ -51,6 +57,7 @@ export class ShipmentsController {
   constructor(
     private readonly shipmentsService: ShipmentsService,
     private readonly bulkUploadService: BulkUploadService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post()
@@ -71,10 +78,15 @@ export class ShipmentsController {
 
   @Post('bulk-upload')
   @ApiBearerAuth()
-  @Roles(UserRole.MERCHANT, UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
+  @Roles(UserRole.MERCHANT)
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Bulk import shipments from an Excel file' })
+  @ApiOperation({
+    summary: 'Bulk import shipments for the authenticated Merchant',
+    description:
+      'Resolves the authenticated user to an active Merchant profile. Merchant and tenant identity are never read from the workbook.',
+  })
   @ApiBody({
+    required: true,
     schema: {
       type: 'object',
       required: ['file'],
@@ -82,7 +94,7 @@ export class ShipmentsController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Excel workbook containing up to 1,000 shipments.',
+          description: 'Excel workbook containing up to 5,000 shipments.',
         },
         merchantId: {
           type: 'string',
@@ -92,6 +104,22 @@ export class ShipmentsController {
         },
       },
     },
+  })
+  @ApiCreatedResponse({
+    description:
+      'Workbook processed. Invalid data rows are returned in the errors array.',
+    type: BulkUploadResultDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'File is missing, unreadable, empty, exceeds the row limit, or contains row data that cannot be parsed.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description: 'Merchant role required or Merchant profile is inactive.',
+  })
+  @ApiNotFoundResponse({
+    description: 'Merchant profile was not found for the authenticated user.',
   })
   @UseInterceptors(FileInterceptor('file'))
   async bulkUpload(

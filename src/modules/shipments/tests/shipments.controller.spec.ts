@@ -6,6 +6,8 @@ import { ShipmentsService } from '../services/shipments.service';
 import { BulkUploadService } from '../services/bulk-upload.service';
 import { ShipmentStatus, ShipmentType } from '../entities/shipment.entity';
 import { UserRole } from '@modules/users/entities/user.entity';
+import { PrismaService } from '@core/prisma/prisma.service';
+import { BulkUploadContext } from '../services/bulk-upload.service';
 
 const mockShipmentsService = {
   create: jest.fn(),
@@ -17,9 +19,32 @@ const mockShipmentsService = {
   updateStatus: jest.fn(),
 };
 
-const mockBulkUploadService = {
-  processFile: jest.fn(),
+const mockBulkUploadResult = {
+  totalRows: 1,
+  successCount: 1,
+  failedCount: 0,
+  errors: [] as Array<{ rowIndex: number; message: string }>,
 };
+
+const mockBulkUploadService = {
+  processFile:
+    jest.fn<
+      (
+        buffer: Buffer,
+        context: BulkUploadContext,
+      ) => Promise<typeof mockBulkUploadResult>
+    >(),
+};
+
+const mockPrisma = {
+  merchant: {
+    findUnique: jest.fn(),
+  },
+};
+
+const AUTH_USER_ID = 'user-account-id';
+const MERCHANT_ID = 'merchant-profile-id';
+const TENANT_ID = 'tenant-id';
 
 const mockAuthGuard = {
   canActivate: jest.fn((context: ExecutionContext) => {
@@ -51,6 +76,7 @@ const mockShipment = {
 
 describe('ShipmentsController (integration)', () => {
   let app: INestApplication;
+  let capturedBulkUploadContext: BulkUploadContext | undefined;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -58,6 +84,7 @@ describe('ShipmentsController (integration)', () => {
       providers: [
         { provide: ShipmentsService, useValue: mockShipmentsService },
         { provide: BulkUploadService, useValue: mockBulkUploadService },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: 'APP_GUARD', useValue: mockAuthGuard },
       ],
     }).compile();
@@ -72,6 +99,12 @@ describe('ShipmentsController (integration)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    capturedBulkUploadContext = undefined;
+    mockPrisma.merchant.findUnique.mockResolvedValue({
+      id: MERCHANT_ID,
+      tenantId: TENANT_ID,
+      isActive: true,
+    });
   });
 
   describe('POST /shipments', () => {
@@ -100,6 +133,41 @@ describe('ShipmentsController (integration)', () => {
         'mock-merchant-id',
         UserRole.MERCHANT,
       );
+      expect(capturedBulkUploadContext?.merchantId).not.toBe(AUTH_USER_ID);
+    });
+
+    it('rejects a missing Merchant profile', async () => {
+      mockPrisma.merchant.findUnique.mockResolvedValueOnce(null);
+
+      await request(app.getHttpServer())
+        .post('/shipments/bulk-upload')
+        .attach('file', Buffer.from('workbook'), 'shipments.xlsx')
+        .expect(404);
+
+      expect(mockBulkUploadService.processFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects an inactive Merchant profile', async () => {
+      mockPrisma.merchant.findUnique.mockResolvedValueOnce({
+        id: MERCHANT_ID,
+        tenantId: TENANT_ID,
+        isActive: false,
+      });
+
+      await request(app.getHttpServer())
+        .post('/shipments/bulk-upload')
+        .attach('file', Buffer.from('workbook'), 'shipments.xlsx')
+        .expect(403);
+
+      expect(mockBulkUploadService.processFile).not.toHaveBeenCalled();
+    });
+
+    it('keeps the Merchant endpoint restricted to MERCHANT', () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        ShipmentsController.prototype.bulkUpload,
+      ) as UserRole[] | undefined;
+      expect(roles).toEqual([UserRole.MERCHANT]);
     });
   });
 
@@ -240,7 +308,7 @@ describe('ShipmentsController (integration)', () => {
         TEST_UUID,
         'tenant-1',
         expect.objectContaining({ newStatus: ShipmentStatus.PICKED_UP }),
-        'mock-merchant-id',
+        AUTH_USER_ID,
         UserRole.MERCHANT,
       );
     });
