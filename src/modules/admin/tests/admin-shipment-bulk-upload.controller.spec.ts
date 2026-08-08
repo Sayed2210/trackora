@@ -16,7 +16,6 @@ import { AdminShipmentBulkUploadController } from '../controllers/admin-shipment
 const ADMIN_USER_ID = '123e4567-e89b-42d3-a456-426614174001';
 const MERCHANT_ID = '123e4567-e89b-42d3-a456-426614174002';
 const TENANT_ID = '123e4567-e89b-42d3-a456-426614174003';
-const OTHER_TENANT_ID = '123e4567-e89b-42d3-a456-426614174004';
 
 const bulkResult = {
   totalRows: 2,
@@ -32,7 +31,7 @@ describe('AdminShipmentBulkUploadController', () => {
 
   const prisma = {
     user: { findUnique: jest.fn() },
-    merchant: { findUnique: jest.fn() },
+    merchant: { findFirst: jest.fn() },
   };
   const bulkUploadService = {
     processFile:
@@ -89,7 +88,7 @@ describe('AdminShipmentBulkUploadController', () => {
       role: currentRole,
       isActive: true,
     });
-    prisma.merchant.findUnique.mockResolvedValue({
+    prisma.merchant.findFirst.mockResolvedValue({
       id: MERCHANT_ID,
       tenantId: TENANT_ID,
       isActive: true,
@@ -186,11 +185,11 @@ describe('AdminShipmentBulkUploadController', () => {
   it('rejects an invalid Merchant UUID', async () => {
     await upload('not-a-uuid').expect(400);
 
-    expect(prisma.merchant.findUnique).not.toHaveBeenCalled();
+    expect(prisma.merchant.findFirst).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the selected Merchant does not exist', async () => {
-    prisma.merchant.findUnique.mockResolvedValueOnce(null);
+    prisma.merchant.findFirst.mockResolvedValueOnce(null);
 
     await upload().expect(404);
 
@@ -198,7 +197,7 @@ describe('AdminShipmentBulkUploadController', () => {
   });
 
   it('rejects an inactive Merchant', async () => {
-    prisma.merchant.findUnique.mockResolvedValueOnce({
+    prisma.merchant.findFirst.mockResolvedValueOnce({
       id: MERCHANT_ID,
       tenantId: TENANT_ID,
       isActive: false,
@@ -210,15 +209,15 @@ describe('AdminShipmentBulkUploadController', () => {
   });
 
   it('rejects cross-tenant Merchant access', async () => {
-    prisma.merchant.findUnique.mockResolvedValueOnce({
-      id: MERCHANT_ID,
-      tenantId: OTHER_TENANT_ID,
-      isActive: true,
-    });
+    prisma.merchant.findFirst.mockResolvedValueOnce(null);
 
-    await upload().expect(403);
+    await upload().expect(404);
 
     expect(bulkUploadService.processFile).not.toHaveBeenCalled();
+    expect(prisma.merchant.findFirst).toHaveBeenCalledWith({
+      where: { id: MERCHANT_ID, tenantId: TENANT_ID },
+      select: { id: true, tenantId: true, isActive: true },
+    });
   });
 
   it('rejects an Admin without tenant context', async () => {
@@ -231,7 +230,7 @@ describe('AdminShipmentBulkUploadController', () => {
 
     await upload().expect(403);
 
-    expect(prisma.merchant.findUnique).not.toHaveBeenCalled();
+    expect(prisma.merchant.findFirst).not.toHaveBeenCalled();
   });
 
   it('never uses the Admin User.id as Shipment.merchantId', async () => {
