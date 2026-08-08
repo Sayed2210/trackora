@@ -28,6 +28,7 @@ import { Request } from 'express';
 import { PrismaService } from '@core/prisma/prisma.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { BulkUploadService } from '@modules/shipments/services/bulk-upload.service';
 import { BulkUploadResultDto } from '@modules/shipments/dtos/bulk-upload-result.dto';
@@ -98,6 +99,7 @@ export class AdminShipmentBulkUploadController {
   async bulkUpload(
     @Param('merchantId', ParseUUIDPipe) merchantId: string,
     @UploadedFile() file: { buffer: Buffer } | undefined,
+    @EffectiveTenantId() tenantId: string,
     @Req() request: AdminBulkUploadRequest,
   ) {
     if (!file) {
@@ -119,18 +121,12 @@ export class AdminShipmentBulkUploadController {
     ) {
       throw new ForbiddenException('Active tenant Admin profile is required');
     }
-    if (!admin.tenantId) {
-      throw new ForbiddenException('Admin is not assigned to a tenant');
-    }
-
-    const requestTenantId =
-      request.user.impersonationContext?.tenantId ?? request.user.tenantId;
-    if (requestTenantId !== undefined && requestTenantId !== admin.tenantId) {
+    if (!admin.tenantId || admin.tenantId !== tenantId) {
       throw new ForbiddenException('Invalid Admin tenant context');
     }
 
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
+    const merchant = await this.prisma.merchant.findFirst({
+      where: { id: merchantId, tenantId },
       select: { id: true, tenantId: true, isActive: true },
     });
     if (!merchant) {
@@ -139,15 +135,9 @@ export class AdminShipmentBulkUploadController {
     if (!merchant.isActive) {
       throw new ForbiddenException('Merchant profile is inactive');
     }
-    if (!merchant.tenantId || merchant.tenantId !== admin.tenantId) {
-      throw new ForbiddenException(
-        'Cannot upload shipments for a Merchant outside the Admin tenant',
-      );
-    }
-
     const result = await this.bulkUploadService.processFile(file.buffer, {
       merchantId: merchant.id,
-      tenantId: merchant.tenantId,
+      tenantId,
       uploadedByUserId: request.user.userId,
       uploadedByRole: request.user.role,
     });
@@ -156,13 +146,13 @@ export class AdminShipmentBulkUploadController {
     await this.auditLogService.writeAuditLog({
       actorUserId: auditActor.id,
       actorRole: auditActor.role,
-      tenantId: merchant.tenantId,
+      tenantId,
       action: 'shipment.bulk-upload',
       resourceType: 'Merchant',
       resourceId: merchant.id,
       newValue: {
         merchantId: merchant.id,
-        tenantId: merchant.tenantId,
+        tenantId,
         totalRows: result.totalRows,
         successCount: result.successCount,
         failedCount: result.failedCount,

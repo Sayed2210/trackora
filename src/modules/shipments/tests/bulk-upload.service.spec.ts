@@ -50,7 +50,7 @@ describe('BulkUploadService', () => {
   let statusLogData: Prisma.ShipmentStatusLogCreateManyInput[];
 
   const tx = {
-    merchant: { findUnique: jest.fn() },
+    merchant: { findFirst: jest.fn() },
     shipment: {
       createMany:
         jest.fn<
@@ -65,7 +65,7 @@ describe('BulkUploadService', () => {
     },
   };
   const prisma = {
-    merchant: { findUnique: jest.fn() },
+    merchant: { findFirst: jest.fn() },
     zone: { findMany: jest.fn() },
     $transaction:
       jest.fn<
@@ -86,8 +86,8 @@ describe('BulkUploadService', () => {
       tenantId: TENANT_ID,
       isActive: true,
     };
-    prisma.merchant.findUnique.mockResolvedValue(merchant);
-    tx.merchant.findUnique.mockResolvedValue(merchant);
+    prisma.merchant.findFirst.mockResolvedValue(merchant);
+    tx.merchant.findFirst.mockResolvedValue(merchant);
     prisma.zone.findMany.mockResolvedValue([
       { id: 'zone-id', code: 'CAI', nameAr: 'القاهرة' },
     ]);
@@ -287,7 +287,7 @@ describe('BulkUploadService', () => {
   });
 
   it('rejects a missing Merchant before createMany', async () => {
-    prisma.merchant.findUnique.mockResolvedValueOnce(null);
+    prisma.merchant.findFirst.mockResolvedValueOnce(null);
 
     await expect(
       service.processFile(workbookBuffer([validRow]), context),
@@ -296,7 +296,7 @@ describe('BulkUploadService', () => {
   });
 
   it('rejects an inactive Merchant before createMany', async () => {
-    prisma.merchant.findUnique.mockResolvedValueOnce({
+    prisma.merchant.findFirst.mockResolvedValueOnce({
       id: MERCHANT_ID,
       tenantId: TENANT_ID,
       isActive: false,
@@ -309,7 +309,7 @@ describe('BulkUploadService', () => {
   });
 
   it('rejects a mismatched Merchant tenant context before createMany', async () => {
-    prisma.merchant.findUnique.mockResolvedValueOnce({
+    prisma.merchant.findFirst.mockResolvedValueOnce({
       id: MERCHANT_ID,
       tenantId: '123e4567-e89b-42d3-a456-426614174099',
       isActive: true,
@@ -322,7 +322,7 @@ describe('BulkUploadService', () => {
   });
 
   it('rechecks Merchant state in the transaction immediately before createMany', async () => {
-    tx.merchant.findUnique.mockResolvedValueOnce({
+    tx.merchant.findFirst.mockResolvedValueOnce({
       id: MERCHANT_ID,
       tenantId: TENANT_ID,
       isActive: false,
@@ -342,6 +342,6 @@ describe('BulkUploadService', () => {
         uploadedByRole: UserRole.SUPER_ADMIN,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(prisma.merchant.findUnique).not.toHaveBeenCalled();
+    expect(prisma.merchant.findFirst).not.toHaveBeenCalled();
   });
 });
