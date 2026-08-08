@@ -22,7 +22,11 @@ const mockCouriersService = {
 const mockAuthGuard = {
   canActivate: jest.fn((context: ExecutionContext) => {
     const request = context.switchToHttp().getRequest();
-    request.user = { userId: 'mock-user-id', role: UserRole.SUPER_ADMIN };
+    request.user = {
+      userId: 'mock-user-id',
+      role: UserRole.SUPER_ADMIN,
+      tenantId: 'tenant-1',
+    };
     return true;
   }),
 };
@@ -117,6 +121,7 @@ describe('CouriersController (integration)', () => {
       expect(res.body).toEqual(mockCourier);
       expect(mockCouriersService.create).toHaveBeenCalledWith(
         expect.objectContaining(dto),
+        'tenant-1',
       );
     });
 
@@ -192,7 +197,7 @@ describe('CouriersController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(JSON.parse(JSON.stringify(result)));
-      expect(mockCouriersService.findAll).toHaveBeenCalledWith({
+      expect(mockCouriersService.findAll).toHaveBeenCalledWith('tenant-1', {
         search: 'ahmed',
         isActive: true,
         isAvailable: false,
@@ -210,7 +215,10 @@ describe('CouriersController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(mockCourier);
-      expect(mockCouriersService.findById).toHaveBeenCalledWith(TEST_UUID);
+      expect(mockCouriersService.findById).toHaveBeenCalledWith(
+        TEST_UUID,
+        'tenant-1',
+      );
     });
   });
 
@@ -225,9 +233,11 @@ describe('CouriersController (integration)', () => {
         .expect(200);
 
       expect(res.body).toEqual(updated);
-      expect(mockCouriersService.updateZones).toHaveBeenCalledWith(TEST_UUID, [
-        'CAI-03',
-      ]);
+      expect(mockCouriersService.updateZones).toHaveBeenCalledWith(
+        TEST_UUID,
+        ['CAI-03'],
+        'tenant-1',
+      );
     });
   });
 
@@ -245,6 +255,7 @@ describe('CouriersController (integration)', () => {
       expect(mockCouriersService.updateAvailability).toHaveBeenCalledWith(
         TEST_UUID,
         false,
+        'tenant-1',
       );
     });
   });

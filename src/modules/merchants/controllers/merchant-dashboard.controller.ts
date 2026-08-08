@@ -8,6 +8,7 @@ import {
 import { MerchantDashboardService } from '../services/merchant-dashboard.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 import {
   MerchantAnalyticsResponseDto,
   MerchantDashboardResponseDto,
@@ -24,8 +25,11 @@ export class MerchantDashboardController {
   @Get(':id/dashboard')
   @Roles(UserRole.MERCHANT, UserRole.SUPER_ADMIN, UserRole.OPERATIONS_MANAGER)
   @ApiOkResponse({ type: MerchantDashboardResponseDto })
-  async getDashboard(@Param('id', ParseUUIDPipe) id: string) {
-    return this.merchantDashboardService.getDashboard(id);
+  async getDashboard(
+    @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.merchantDashboardService.getDashboard(id, tenantId);
   }
 
   @Get(':id/analytics')
@@ -34,10 +38,12 @@ export class MerchantDashboardController {
   @ApiOkResponse({ type: MerchantAnalyticsResponseDto })
   async getAnalytics(
     @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
     @Query('days') days?: string,
   ) {
     return this.merchantDashboardService.getAnalytics(
       id,
+      tenantId,
       days ? parseInt(days, 10) : 30,
     );
   }

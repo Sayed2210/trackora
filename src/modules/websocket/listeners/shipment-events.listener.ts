@@ -32,21 +32,21 @@ export class ShipmentEventsListener {
     };
 
     await this.broadcastAndBuffer(
-      `merchant:${payload.merchantId}`,
+      `tenant:${payload.tenantId}:merchant:${payload.merchantId}`,
       event,
       data,
     );
 
     if (payload.courierId) {
       await this.broadcastAndBuffer(
-        `courier:${payload.courierId}`,
+        `tenant:${payload.tenantId}:courier:${payload.courierId}`,
         event,
         data,
       );
     }
 
     await this.broadcastAndBuffer(
-      `shipment:${payload.trackingNumber}`,
+      `tenant:${payload.tenantId}:shipment:${payload.trackingNumber}`,
       event,
       data,
     );
@@ -64,7 +64,7 @@ export class ShipmentEventsListener {
     };
 
     await this.broadcastAndBuffer(
-      `merchant:${payload.merchantId}`,
+      `tenant:${payload.tenantId}:merchant:${payload.merchantId}`,
       event,
       data,
     );

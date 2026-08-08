@@ -38,6 +38,7 @@ describe('PlatformSupportService', () => {
       findTenantUser: jest.fn(),
       findDefaultTenantUser: jest.fn(),
       createImpersonationSession: jest.fn(),
+      endActiveSessionsForActor: jest.fn().mockResolvedValue({ count: 0 }),
       findSessionById: jest.fn(),
       findActiveSessionForActor: jest.fn(),
       endSession: jest.fn(),
@@ -188,6 +189,9 @@ describe('PlatformSupportService', () => {
         targetUserId,
         status: ImpersonationStatus.ACTIVE,
       }),
+    );
+    expect(repository.endActiveSessionsForActor).toHaveBeenCalledWith(
+      actorUserId,
     );
     expect(jwtService.sign).toHaveBeenCalledWith(
       expect.objectContaining({

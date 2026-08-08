@@ -25,31 +25,59 @@ export class CouriersRepository extends AbstractRepository<Courier> {
     return { isActive: true };
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.delegate.update({ where: { id }, data: { isActive: false } });
+  softDelete(): Promise<void> {
+    throw new Error('Use softDeleteForTenant for tenant-owned couriers');
   }
 
-  async findByUserId(userId: string): Promise<Courier | null> {
-    return this.delegate.findFirst({ where: { ...this.baseWhere, userId } });
-  }
-
-  async findAvailableCouriers(): Promise<Courier[]> {
-    return this.delegate.findMany({
-      where: { ...this.baseWhere, isAvailable: true },
+  async softDeleteForTenant(id: string, tenantId: string): Promise<void> {
+    await this.delegate.update({
+      where: { id, tenantId },
+      data: { isActive: false },
     });
   }
 
-  async findByZoneCode(zoneCode: string): Promise<Courier[]> {
+  async findByIdForTenant(
+    id: string,
+    tenantId: string,
+  ): Promise<Courier | null> {
+    return this.delegate.findFirst({ where: { id, tenantId } });
+  }
+
+  async findByUserIdForTenant(
+    userId: string,
+    tenantId: string,
+  ): Promise<Courier | null> {
+    return this.delegate.findFirst({
+      where: { ...this.baseWhere, userId, tenantId },
+    });
+  }
+
+  async findAvailableCouriersForTenant(tenantId: string): Promise<Courier[]> {
+    return this.delegate.findMany({
+      where: { ...this.baseWhere, tenantId, isAvailable: true },
+    });
+  }
+
+  async findByZoneCodeForTenant(
+    zoneCode: string,
+    tenantId: string,
+  ): Promise<Courier[]> {
     return this.delegate.findMany({
       where: {
         ...this.baseWhere,
+        tenantId,
         zoneCodes: { has: zoneCode },
       },
     });
   }
 
-  async findWithFilters(filters: CourierFilter, skip: number, take: number) {
-    const where = this.buildWhere(filters);
+  async findWithFiltersForTenant(
+    tenantId: string,
+    filters: CourierFilter,
+    skip: number,
+    take: number,
+  ) {
+    const where = { ...this.buildWhere(filters), tenantId };
     const [data, total] = await Promise.all([
       this.delegate.findMany({
         where,
@@ -66,6 +94,7 @@ export class CouriersRepository extends AbstractRepository<Courier> {
 
   async countActiveTasksByCourierIds(
     courierIds: string[],
+    tenantId: string,
   ): Promise<Map<string, number>> {
     if (courierIds.length === 0) return new Map();
 
@@ -74,11 +103,20 @@ export class CouriersRepository extends AbstractRepository<Courier> {
       where: {
         courierId: { in: courierIds },
         status: AssignmentStatus.ACTIVE,
+        shipment: { tenantId },
       },
       _count: { _all: true },
     });
 
     return new Map(grouped.map((item) => [item.courierId, item._count._all]));
+  }
+
+  async updateForTenant(
+    id: string,
+    tenantId: string,
+    data: Record<string, unknown>,
+  ): Promise<Courier> {
+    return this.delegate.update({ where: { id, tenantId }, data });
   }
 
   private buildWhere(filters: CourierFilter): Record<string, unknown> {

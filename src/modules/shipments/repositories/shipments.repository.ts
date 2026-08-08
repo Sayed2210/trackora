@@ -7,7 +7,8 @@ import {
 import { Shipment } from '../entities/shipment.entity';
 
 export interface ShipmentFilter {
-  status?: string | string[];
+  tenantId: string;
+  status?: string | { in: string[] };
   merchantId?: string;
   assignedCourierId?: string;
   zoneId?: string;
@@ -37,8 +38,35 @@ export class ShipmentsRepository extends AbstractRepository<Shipment> {
     );
   }
 
+  async findByIdForTenant(
+    id: string,
+    tenantId: string,
+  ): Promise<Shipment | null> {
+    return this.delegate.findFirst({ where: { id, tenantId } });
+  }
+
+  async findByTrackingNumberForTenant(
+    trackingNumber: string,
+    tenantId: string,
+  ): Promise<Shipment | null> {
+    return this.delegate.findFirst({ where: { trackingNumber, tenantId } });
+  }
+
+  /** Internal global uniqueness check; never returns shipment data to an API. */
   async findByTrackingNumber(trackingNumber: string): Promise<Shipment | null> {
     return this.delegate.findUnique({ where: { trackingNumber } });
+  }
+
+  async findPublicTracking(trackingNumber: string) {
+    return this.prisma.shipment.findUnique({
+      where: { trackingNumber },
+      select: {
+        trackingNumber: true,
+        status: true,
+        updatedAt: true,
+        deliveredAt: true,
+      },
+    });
   }
 
   async findExistingTrackingNumbers(
@@ -75,6 +103,12 @@ export class ShipmentsRepository extends AbstractRepository<Shipment> {
     limit: number,
     orderBy: ShipmentOrderBy = { createdAt: 'desc' },
   ): Promise<Shipment[]> {
+    if (cursorId) {
+      const cursor = await this.delegate.findFirst({
+        where: { id: cursorId, tenantId: where.tenantId },
+      });
+      if (!cursor) return [];
+    }
     return this.delegate.findMany({
       where,
       take: limit,

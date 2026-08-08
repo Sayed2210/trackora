@@ -12,13 +12,13 @@ import { PayoutsService } from '../services/payouts.service';
 describe('PayoutsService', () => {
   let service: PayoutsService;
   const repository = {
-    findMany: jest.fn(),
-    count: jest.fn(),
-    findById: jest.fn(),
+    findManyForTenant: jest.fn(),
+    countForTenant: jest.fn(),
+    findByIdForTenant: jest.fn(),
   };
   const tx = {
     wallet: {
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
     payout: {
@@ -31,7 +31,7 @@ describe('PayoutsService', () => {
     },
   };
   const prisma = {
-    merchant: { findUnique: jest.fn() },
+    merchant: { findFirst: jest.fn() },
     payout: { update: jest.fn() },
     $transaction: jest.fn((fn) => fn(tx)),
   };
@@ -42,8 +42,8 @@ describe('PayoutsService', () => {
       prisma as unknown as PrismaService,
       repository as unknown as PayoutsRepository,
     );
-    prisma.merchant.findUnique.mockResolvedValue({ id: 'merchant-1' });
-    tx.wallet.findUnique.mockResolvedValue({
+    prisma.merchant.findFirst.mockResolvedValue({ id: 'merchant-1' });
+    tx.wallet.findFirst.mockResolvedValue({
       id: 'wallet-1',
       merchantId: 'merchant-1',
       balance: 1000,
@@ -64,11 +64,15 @@ describe('PayoutsService', () => {
   });
 
   it('requests a payout and debits the merchant wallet', async () => {
-    const result = await service.requestPayout('user-1', {
-      amount: 600,
-      method: PayoutMethod.INSTAPAY,
-      destination: { accountNumber: '01000000000' },
-    });
+    const result = await service.requestPayout(
+      'user-1',
+      {
+        amount: 600,
+        method: PayoutMethod.INSTAPAY,
+        destination: { accountNumber: '01000000000' },
+      },
+      'tenant-1',
+    );
 
     expect(result.id).toBe('payout-1');
     expect(tx.wallet.update).toHaveBeenCalledWith({
@@ -88,31 +92,44 @@ describe('PayoutsService', () => {
     tx.payout.findFirst.mockResolvedValue({ id: 'existing' });
 
     await expect(
-      service.requestPayout('user-1', {
-        amount: 600,
-        method: PayoutMethod.INSTAPAY,
-        destination: {},
-      }),
+      service.requestPayout(
+        'user-1',
+        {
+          amount: 600,
+          method: PayoutMethod.INSTAPAY,
+          destination: {},
+        },
+        'tenant-1',
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('blocks payout requests above available balance', async () => {
     await expect(
-      service.requestPayout('user-1', {
-        amount: 1200,
-        method: PayoutMethod.INSTAPAY,
-        destination: {},
-      }),
+      service.requestPayout(
+        'user-1',
+        {
+          amount: 1200,
+          method: PayoutMethod.INSTAPAY,
+          destination: {},
+        },
+        'tenant-1',
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('lists merchant payouts scoped to the authenticated merchant', async () => {
-    repository.findMany.mockResolvedValue([]);
-    repository.count.mockResolvedValue(0);
+    repository.findManyForTenant.mockResolvedValue([]);
+    repository.countForTenant.mockResolvedValue(0);
 
-    await service.findAll({}, { userId: 'user-1', role: UserRole.MERCHANT });
+    await service.findAll(
+      {},
+      { userId: 'user-1', role: UserRole.MERCHANT },
+      'tenant-1',
+    );
 
-    expect(repository.findMany).toHaveBeenCalledWith(
+    expect(repository.findManyForTenant).toHaveBeenCalledWith(
+      'tenant-1',
       expect.objectContaining({ merchantId: 'merchant-1' }),
       0,
       20,
@@ -120,7 +137,7 @@ describe('PayoutsService', () => {
   });
 
   it('rejects a payout and restores wallet balance', async () => {
-    repository.findById.mockResolvedValue({
+    repository.findByIdForTenant.mockResolvedValue({
       id: 'payout-1',
       merchantId: 'merchant-1',
       amount: 600,
@@ -134,7 +151,7 @@ describe('PayoutsService', () => {
       destination: {},
     });
 
-    await service.reject('payout-1', 'Invalid account');
+    await service.reject('payout-1', 'Invalid account', 'tenant-1');
 
     expect(tx.wallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },

@@ -7,6 +7,7 @@ interface AssignmentCreatedEvent {
   shipmentId: string;
   courierId: string;
   type: string;
+  tenantId: string;
 }
 
 interface AssignmentCancelledEvent {
@@ -14,12 +15,14 @@ interface AssignmentCancelledEvent {
   shipmentId: string;
   courierId: string;
   reason: string;
+  tenantId: string;
 }
 
 interface AssignmentCompletedEvent {
   assignmentId: string;
   shipmentId: string;
   courierId: string;
+  tenantId: string;
 }
 
 @Injectable()
@@ -36,12 +39,12 @@ export class CourierNotificationService {
 
     try {
       const [courier, shipment] = await Promise.all([
-        this.prisma.courier.findUnique({
-          where: { id: event.courierId },
+        this.prisma.courier.findFirst({
+          where: { id: event.courierId, tenantId: event.tenantId },
           include: { user: true },
         }),
-        this.prisma.shipment.findUnique({
-          where: { id: event.shipmentId },
+        this.prisma.shipment.findFirst({
+          where: { id: event.shipmentId, tenantId: event.tenantId },
         }),
       ]);
 
@@ -54,6 +57,7 @@ export class CourierNotificationService {
       await this.prisma.notification.create({
         data: {
           userId: courier.userId,
+          tenantId: event.tenantId,
           shipmentId: shipment.id,
           type: 'SHIPMENT_ASSIGNED',
           title: 'طلب توصيل جديد',
@@ -70,7 +74,7 @@ export class CourierNotificationService {
 
       // TODO: Integrate with Firebase Cloud Messaging for push
       // TODO: Integrate with Twilio for SMS fallback
-      this.logger.log(`Notification queued for courier ${courier.user?.phone}`);
+      this.logger.log(`Notification queued for courier ${courier.id}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.error(`Failed to send notification: ${message}`, err);
@@ -87,12 +91,12 @@ export class CourierNotificationService {
 
     try {
       const [courier, shipment] = await Promise.all([
-        this.prisma.courier.findUnique({
-          where: { id: event.courierId },
+        this.prisma.courier.findFirst({
+          where: { id: event.courierId, tenantId: event.tenantId },
           include: { user: true },
         }),
-        this.prisma.shipment.findUnique({
-          where: { id: event.shipmentId },
+        this.prisma.shipment.findFirst({
+          where: { id: event.shipmentId, tenantId: event.tenantId },
         }),
       ]);
 
@@ -106,6 +110,7 @@ export class CourierNotificationService {
       await this.prisma.notification.create({
         data: {
           userId: courier.userId,
+          tenantId: event.tenantId,
           shipmentId: shipment.id,
           type: 'SHIPMENT_STATUS_UPDATE',
           title: 'تم إلغاء الطلب',

@@ -37,6 +37,7 @@ describe('AdminEventsListener', () => {
 
   it('should broadcast admin:stats_updated to admin:dashboard room', async () => {
     const payload = {
+      tenantId: 'tenant-1',
       activeShipments: 150,
       deliveredToday: 45,
       failedToday: 8,
@@ -46,9 +47,11 @@ describe('AdminEventsListener', () => {
 
     await listener.handleAdminStatsChanged(payload);
 
-    expect(wsGateway.server.to).toHaveBeenCalledWith('admin:dashboard');
+    expect(wsGateway.server.to).toHaveBeenCalledWith(
+      'tenant:tenant-1:admin:dashboard',
+    );
     expect(wsService.bufferEvent).toHaveBeenCalledWith(
-      'admin:dashboard',
+      'tenant:tenant-1:admin:dashboard',
       'admin:stats_updated',
       expect.objectContaining({ activeShipments: 150 }),
     );

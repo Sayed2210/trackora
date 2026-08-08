@@ -12,6 +12,7 @@ import { AuditLogService } from '../services/audit-log.service';
 import { Roles } from '@common/decorators/roles.decorator';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { PaginatedAuditLogsResponseDto } from '../dtos/admin-response.dto';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 
 @ApiTags('Audit Logs')
 @ApiBearerAuth()
@@ -38,6 +39,7 @@ export class AuditLogsController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   @ApiForbiddenResponse({ description: 'Admin role is required.' })
   async findAll(
+    @EffectiveTenantId() tenantId: string,
     @Query('userId') userId?: string,
     @Query('action') action?: string,
     @Query('entityType') entityType?: string,
@@ -48,6 +50,7 @@ export class AuditLogsController {
     @Query('limit') limit?: string,
   ) {
     return this.auditLogService.findAll({
+      tenantId,
       userId,
       action,
       entityType,

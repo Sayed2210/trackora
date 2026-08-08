@@ -36,12 +36,12 @@ describe('UsersService', () => {
         {
           provide: UsersRepository,
           useValue: {
-            findActiveUsers: jest.fn().mockResolvedValue([mockUser]),
-            findById: jest.fn().mockResolvedValue(mockUser),
+            findActiveUsersForTenant: jest.fn().mockResolvedValue([mockUser]),
+            findByIdForTenant: jest.fn().mockResolvedValue(mockUser),
             findByPhone: jest.fn().mockResolvedValue(mockUser),
             create: jest.fn().mockResolvedValue(mockUser),
-            update: jest.fn().mockResolvedValue(mockUser),
-            softDelete: jest.fn().mockResolvedValue(undefined),
+            updateForTenant: jest.fn().mockResolvedValue(mockUser),
+            softDeleteForTenant: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],
@@ -57,22 +57,27 @@ describe('UsersService', () => {
 
   describe('findAll', () => {
     it('should return all active users', async () => {
-      const result = await service.findAll();
+      const result = await service.findAll('tenant-1');
       expect(result).toEqual([mockUser]);
-      expect(repository.findActiveUsers).toHaveBeenCalled();
+      expect(repository.findActiveUsersForTenant).toHaveBeenCalledWith(
+        'tenant-1',
+      );
     });
   });
 
   describe('findById', () => {
     it('should return user by id', async () => {
-      const result = await service.findById(mockUser.id);
+      const result = await service.findById(mockUser.id, 'tenant-1');
       expect(result).toEqual(mockUser);
-      expect(repository.findById).toHaveBeenCalledWith(mockUser.id);
+      expect(repository.findByIdForTenant).toHaveBeenCalledWith(
+        mockUser.id,
+        'tenant-1',
+      );
     });
 
     it('should throw NotFoundException for missing user', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(null);
-      await expect(service.findById('missing-id')).rejects.toThrow(
+      jest.spyOn(repository, 'findByIdForTenant').mockResolvedValueOnce(null);
+      await expect(service.findById('missing-id', 'tenant-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -118,32 +123,36 @@ describe('UsersService', () => {
   describe('update', () => {
     it('should update user and hash password if provided', async () => {
       const data = { name: 'Updated Name', passwordHash: 'newpass' };
-      const result = await service.update(mockUser.id, data);
+      const result = await service.update(mockUser.id, data, 'tenant-1');
       expect(result).toEqual(mockUser);
       expect(bcrypt.hash).toHaveBeenCalledWith('newpass', 12);
-      expect(repository.update).toHaveBeenCalledWith(
+      expect(repository.updateForTenant).toHaveBeenCalledWith(
         mockUser.id,
+        'tenant-1',
         expect.objectContaining({ passwordHash: 'hashed-password' }),
       );
     });
 
     it('should throw NotFoundException for missing user', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(null);
+      jest.spyOn(repository, 'findByIdForTenant').mockResolvedValueOnce(null);
       await expect(
-        service.update('missing-id', { name: 'Test' }),
+        service.update('missing-id', { name: 'Test' }, 'tenant-1'),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('remove', () => {
     it('should soft delete user', async () => {
-      await service.remove(mockUser.id);
-      expect(repository.softDelete).toHaveBeenCalledWith(mockUser.id);
+      await service.remove(mockUser.id, 'tenant-1');
+      expect(repository.softDeleteForTenant).toHaveBeenCalledWith(
+        mockUser.id,
+        'tenant-1',
+      );
     });
 
     it('should throw NotFoundException for missing user', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(null);
-      await expect(service.remove('missing-id')).rejects.toThrow(
+      jest.spyOn(repository, 'findByIdForTenant').mockResolvedValueOnce(null);
+      await expect(service.remove('missing-id', 'tenant-1')).rejects.toThrow(
         NotFoundException,
       );
     });

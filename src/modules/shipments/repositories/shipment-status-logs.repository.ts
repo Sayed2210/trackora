@@ -20,9 +20,12 @@ export class ShipmentStatusLogsRepository extends AbstractRepository<ShipmentSta
     );
   }
 
-  async findByShipmentId(shipmentId: string): Promise<ShipmentStatusLog[]> {
+  async findByShipmentIdForTenant(
+    shipmentId: string,
+    tenantId: string,
+  ): Promise<ShipmentStatusLog[]> {
     return this.delegate.findMany({
-      where: { shipmentId },
+      where: { shipmentId, shipment: { tenantId } },
       orderBy: { createdAt: 'desc' },
     });
   }

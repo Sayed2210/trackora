@@ -30,6 +30,7 @@ import { ReassignAssignmentDto } from '../dtos/reassign-assignment.dto';
 import { CancelAssignmentDto } from '../dtos/cancel-assignment.dto';
 import { QueryAssignmentsDto } from '../dtos/query-assignments.dto';
 import { PaginatedAssignmentsResponseDto } from '../dtos/assignment-response.dto';
+import { EffectiveTenantId } from '@common/tenant/effective-tenant';
 
 interface RequestWithUser extends Request {
   user: { userId: string; role: UserRole };
@@ -43,9 +44,14 @@ export class AssignmentsController {
 
   @Post()
   @Roles(UserRole.OPERATIONS_MANAGER, UserRole.SUPER_ADMIN)
-  async create(@Body() dto: CreateAssignmentDto, @Req() req: RequestWithUser) {
+  async create(
+    @Body() dto: CreateAssignmentDto,
+    @EffectiveTenantId() tenantId: string,
+    @Req() req: RequestWithUser,
+  ) {
     return this.assignmentsService.createManualAssignments(
       dto,
+      tenantId,
       req.user.userId,
     );
   }
@@ -62,8 +68,12 @@ export class AssignmentsController {
   @ApiOkResponse({ type: PaginatedAssignmentsResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid assignment query values.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async findAll(@Query() query: QueryAssignmentsDto) {
+  async findAll(
+    @Query() query: QueryAssignmentsDto,
+    @EffectiveTenantId() tenantId: string,
+  ) {
     return this.assignmentsService.findAll(
+      tenantId,
       {
         courierId: query.courierId,
         shipmentId: query.shipmentId,
@@ -78,8 +88,11 @@ export class AssignmentsController {
   }
 
   @Get(':id')
-  async findById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.assignmentsService.findById(id);
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @EffectiveTenantId() tenantId: string,
+  ) {
+    return this.assignmentsService.findById(id, tenantId);
   }
 
   @Patch(':id/reassign')
@@ -87,11 +100,13 @@ export class AssignmentsController {
   async reassign(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReassignAssignmentDto,
+    @EffectiveTenantId() tenantId: string,
     @Req() req: RequestWithUser,
   ) {
     return this.assignmentsService.reassign(
       id,
       dto.newCourierId,
+      tenantId,
       dto.reason,
       req.user.userId,
     );
@@ -102,7 +117,8 @@ export class AssignmentsController {
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelAssignmentDto,
+    @EffectiveTenantId() tenantId: string,
   ) {
-    return this.assignmentsService.cancel(id, dto.reason);
+    return this.assignmentsService.cancel(id, tenantId, dto.reason);
   }
 }

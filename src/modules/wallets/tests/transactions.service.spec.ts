@@ -58,7 +58,7 @@ describe('TransactionsService', () => {
               count: mockTxCount,
             },
             wallet: {
-              findUnique: mockWalletFindUniqueOuter,
+              findFirst: mockWalletFindUniqueOuter,
             },
           },
         },
@@ -180,16 +180,16 @@ describe('TransactionsService', () => {
 
   describe('getRunningBalance', () => {
     it('should return current balance', async () => {
-      const balance = await service.getRunningBalance('wallet-1');
+      const balance = await service.getRunningBalance('wallet-1', 'tenant-1');
       expect(balance).toBe(100);
     });
 
     it('should throw NotFoundException for missing wallet', async () => {
       mockWalletFindUniqueOuter.mockResolvedValue(null);
 
-      await expect(service.getRunningBalance('wallet-missing')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.getRunningBalance('wallet-missing', 'tenant-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -199,7 +199,7 @@ describe('TransactionsService', () => {
       mockTxFindMany.mockResolvedValue([tx]);
       mockTxCount.mockResolvedValue(1);
 
-      const result = await service.getTransactions('wallet-1', {
+      const result = await service.getTransactions('wallet-1', 'tenant-1', {
         page: 1,
         limit: 10,
       });

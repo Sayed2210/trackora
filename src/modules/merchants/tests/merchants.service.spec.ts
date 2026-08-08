@@ -38,11 +38,11 @@ describe('MerchantsService', () => {
         {
           provide: MerchantsRepository,
           useValue: {
-            findByUserId: jest.fn(),
-            findById: jest.fn(),
+            findByUserIdForTenant: jest.fn(),
+            findByIdForTenant: jest.fn(),
             create: jest.fn().mockResolvedValue(mockMerchant),
-            update: jest.fn().mockResolvedValue(mockMerchant),
-            softDelete: jest.fn().mockResolvedValue(undefined),
+            updateForTenant: jest.fn().mockResolvedValue(mockMerchant),
+            softDeleteForTenant: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -65,11 +65,14 @@ describe('MerchantsService', () => {
 
   describe('create', () => {
     it('should create merchant', async () => {
-      jest.spyOn(repository, 'findByUserId').mockResolvedValueOnce(null);
+      jest
+        .spyOn(repository, 'findByUserIdForTenant')
+        .mockResolvedValueOnce(null);
 
       const result = await service.create(
         { businessName: 'Test Store' },
         'user-1',
+        'tenant-1',
       );
 
       expect(result).toEqual(mockMerchant);
@@ -84,27 +87,29 @@ describe('MerchantsService', () => {
 
     it('should throw if merchant already exists for user', async () => {
       jest
-        .spyOn(repository, 'findByUserId')
+        .spyOn(repository, 'findByUserIdForTenant')
         .mockResolvedValueOnce(mockMerchant);
 
       await expect(
-        service.create({ businessName: 'Test' }, 'user-1'),
+        service.create({ businessName: 'Test' }, 'user-1', 'tenant-1'),
       ).rejects.toThrow(ConflictException);
     });
   });
 
   describe('findById', () => {
     it('should return merchant', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockMerchant);
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockMerchant);
 
-      const result = await service.findById('merchant-1');
+      const result = await service.findById('merchant-1', 'tenant-1');
       expect(result).toEqual(mockMerchant);
     });
 
     it('should throw NotFoundException if not found', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(null);
+      jest.spyOn(repository, 'findByIdForTenant').mockResolvedValueOnce(null);
 
-      await expect(service.findById('invalid')).rejects.toThrow(
+      await expect(service.findById('invalid', 'tenant-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -112,8 +117,10 @@ describe('MerchantsService', () => {
 
   describe('updateKycStatus', () => {
     it('should update KYC status', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockMerchant);
-      jest.spyOn(repository, 'update').mockResolvedValueOnce({
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockMerchant);
+      jest.spyOn(repository, 'updateForTenant').mockResolvedValueOnce({
         ...mockMerchant,
         kycStatus: KycStatus.APPROVED,
       });
@@ -121,60 +128,89 @@ describe('MerchantsService', () => {
       const result = await service.updateKycStatus(
         'merchant-1',
         KycStatus.APPROVED,
+        'tenant-1',
       );
 
       expect(result.kycStatus).toBe(KycStatus.APPROVED);
-      expect(walletsService.create).toHaveBeenCalledWith('merchant-1');
+      expect(walletsService.create).toHaveBeenCalledWith(
+        'merchant-1',
+        'tenant-1',
+      );
     });
 
     it('should not create wallet if status is not APPROVED', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockMerchant);
-      jest.spyOn(repository, 'update').mockResolvedValueOnce({
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockMerchant);
+      jest.spyOn(repository, 'updateForTenant').mockResolvedValueOnce({
         ...mockMerchant,
         kycStatus: KycStatus.REJECTED,
       });
 
-      await service.updateKycStatus('merchant-1', KycStatus.REJECTED);
+      await service.updateKycStatus(
+        'merchant-1',
+        KycStatus.REJECTED,
+        'tenant-1',
+      );
       expect(walletsService.create).not.toHaveBeenCalled();
     });
 
     it('should not create wallet if already approved', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce({
+      jest.spyOn(repository, 'findByIdForTenant').mockResolvedValueOnce({
         ...mockMerchant,
         kycStatus: KycStatus.APPROVED,
       });
-      jest.spyOn(repository, 'update').mockResolvedValueOnce({
+      jest.spyOn(repository, 'updateForTenant').mockResolvedValueOnce({
         ...mockMerchant,
         kycStatus: KycStatus.APPROVED,
       });
 
-      await service.updateKycStatus('merchant-1', KycStatus.APPROVED);
+      await service.updateKycStatus(
+        'merchant-1',
+        KycStatus.APPROVED,
+        'tenant-1',
+      );
       expect(walletsService.create).not.toHaveBeenCalled();
     });
   });
 
   describe('updateFeeStructure', () => {
     it('should update fees', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockMerchant);
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockMerchant);
 
-      await service.updateFeeStructure('merchant-1', {
-        commissionRate: '0.1',
-        feePerShipment: '30',
-      });
+      await service.updateFeeStructure(
+        'merchant-1',
+        {
+          commissionRate: '0.1',
+          feePerShipment: '30',
+        },
+        'tenant-1',
+      );
 
-      expect(repository.update).toHaveBeenCalledWith('merchant-1', {
-        commissionRate: 0.1,
-        feePerShipment: 30,
-      });
+      expect(repository.updateForTenant).toHaveBeenCalledWith(
+        'merchant-1',
+        'tenant-1',
+        {
+          commissionRate: 0.1,
+          feePerShipment: 30,
+        },
+      );
     });
   });
 
   describe('remove', () => {
     it('should soft delete merchant', async () => {
-      jest.spyOn(repository, 'findById').mockResolvedValueOnce(mockMerchant);
+      jest
+        .spyOn(repository, 'findByIdForTenant')
+        .mockResolvedValueOnce(mockMerchant);
 
-      await service.remove('merchant-1');
-      expect(repository.softDelete).toHaveBeenCalledWith('merchant-1');
+      await service.remove('merchant-1', 'tenant-1');
+      expect(repository.softDeleteForTenant).toHaveBeenCalledWith(
+        'merchant-1',
+        'tenant-1',
+      );
     });
   });
 });

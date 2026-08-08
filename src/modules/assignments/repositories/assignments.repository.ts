@@ -32,33 +32,52 @@ export class AssignmentsRepository extends AbstractRepository<Assignment> {
     return {};
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.delegate.update({
-      where: { id },
-      data: { status: AssignmentStatus.CANCELLED, cancelledAt: new Date() },
-    });
+  softDelete(): Promise<void> {
+    throw new Error('Use tenant-scoped assignment mutation methods');
   }
 
-  async findActiveByShipmentId(shipmentId: string): Promise<Assignment | null> {
+  async findByIdForTenant(
+    id: string,
+    tenantId: string,
+  ): Promise<Assignment | null> {
+    return this.delegate.findFirst({ where: { id, shipment: { tenantId } } });
+  }
+
+  async findActiveByShipmentIdForTenant(
+    shipmentId: string,
+    tenantId: string,
+  ): Promise<Assignment | null> {
     return this.delegate.findFirst({
-      where: { shipmentId, status: AssignmentStatus.ACTIVE },
+      where: {
+        shipmentId,
+        status: AssignmentStatus.ACTIVE,
+        shipment: { tenantId },
+      },
     });
   }
 
-  async countActiveByCourierId(courierId: string): Promise<number> {
+  async countActiveByCourierIdForTenant(
+    courierId: string,
+    tenantId: string,
+  ): Promise<number> {
     return this.delegate.count({
-      where: { courierId, status: AssignmentStatus.ACTIVE },
+      where: {
+        courierId,
+        status: AssignmentStatus.ACTIVE,
+        shipment: { tenantId },
+      },
     });
   }
 
-  async findWithFilters(
+  async findWithFiltersForTenant(
+    tenantId: string,
     where: AssignmentFilter,
     skip: number,
     take: number,
     orderBy: AssignmentOrderBy = { assignedAt: 'desc' },
   ): Promise<Assignment[]> {
     return this.delegate.findMany({
-      where,
+      where: { ...where, shipment: { tenantId } },
       skip,
       take,
       orderBy,
@@ -88,13 +107,20 @@ export class AssignmentsRepository extends AbstractRepository<Assignment> {
     });
   }
 
-  async countWithFilters(where: AssignmentFilter): Promise<number> {
-    return this.delegate.count({ where });
+  async countWithFiltersForTenant(
+    tenantId: string,
+    where: AssignmentFilter,
+  ): Promise<number> {
+    return this.delegate.count({ where: { ...where, shipment: { tenantId } } });
   }
 
-  async cancel(id: string, reason?: string): Promise<Assignment> {
-    return this.delegate.update({
-      where: { id },
+  async cancelForTenant(
+    id: string,
+    tenantId: string,
+    reason?: string,
+  ): Promise<Assignment> {
+    return this.prisma.assignment.update({
+      where: { id, shipment: { tenantId } },
       data: {
         status: AssignmentStatus.CANCELLED,
         cancelledAt: new Date(),
@@ -103,9 +129,9 @@ export class AssignmentsRepository extends AbstractRepository<Assignment> {
     });
   }
 
-  async complete(id: string): Promise<Assignment> {
-    return this.delegate.update({
-      where: { id },
+  async completeForTenant(id: string, tenantId: string): Promise<Assignment> {
+    return this.prisma.assignment.update({
+      where: { id, shipment: { tenantId } },
       data: {
         status: AssignmentStatus.COMPLETED,
         completedAt: new Date(),

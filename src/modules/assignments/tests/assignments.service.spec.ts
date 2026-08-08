@@ -18,7 +18,7 @@ const mockPrisma = {
     findUnique: jest.fn(),
   },
   shipment: {
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
   },
   assignment: {
@@ -32,11 +32,11 @@ const mockPrisma = {
 };
 
 const mockRepository = {
-  findById: jest.fn(),
-  countActiveByCourierId: jest.fn(),
-  findWithFilters: jest.fn(),
-  countWithFilters: jest.fn(),
-  complete: jest.fn(),
+  findByIdForTenant: jest.fn(),
+  countActiveByCourierIdForTenant: jest.fn(),
+  findWithFiltersForTenant: jest.fn(),
+  countWithFiltersForTenant: jest.fn(),
+  completeForTenant: jest.fn(),
 };
 
 const mockEventEmitter = {
@@ -77,8 +77,8 @@ describe('AssignmentsService', () => {
         maxDailyCapacity: 25,
         user: { name: 'Ahmed', phone: '01000000000' },
       });
-      mockRepository.countActiveByCourierId.mockResolvedValue(5);
-      mockPrisma.shipment.findUnique.mockResolvedValue({
+      mockRepository.countActiveByCourierIdForTenant.mockResolvedValue(5);
+      mockPrisma.shipment.findFirst.mockResolvedValue({
         id: shipmentId,
         status: ShipmentStatus.PENDING,
       });
@@ -91,7 +91,11 @@ describe('AssignmentsService', () => {
         status: AssignmentStatus.ACTIVE,
       });
 
-      const result = await service.createManualAssignments(dto, 'admin-1');
+      const result = await service.createManualAssignments(
+        dto,
+        'tenant-1',
+        'admin-1',
+      );
 
       expect(result.assignments).toHaveLength(1);
       expect(result.errors).toHaveLength(0);
@@ -104,9 +108,9 @@ describe('AssignmentsService', () => {
     it('should throw if courier not found', async () => {
       mockPrisma.courier.findFirst.mockResolvedValue(null);
 
-      await expect(service.createManualAssignments(dto)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.createManualAssignments(dto, 'tenant-1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw if courier is unavailable', async () => {
@@ -117,9 +121,9 @@ describe('AssignmentsService', () => {
         maxDailyCapacity: 25,
       });
 
-      await expect(service.createManualAssignments(dto)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.createManualAssignments(dto, 'tenant-1'),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw if courier at capacity', async () => {
@@ -129,11 +133,11 @@ describe('AssignmentsService', () => {
         isAvailable: true,
         maxDailyCapacity: 10,
       });
-      mockRepository.countActiveByCourierId.mockResolvedValue(9); // 90% of 10 = 9
+      mockRepository.countActiveByCourierIdForTenant.mockResolvedValue(9); // 90% of 10 = 9
 
-      await expect(service.createManualAssignments(dto)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.createManualAssignments(dto, 'tenant-1'),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should collect errors for invalid shipments without failing all', async () => {
@@ -144,10 +148,10 @@ describe('AssignmentsService', () => {
         maxDailyCapacity: 25,
         user: { name: 'Ahmed', phone: '01000000000' },
       });
-      mockRepository.countActiveByCourierId.mockResolvedValue(0);
+      mockRepository.countActiveByCourierIdForTenant.mockResolvedValue(0);
 
       const shipmentIds = ['valid-shipment', 'invalid-shipment'];
-      mockPrisma.shipment.findUnique
+      mockPrisma.shipment.findFirst
         .mockResolvedValueOnce({
           id: 'valid-shipment',
           status: ShipmentStatus.PENDING,
@@ -165,10 +169,13 @@ describe('AssignmentsService', () => {
         status: AssignmentStatus.ACTIVE,
       });
 
-      const result = await service.createManualAssignments({
-        ...dto,
-        shipmentIds,
-      });
+      const result = await service.createManualAssignments(
+        {
+          ...dto,
+          shipmentIds,
+        },
+        'tenant-1',
+      );
 
       expect(result.assignments).toHaveLength(1);
       expect(result.errors).toHaveLength(1);
@@ -182,7 +189,7 @@ describe('AssignmentsService', () => {
       const oldCourierId = 'courier-old';
       const newCourierId = 'courier-new';
 
-      mockRepository.findById.mockResolvedValue({
+      mockRepository.findByIdForTenant.mockResolvedValue({
         id: assignmentId,
         status: AssignmentStatus.ACTIVE,
         shipmentId: 'shipment-1',
@@ -196,7 +203,7 @@ describe('AssignmentsService', () => {
         maxDailyCapacity: 25,
       });
 
-      mockRepository.countActiveByCourierId.mockResolvedValue(5);
+      mockRepository.countActiveByCourierIdForTenant.mockResolvedValue(5);
       mockPrisma.assignment.update.mockResolvedValue({
         id: assignmentId,
         status: AssignmentStatus.CANCELLED,
@@ -211,6 +218,7 @@ describe('AssignmentsService', () => {
       const result = await service.reassign(
         assignmentId,
         newCourierId,
+        'tenant-1',
         'Overloaded',
       );
 
@@ -226,20 +234,20 @@ describe('AssignmentsService', () => {
     });
 
     it('should throw if assignment not active', async () => {
-      mockRepository.findById.mockResolvedValue({
+      mockRepository.findByIdForTenant.mockResolvedValue({
         id: 'assignment-1',
         status: AssignmentStatus.COMPLETED,
       });
 
       await expect(
-        service.reassign('assignment-1', 'courier-new'),
+        service.reassign('assignment-1', 'courier-new', 'tenant-1'),
       ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('cancel', () => {
     it('should cancel active assignment and clear courier from shipment', async () => {
-      mockRepository.findById.mockResolvedValue({
+      mockRepository.findByIdForTenant.mockResolvedValue({
         id: 'assignment-1',
         status: AssignmentStatus.ACTIVE,
         shipmentId: 'shipment-1',
@@ -249,19 +257,23 @@ describe('AssignmentsService', () => {
         status: AssignmentStatus.CANCELLED,
       });
 
-      const result = await service.cancel('assignment-1', 'Customer postponed');
+      const result = await service.cancel(
+        'assignment-1',
+        'tenant-1',
+        'Customer postponed',
+      );
 
       expect(result.status).toBe(AssignmentStatus.CANCELLED);
       expect(mockPrisma.shipment.update).toHaveBeenCalledWith({
-        where: { id: 'shipment-1' },
+        where: { id: 'shipment-1', tenantId: 'tenant-1' },
         data: { assignedCourierId: null },
       });
     });
 
     it('should throw if assignment not found', async () => {
-      mockRepository.findById.mockResolvedValue(null);
+      mockRepository.findByIdForTenant.mockResolvedValue(null);
 
-      await expect(service.cancel('nonexistent')).rejects.toThrow(
+      await expect(service.cancel('nonexistent', 'tenant-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -269,16 +281,19 @@ describe('AssignmentsService', () => {
 
   describe('completeAssignment', () => {
     it('should complete active assignment', async () => {
-      mockRepository.findById.mockResolvedValue({
+      mockRepository.findByIdForTenant.mockResolvedValue({
         id: 'assignment-1',
         status: AssignmentStatus.ACTIVE,
       });
-      mockRepository.complete.mockResolvedValue({
+      mockRepository.completeForTenant.mockResolvedValue({
         id: 'assignment-1',
         status: AssignmentStatus.COMPLETED,
       });
 
-      const result = await service.completeAssignment('assignment-1');
+      const result = await service.completeAssignment(
+        'assignment-1',
+        'tenant-1',
+      );
 
       expect(result.status).toBe(AssignmentStatus.COMPLETED);
       expect(mockEventEmitter.emit).toHaveBeenCalledWith(

@@ -37,6 +37,15 @@ describe('UsersController (integration)', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = {
+        userId: 'admin-1',
+        role: 'SUPER_ADMIN',
+        tenantId: 'tenant-1',
+        permissions: [],
+      };
+      next();
+    });
     await app.init();
   });
 
@@ -55,7 +64,7 @@ describe('UsersController (integration)', () => {
       const res = await request(app.getHttpServer()).get('/users').expect(200);
 
       expect(res.body).toEqual([mockUser]);
-      expect(mockUsersService.findAll).toHaveBeenCalled();
+      expect(mockUsersService.findAll).toHaveBeenCalledWith('tenant-1');
     });
   });
 
@@ -70,6 +79,7 @@ describe('UsersController (integration)', () => {
       expect(res.body).toEqual(mockUser);
       expect(mockUsersService.findById).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
+        'tenant-1',
       );
     });
   });
@@ -88,6 +98,7 @@ describe('UsersController (integration)', () => {
       expect(mockUsersService.update).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
         { name: 'Updated' },
+        'tenant-1',
       );
     });
   });
@@ -103,6 +114,7 @@ describe('UsersController (integration)', () => {
       expect(res.body).toEqual({ message: 'User deleted successfully' });
       expect(mockUsersService.remove).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
+        'tenant-1',
       );
     });
   });

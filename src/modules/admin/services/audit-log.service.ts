@@ -7,6 +7,7 @@ export class AuditLogService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(options: {
+    tenantId: string;
     userId?: string;
     action?: string;
     entityType?: string;
@@ -25,7 +26,7 @@ export class AuditLogService {
     const limit = options.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { tenantId: options.tenantId };
     if (options.userId) where.userId = options.userId;
     if (options.action)
       where.action = { contains: options.action, mode: 'insensitive' };
@@ -53,6 +54,7 @@ export class AuditLogService {
   }
 
   async create(data: {
+    tenantId: string;
     userId?: string;
     action: string;
     entityType: string;
@@ -64,6 +66,7 @@ export class AuditLogService {
   }): Promise<AuditLog> {
     return this.prisma.auditLog.create({
       data: {
+        tenantId: data.tenantId,
         userId: data.userId || null,
         action: data.action,
         entityType: data.entityType,

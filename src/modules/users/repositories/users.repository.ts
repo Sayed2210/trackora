@@ -32,4 +32,27 @@ export class UsersRepository extends AbstractRepository<User> {
   async findActiveUsers(): Promise<User[]> {
     return this.delegate.findMany({ where: this.baseWhere });
   }
+
+  async findActiveUsersForTenant(tenantId: string): Promise<User[]> {
+    return this.delegate.findMany({ where: { ...this.baseWhere, tenantId } });
+  }
+
+  async findByIdForTenant(id: string, tenantId: string): Promise<User | null> {
+    return this.delegate.findFirst({ where: { id, tenantId } });
+  }
+
+  async updateForTenant(
+    id: string,
+    tenantId: string,
+    data: Record<string, unknown>,
+  ): Promise<User> {
+    return this.delegate.update({ where: { id, tenantId }, data });
+  }
+
+  async softDeleteForTenant(id: string, tenantId: string): Promise<void> {
+    await this.delegate.update({
+      where: { id, tenantId },
+      data: { isActive: false },
+    });
+  }
 }

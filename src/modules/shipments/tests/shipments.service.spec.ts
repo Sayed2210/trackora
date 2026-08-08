@@ -69,7 +69,7 @@ describe('ShipmentsService', () => {
           provide: ShipmentsRepository,
           useValue: {
             create: jest.fn().mockResolvedValue(mockShipment),
-            findById: jest.fn().mockResolvedValue(mockShipment),
+            findByIdForTenant: jest.fn().mockResolvedValue(mockShipment),
             findByTrackingNumber: jest.fn().mockResolvedValue(mockShipment),
             findWithFilters: jest.fn().mockResolvedValue([mockShipment]),
             countWithFilters: jest.fn().mockResolvedValue(1),
@@ -80,7 +80,7 @@ describe('ShipmentsService', () => {
           provide: ShipmentStatusLogsRepository,
           useValue: {
             create: jest.fn().mockResolvedValue({}),
-            findByShipmentId: jest.fn().mockResolvedValue([]),
+            findByShipmentIdForTenant: jest.fn().mockResolvedValue([]),
           },
         },
         {
@@ -92,6 +92,9 @@ describe('ShipmentsService', () => {
         {
           provide: PrismaService,
           useValue: {
+            merchant: {
+              findFirst: jest.fn().mockResolvedValue({ id: 'merchant-1' }),
+            },
             $transaction: jest.fn((fn) =>
               fn({
                 shipment: {
@@ -137,7 +140,12 @@ describe('ShipmentsService', () => {
         productDescription: 'Shoes',
       };
 
-      const result = await service.create(dto, 'merchant-1');
+      const result = await service.create(
+        dto,
+        'tenant-1',
+        'merchant-user-1',
+        'MERCHANT' as any,
+      );
       expect(result).toEqual(mockShipment);
       expect(shipmentsRepo.create).toHaveBeenCalled();
       expect(logsRepo.create).toHaveBeenCalled();
@@ -146,13 +154,15 @@ describe('ShipmentsService', () => {
 
   describe('findById', () => {
     it('should return shipment by id', async () => {
-      const result = await service.findById('ship-1');
+      const result = await service.findById('ship-1', 'tenant-1');
       expect(result).toEqual(mockShipment);
     });
 
     it('should throw NotFoundException for missing shipment', async () => {
-      jest.spyOn(shipmentsRepo, 'findById').mockResolvedValueOnce(null);
-      await expect(service.findById('missing')).rejects.toThrow(
+      jest
+        .spyOn(shipmentsRepo, 'findByIdForTenant')
+        .mockResolvedValueOnce(null);
+      await expect(service.findById('missing', 'tenant-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -164,7 +174,7 @@ describe('ShipmentsService', () => {
         newStatus: ShipmentStatus.PICKED_UP,
       };
 
-      const result = await service.updateStatus('ship-1', dto);
+      const result = await service.updateStatus('ship-1', 'tenant-1', dto);
       expect(result).toEqual(mockShipment);
       expect(logsRepo.create).toHaveBeenCalled();
     });
@@ -174,13 +184,13 @@ describe('ShipmentsService', () => {
         newStatus: ShipmentStatus.DELIVERED,
       };
 
-      await expect(service.updateStatus('ship-1', dto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.updateStatus('ship-1', 'tenant-1', dto),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should require collectedCash for COD delivery', async () => {
-      jest.spyOn(shipmentsRepo, 'findById').mockResolvedValueOnce({
+      jest.spyOn(shipmentsRepo, 'findByIdForTenant').mockResolvedValueOnce({
         ...mockShipment,
         status: ShipmentStatus.OUT_FOR_DELIVERY,
         customerOtp: '1234',
@@ -191,15 +201,15 @@ describe('ShipmentsService', () => {
         otp: '1234',
       };
 
-      await expect(service.updateStatus('ship-1', dto)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.updateStatus('ship-1', 'tenant-1', dto),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('findAll', () => {
     it('should return paginated results', async () => {
-      const result = await service.findAll({}, 1, 20);
+      const result = await service.findAll('tenant-1', {}, 1, 20);
       expect(result.data).toEqual([mockShipment]);
       expect(result.total).toBe(1);
       expect(result.page).toBe(1);

@@ -20,6 +20,7 @@ import {
 } from '../entities/shipment.entity';
 import { CreateShipmentDto } from '../dtos/create-shipment.dto';
 import { UpdateShipmentStatusDto } from '../dtos/update-shipment-status.dto';
+import { UserRole } from '@prisma/client';
 
 interface ShipmentFilters {
   status?: ShipmentStatus | ShipmentStatus[];
@@ -48,7 +49,26 @@ export class ShipmentsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(dto: CreateShipmentDto, merchantId: string): Promise<Shipment> {
+  async create(
+    dto: CreateShipmentDto,
+    tenantId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+  ): Promise<Shipment> {
+    const requestedMerchantId = dto.merchantId;
+    const merchant = await this.prisma.merchant.findFirst({
+      where:
+        actorRole === UserRole.MERCHANT
+          ? { tenantId, userId: actorUserId, isActive: true }
+          : requestedMerchantId
+            ? { id: requestedMerchantId, tenantId, isActive: true }
+            : { tenantId, userId: actorUserId, isActive: true },
+      select: { id: true },
+    });
+    if (!merchant) {
+      throw new NotFoundException('Merchant not found');
+    }
+
     const trackingNumber = await this.trackingNumberService.generateUnique();
 
     const riskScore = this.fraudDetection.calculateRiskScore({
@@ -61,7 +81,8 @@ export class ShipmentsService {
     const shipment = await this.shipmentsRepository.create({
       ...dto,
       trackingNumber,
-      merchantId,
+      tenantId,
+      merchantId: merchant.id,
       status: ShipmentStatus.PENDING,
       riskScore,
       deliveryAttempts: 0,
@@ -79,7 +100,8 @@ export class ShipmentsService {
     this.eventEmitter.emit('shipment.created', {
       shipmentId: shipment.id,
       trackingNumber: shipment.trackingNumber,
-      merchantId,
+      merchantId: merchant.id,
+      tenantId,
       status: ShipmentStatus.PENDING,
       codAmount: Number(shipment.codAmount),
       type: shipment.type,
@@ -88,8 +110,14 @@ export class ShipmentsService {
     return shipment;
   }
 
-  private buildWhere(filters: ShipmentFilters): Record<string, unknown> {
-    const where: Record<string, unknown> = {};
+  private buildWhere(
+    tenantId: string,
+    filters: ShipmentFilters,
+  ): import('../repositories/shipments.repository').ShipmentFilter {
+    const where: import('../repositories/shipments.repository').ShipmentFilter =
+      {
+        tenantId,
+      };
 
     if (filters.status) {
       where.status = Array.isArray(filters.status)
@@ -121,11 +149,12 @@ export class ShipmentsService {
   }
 
   async findAll(
+    tenantId: string,
     filters: ShipmentFilters,
     page = 1,
     limit = 20,
   ): Promise<{ data: Shipment[]; total: number; page: number; limit: number }> {
-    const where = this.buildWhere(filters);
+    const where = this.buildWhere(tenantId, filters);
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
       this.shipmentsRepository.findWithFilters(where, skip, limit),
@@ -136,6 +165,7 @@ export class ShipmentsService {
   }
 
   async findAllCursor(
+    tenantId: string,
     filters: ShipmentFilters,
     cursor?: string,
     limit = 20,
@@ -144,7 +174,7 @@ export class ShipmentsService {
     nextCursor: string | null;
     limit: number;
   }> {
-    const where = this.buildWhere(filters);
+    const where = this.buildWhere(tenantId, filters);
     const data = await this.shipmentsRepository.findWithCursor(
       where,
       cursor,
@@ -160,31 +190,48 @@ export class ShipmentsService {
     return { data: results, nextCursor, limit };
   }
 
-  async findById(id: string): Promise<Shipment> {
-    const shipment = await this.shipmentsRepository.findById(id);
+  async findById(id: string, tenantId: string): Promise<Shipment> {
+    const shipment = await this.shipmentsRepository.findByIdForTenant(
+      id,
+      tenantId,
+    );
     if (!shipment) {
       throw new NotFoundException('Shipment not found');
     }
     return shipment;
   }
 
-  async findByTrackingNumber(trackingNumber: string): Promise<Shipment> {
+  async findByTrackingNumber(
+    trackingNumber: string,
+    tenantId: string,
+  ): Promise<Shipment> {
     const shipment =
-      await this.shipmentsRepository.findByTrackingNumber(trackingNumber);
+      await this.shipmentsRepository.findByTrackingNumberForTenant(
+        trackingNumber,
+        tenantId,
+      );
     if (!shipment) {
       throw new NotFoundException('Shipment not found');
     }
+    return shipment;
+  }
+
+  async findPublicTracking(trackingNumber: string) {
+    const shipment =
+      await this.shipmentsRepository.findPublicTracking(trackingNumber);
+    if (!shipment) throw new NotFoundException('Shipment not found');
     return shipment;
   }
 
   async updateStatus(
     id: string,
+    tenantId: string,
     dto: UpdateShipmentStatusDto,
     changedByUserId?: string,
     changedByRole?: string,
     allowOverride = false,
   ): Promise<Shipment> {
-    const shipment = await this.findById(id);
+    const shipment = await this.findById(id, tenantId);
 
     this.stateMachine.validateTransition(
       shipment.status,
@@ -223,7 +270,7 @@ export class ShipmentsService {
         const tolerance = Math.max(codAmount * 0.05, 1);
         if (Math.abs(Number(dto.collectedCash) - codAmount) > tolerance) {
           throw new BadRequestException(
-            `Collected cash (${dto.collectedCash}) does not match COD amount (${shipment.codAmount}). Difference exceeds 5% tolerance.`,
+            `Collected cash (${dto.collectedCash}) does not match COD amount (${shipment.codAmount.toString()}). Difference exceeds 5% tolerance.`,
           );
         }
         await this.verifyDeliveryOtp(id, shipment.customerOtp, dto.otp);
@@ -244,7 +291,7 @@ export class ShipmentsService {
     // Use Prisma transaction for shipment + courier updates
     const updated = await this.prisma.$transaction(async (tx) => {
       const updatedShipment = await tx.shipment.update({
-        where: { id },
+        where: { id, tenantId },
         data: updateData,
       });
 
@@ -260,17 +307,17 @@ export class ShipmentsService {
             };
           }
           await tx.courier.update({
-            where: { id: shipment.assignedCourierId },
+            where: { id: shipment.assignedCourierId, tenantId },
             data: courierUpdate,
           });
         } else if (dto.newStatus === ShipmentStatus.FAILED) {
           await tx.courier.update({
-            where: { id: shipment.assignedCourierId },
+            where: { id: shipment.assignedCourierId, tenantId },
             data: { totalFailed: { increment: 1 } },
           });
         } else if (dto.newStatus === ShipmentStatus.RETURNED) {
           await tx.courier.update({
-            where: { id: shipment.assignedCourierId },
+            where: { id: shipment.assignedCourierId, tenantId },
             data: { totalReturned: { increment: 1 } },
           });
         }
@@ -300,6 +347,7 @@ export class ShipmentsService {
     if (dto.newStatus === ShipmentStatus.DELIVERED) {
       this.eventEmitter.emit('shipment.delivered', {
         shipmentId: id,
+        tenantId,
         merchantId: shipment.merchantId,
         courierId: shipment.assignedCourierId || undefined,
         codAmount: Number(shipment.codAmount),
@@ -310,6 +358,7 @@ export class ShipmentsService {
 
     this.eventEmitter.emit('shipment.status_changed', {
       shipmentId: id,
+      tenantId,
       trackingNumber: shipment.trackingNumber,
       merchantId: shipment.merchantId,
       courierId: shipment.assignedCourierId || undefined,
@@ -360,8 +409,8 @@ export class ShipmentsService {
     }
   }
 
-  async getTimeline(id: string) {
-    await this.findById(id);
-    return this.statusLogsRepository.findByShipmentId(id);
+  async getTimeline(id: string, tenantId: string) {
+    await this.findById(id, tenantId);
+    return this.statusLogsRepository.findByShipmentIdForTenant(id, tenantId);
   }
 }
