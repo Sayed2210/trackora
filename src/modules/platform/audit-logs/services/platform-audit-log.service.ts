@@ -20,6 +20,7 @@ export interface WriteAuditLogInput extends AuditActorContext {
   resourceId: string;
   oldValue?: unknown;
   newValue?: unknown;
+  metadata?: unknown;
   reason?: string | null;
 }
 
@@ -104,6 +105,7 @@ export class PlatformAuditLogService {
         resourceId: input.resourceId,
         oldValue: this.safeJson(input.oldValue),
         newValue: this.safeJson(input.newValue),
+        metadata: this.safeJson(input.metadata),
         reason: input.reason ?? null,
         ipAddress: input.ipAddress ?? null,
         userAgent: input.userAgent ?? null,

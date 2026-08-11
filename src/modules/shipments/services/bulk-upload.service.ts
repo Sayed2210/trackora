@@ -1,7 +1,7 @@
 import {
-  Injectable,
   BadRequestException,
   ForbiddenException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
@@ -85,7 +85,8 @@ export class BulkUploadService {
     private readonly fraudDetection: FraudDetectionService,
   ) {}
 
-  async processFile(
+  processFile(buffer: Buffer, context: BulkUploadContext): Promise<BulkResult>;
+  processFile(
     buffer: Buffer,
     context: BulkUploadContext,
   ): Promise<BulkResult>;
@@ -107,23 +108,20 @@ export class BulkUploadService {
 
     if (typeof contextOrTenantId === 'string') {
       if (!actorUserId || !actorRole) {
-        throw new ForbiddenException('Bulk upload actor context is required');
+        throw new ForbiddenException('Invalid bulk upload identity context');
       }
 
       const tenantId = contextOrTenantId;
       const merchant = await this.prisma.merchant.findFirst({
         where:
           actorRole === UserRole.MERCHANT
-            ? { tenantId, userId: actorUserId }
+            ? { tenantId, userId: actorUserId, isActive: true }
             : requestedMerchantId
-              ? { id: requestedMerchantId, tenantId }
-              : { tenantId, userId: actorUserId },
-        select: { id: true, tenantId: true, isActive: true },
+              ? { id: requestedMerchantId, tenantId, isActive: true }
+              : { tenantId, userId: actorUserId, isActive: true },
+        select: { id: true },
       });
       if (!merchant) throw new NotFoundException('Merchant not found');
-      if (!merchant.isActive) {
-        throw new ForbiddenException('Merchant profile is inactive');
-      }
 
       context = {
         merchantId: merchant.id,
@@ -135,7 +133,6 @@ export class BulkUploadService {
       context = contextOrTenantId;
     }
 
-    this.assertAllowedContext(context);
     const rows = this.parseFile(buffer);
     return this.processRows(rows, context);
   }
@@ -314,6 +311,8 @@ export class BulkUploadService {
       },
     );
 
+    this.assertCreateDataContext(shipmentCreates, context);
+
     const batchSize = 100;
     const createdShipments: Shipment[] = [];
 
@@ -335,7 +334,7 @@ export class BulkUploadService {
               in: batch.map((shipment) => shipment.trackingNumber),
             },
             merchantId: context.merchantId,
-            tenantId,
+            tenantId: context.tenantId,
           },
         });
 

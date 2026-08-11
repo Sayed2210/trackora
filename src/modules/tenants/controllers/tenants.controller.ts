@@ -13,6 +13,7 @@ import {
 import { AuthenticatedRequestUser } from '@common/interfaces/request-context.interface';
 import {
   ApiBearerAuth,
+  ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -29,6 +30,8 @@ import { DangerousAction } from '@common/decorators/dangerous-action.decorator';
 import { PlatformOnlyGuard } from '@common/guards/platform-only.guard';
 import {
   ChangePlatformTenantStatusDto,
+  CloneTenantConfigurationDto,
+  CloneTenantConfigurationResponseDto,
   CreatePlatformTenantDto,
   ListPlatformTenantsDto,
   OnboardPlatformTenantDto,
@@ -37,6 +40,7 @@ import {
 } from '../dtos';
 import { TenantsService } from '../services/tenants.service';
 import { TenantOnboardingService } from '../services/tenant-onboarding.service';
+import { TenantConfigurationCloneService } from '../services/tenant-configuration-clone.service';
 
 interface AuthenticatedRequest {
   user: AuthenticatedRequestUser;
@@ -52,7 +56,48 @@ export class TenantsController {
   constructor(
     private readonly tenantsService: TenantsService,
     private readonly onboardingService: TenantOnboardingService,
+    private readonly configurationCloneService: TenantConfigurationCloneService,
   ) {}
+
+  @Post(':sourceTenantId/clone-configuration')
+  @PlatformPermissions(
+    PERMISSIONS.MANAGE_TENANTS,
+    PERMISSIONS.MANAGE_FEATURE_FLAGS,
+  )
+  @DangerousAction('tenant configuration cloning')
+  @ApiOperation({
+    summary: 'Clone supported tenant configuration',
+    description:
+      'Creates a new TRIAL tenant and atomically copies selected metadata and tenant feature flag overrides. Operational records, users, financial records, audit history, billing history, currentPlanId, and subscriptions are never copied. Plan/subscription assignment remains an explicit onboarding or subscription operation. Requires both `manage_tenants` and `manage_feature_flags` permissions and is blocked during impersonation.',
+  })
+  @ApiParam({
+    name: 'sourceTenantId',
+    format: 'uuid',
+    description: 'Source tenant ID.',
+  })
+  @ApiCreatedResponse({
+    description: 'Tenant configuration cloned successfully.',
+    type: CloneTenantConfigurationResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Request validation failed.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  @ApiForbiddenResponse({
+    description:
+      'Authenticated user is not a platform user, lacks a required permission, or is impersonating.',
+  })
+  @ApiNotFoundResponse({ description: 'Source tenant was not found.' })
+  @ApiConflictResponse({ description: 'Target tenant slug already exists.' })
+  async cloneConfiguration(
+    @Param('sourceTenantId', ParseUUIDPipe) sourceTenantId: string,
+    @Body() dto: CloneTenantConfigurationDto,
+    @Req() request?: AuthenticatedRequest,
+  ): Promise<CloneTenantConfigurationResponseDto> {
+    return this.configurationCloneService.cloneConfiguration(
+      sourceTenantId,
+      dto,
+      this.toAuditContext(request),
+    );
+  }
 
   @Post('onboard')
   @PlatformPermissions(
