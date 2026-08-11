@@ -89,6 +89,7 @@ describe('PlatformAuditLogService', () => {
       resourceId,
       oldValue: { cardNumber: '4111111111111111' },
       newValue: { amount: new Prisma.Decimal('250') },
+      metadata: { sourceTenantId: tenantId, copiedScopes: ['metadata'] },
       reason: 'correction',
       ipAddress: '127.0.0.1',
       userAgent: 'Mozilla',
@@ -104,6 +105,10 @@ describe('PlatformAuditLogService', () => {
         resourceType: 'ManualInvoice',
         oldValue: { cardNumber: '[REDACTED]' },
         newValue: { amount: '250' },
+        metadata: {
+          sourceTenantId: tenantId,
+          copiedScopes: ['metadata'],
+        },
         reason: 'correction',
       }),
     });

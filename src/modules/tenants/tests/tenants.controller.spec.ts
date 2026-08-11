@@ -6,7 +6,11 @@ import { DANGEROUS_ACTION_KEY } from '@common/decorators/dangerous-action.decora
 import { TenantsController } from '../controllers/tenants.controller';
 import { TenantsService } from '../services/tenants.service';
 import { TenantOnboardingService } from '../services/tenant-onboarding.service';
-import { OnboardPlatformTenantDto } from '../dtos';
+import { TenantConfigurationCloneService } from '../services/tenant-configuration-clone.service';
+import {
+  CloneTenantConfigurationResponseDto,
+  OnboardPlatformTenantDto,
+} from '../dtos';
 
 const tenantId = '123e4567-e89b-12d3-a456-426614174000';
 
@@ -21,6 +25,7 @@ describe('TenantsController', () => {
   let controller: TenantsController;
   let service: jest.Mocked<TenantsService>;
   let onboardingService: jest.Mocked<TenantOnboardingService>;
+  let configurationCloneService: jest.Mocked<TenantConfigurationCloneService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -42,12 +47,19 @@ describe('TenantsController', () => {
             onboard: jest.fn(),
           },
         },
+        {
+          provide: TenantConfigurationCloneService,
+          useValue: {
+            cloneConfiguration: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     controller = module.get<TenantsController>(TenantsController);
     service = module.get(TenantsService);
     onboardingService = module.get(TenantOnboardingService);
+    configurationCloneService = module.get(TenantConfigurationCloneService);
   });
 
   it('creates tenant', async () => {
@@ -167,5 +179,66 @@ describe('TenantsController', () => {
     expect(
       Reflect.getMetadata(DANGEROUS_ACTION_KEY, controller.onboard),
     ).toEqual({ reason: 'tenant onboarding' });
+  });
+
+  it('clones tenant configuration through the dedicated service with audit context', async () => {
+    const dto = {
+      name: 'Alexandria Express',
+      slug: 'alexandria-express',
+    };
+    const response: CloneTenantConfigurationResponseDto = {
+      tenant: {
+        id: '123e4567-e89b-42d3-a456-426614174001',
+        name: dto.name,
+        slug: dto.slug,
+        status: TenantStatus.TRIAL,
+      },
+      clonedFromTenantId: tenantId,
+      cloned: {
+        metadata: true,
+        featureFlagOverrides: true,
+        featureFlagOverrideCount: 2,
+      },
+    };
+    const request = {
+      user: {
+        userId: '123e4567-e89b-42d3-a456-426614174002',
+        role: 'PLATFORM_ADMIN' as const,
+        permissions: [
+          PERMISSIONS.MANAGE_TENANTS,
+          PERMISSIONS.MANAGE_FEATURE_FLAGS,
+        ],
+      },
+      ip: '127.0.0.1',
+      headers: { 'user-agent': 'Jest' },
+    };
+    configurationCloneService.cloneConfiguration.mockResolvedValueOnce(
+      response,
+    );
+
+    const result = await controller.cloneConfiguration(tenantId, dto, request);
+
+    expect(configurationCloneService.cloneConfiguration).toHaveBeenCalledWith(
+      tenantId,
+      dto,
+      {
+        user: request.user,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      },
+    );
+    expect(result).toEqual(response);
+  });
+
+  it('requires both tenant and feature flag management permissions for cloning', () => {
+    expect(
+      Reflect.getMetadata(PERMISSIONS_KEY, controller.cloneConfiguration),
+    ).toEqual([PERMISSIONS.MANAGE_TENANTS, PERMISSIONS.MANAGE_FEATURE_FLAGS]);
+  });
+
+  it('marks tenant configuration cloning as a dangerous action', () => {
+    expect(
+      Reflect.getMetadata(DANGEROUS_ACTION_KEY, controller.cloneConfiguration),
+    ).toEqual({ reason: 'tenant configuration cloning' });
   });
 });

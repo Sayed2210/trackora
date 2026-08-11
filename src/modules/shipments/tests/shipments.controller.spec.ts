@@ -1,5 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ExecutionContext } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  INestApplication,
+  NotFoundException,
+} from '@nestjs/common';
+import { Server } from 'node:http';
 import request from 'supertest';
 import { ShipmentsController } from '../controllers/shipments.controller';
 import { ShipmentsService } from '../services/shipments.service';
@@ -7,7 +13,6 @@ import { BulkUploadService } from '../services/bulk-upload.service';
 import { ShipmentStatus, ShipmentType } from '../entities/shipment.entity';
 import { UserRole } from '@modules/users/entities/user.entity';
 import { PrismaService } from '@core/prisma/prisma.service';
-import { BulkUploadContext } from '../services/bulk-upload.service';
 
 const mockShipmentsService = {
   create: jest.fn(),
@@ -19,11 +24,11 @@ const mockShipmentsService = {
   updateStatus: jest.fn(),
 };
 
-const mockBulkUploadResult = {
-  totalRows: 1,
-  successCount: 1,
-  failedCount: 0,
-  errors: [] as Array<{ rowIndex: number; message: string }>,
+type MockBulkUploadResult = {
+  totalRows: 1;
+  successCount: 1;
+  failedCount: 0;
+  errors: Array<{ rowIndex: number; message: string }>;
 };
 
 const mockBulkUploadService = {
@@ -31,26 +36,28 @@ const mockBulkUploadService = {
     jest.fn<
       (
         buffer: Buffer,
-        context: BulkUploadContext,
-      ) => Promise<typeof mockBulkUploadResult>
+        tenantId: string,
+        actorUserId: string,
+        actorRole: UserRole,
+        requestedMerchantId?: string,
+      ) => Promise<MockBulkUploadResult>
     >(),
 };
 
-const mockPrisma = {
-  merchant: {
-    findUnique: jest.fn(),
-  },
-};
-
 const AUTH_USER_ID = 'user-account-id';
-const MERCHANT_ID = 'merchant-profile-id';
-const TENANT_ID = 'tenant-id';
+const mockPrisma = {};
 
 const mockAuthGuard = {
   canActivate: jest.fn((context: ExecutionContext) => {
-    const request = context.switchToHttp().getRequest();
-    request.user = {
-      userId: 'mock-merchant-id',
+    const authenticatedRequest = context.switchToHttp().getRequest<{
+      user: {
+        userId: string;
+        role: UserRole;
+        tenantId: string;
+      };
+    }>();
+    authenticatedRequest.user = {
+      userId: AUTH_USER_ID,
       role: UserRole.MERCHANT,
       tenantId: 'tenant-1',
     };
@@ -76,7 +83,7 @@ const mockShipment = {
 
 describe('ShipmentsController (integration)', () => {
   let app: INestApplication;
-  let capturedBulkUploadContext: BulkUploadContext | undefined;
+  let httpServer: Server;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -91,6 +98,7 @@ describe('ShipmentsController (integration)', () => {
 
     app = moduleRef.createNestApplication();
     await app.init();
+    httpServer = app.getHttpServer() as Server;
   });
 
   afterAll(async () => {
@@ -99,12 +107,6 @@ describe('ShipmentsController (integration)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    capturedBulkUploadContext = undefined;
-    mockPrisma.merchant.findUnique.mockResolvedValue({
-      id: MERCHANT_ID,
-      tenantId: TENANT_ID,
-      isActive: true,
-    });
   });
 
   describe('POST /shipments', () => {
@@ -121,7 +123,7 @@ describe('ShipmentsController (integration)', () => {
         productDescription: 'Shoes',
       };
 
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer)
         .post('/shipments')
         .send(dto)
         .expect(201);
@@ -130,36 +132,47 @@ describe('ShipmentsController (integration)', () => {
       expect(mockShipmentsService.create).toHaveBeenCalledWith(
         expect.objectContaining(dto),
         'tenant-1',
-        'mock-merchant-id',
+        AUTH_USER_ID,
         UserRole.MERCHANT,
       );
-      expect(capturedBulkUploadContext?.merchantId).not.toBe(AUTH_USER_ID);
     });
 
-    it('rejects a missing Merchant profile', async () => {
-      mockPrisma.merchant.findUnique.mockResolvedValueOnce(null);
+    it('propagates a missing Merchant profile error from bulk upload', async () => {
+      mockBulkUploadService.processFile.mockRejectedValueOnce(
+        new NotFoundException('Merchant not found'),
+      );
 
-      await request(app.getHttpServer())
+      await request(httpServer)
         .post('/shipments/bulk-upload')
         .attach('file', Buffer.from('workbook'), 'shipments.xlsx')
         .expect(404);
 
-      expect(mockBulkUploadService.processFile).not.toHaveBeenCalled();
+      expect(mockBulkUploadService.processFile).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'tenant-1',
+        AUTH_USER_ID,
+        UserRole.MERCHANT,
+        undefined,
+      );
     });
 
-    it('rejects an inactive Merchant profile', async () => {
-      mockPrisma.merchant.findUnique.mockResolvedValueOnce({
-        id: MERCHANT_ID,
-        tenantId: TENANT_ID,
-        isActive: false,
-      });
+    it('propagates an inactive Merchant profile error from bulk upload', async () => {
+      mockBulkUploadService.processFile.mockRejectedValueOnce(
+        new ForbiddenException('Merchant profile is inactive'),
+      );
 
-      await request(app.getHttpServer())
+      await request(httpServer)
         .post('/shipments/bulk-upload')
         .attach('file', Buffer.from('workbook'), 'shipments.xlsx')
         .expect(403);
 
-      expect(mockBulkUploadService.processFile).not.toHaveBeenCalled();
+      expect(mockBulkUploadService.processFile).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'tenant-1',
+        AUTH_USER_ID,
+        UserRole.MERCHANT,
+        undefined,
+      );
     });
 
     it('keeps the Merchant endpoint restricted to MERCHANT', () => {
@@ -181,9 +194,7 @@ describe('ShipmentsController (integration)', () => {
       };
       mockShipmentsService.findAll.mockResolvedValue(paginated);
 
-      const res = await request(app.getHttpServer())
-        .get('/shipments')
-        .expect(200);
+      const res = await request(httpServer).get('/shipments').expect(200);
 
       expect(res.body).toEqual(paginated);
       expect(mockShipmentsService.findAll).toHaveBeenCalledWith(
@@ -203,7 +214,7 @@ describe('ShipmentsController (integration)', () => {
       };
       mockShipmentsService.findAll.mockResolvedValue(paginated);
 
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer)
         .get('/shipments?status=PENDING&merchantId=merchant-1&page=2&limit=10')
         .expect(200);
 
@@ -229,7 +240,7 @@ describe('ShipmentsController (integration)', () => {
       };
       mockShipmentsService.findAllCursor.mockResolvedValue(result);
 
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer)
         .get('/shipments/cursor?cursor=abc&limit=50')
         .expect(200);
 
@@ -247,7 +258,7 @@ describe('ShipmentsController (integration)', () => {
     it('should return shipment by id', async () => {
       mockShipmentsService.findById.mockResolvedValue(mockShipment);
 
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer)
         .get(`/shipments/${TEST_UUID}`)
         .expect(200);
 
@@ -263,7 +274,7 @@ describe('ShipmentsController (integration)', () => {
     it('should return shipment by tracking number', async () => {
       mockShipmentsService.findPublicTracking.mockResolvedValue(mockShipment);
 
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer)
         .get('/shipments/tracking/TRK-240502-1234')
         .expect(200);
 
@@ -281,7 +292,7 @@ describe('ShipmentsController (integration)', () => {
       ];
       mockShipmentsService.getTimeline.mockResolvedValue(timeline);
 
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer)
         .get(`/shipments/${TEST_UUID}/timeline`)
         .expect(200);
 
@@ -298,7 +309,7 @@ describe('ShipmentsController (integration)', () => {
       const updated = { ...mockShipment, status: ShipmentStatus.PICKED_UP };
       mockShipmentsService.updateStatus.mockResolvedValue(updated);
 
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer)
         .patch(`/shipments/${TEST_UUID}/status`)
         .send({ newStatus: ShipmentStatus.PICKED_UP })
         .expect(200);

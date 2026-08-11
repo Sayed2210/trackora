@@ -11,8 +11,6 @@ import {
   UploadedFile,
   BadRequestException,
   Req,
-  ForbiddenException,
-  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {

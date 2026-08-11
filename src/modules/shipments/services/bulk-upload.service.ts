@@ -1,6 +1,7 @@
 import {
-  Injectable,
   BadRequestException,
+  ForbiddenException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@core/prisma/prisma.service';
@@ -12,7 +13,6 @@ import {
   ShipmentStatus,
   ShipmentType,
 } from '../entities/shipment.entity';
-import { UserRole, Zone } from '@prisma/client';
 import * as XLSX from 'xlsx';
 
 export interface BulkUploadContext {
@@ -85,25 +85,52 @@ export class BulkUploadService {
     private readonly fraudDetection: FraudDetectionService,
   ) {}
 
-  async processFile(
+  processFile(buffer: Buffer, context: BulkUploadContext): Promise<BulkResult>;
+  processFile(
     buffer: Buffer,
     tenantId: string,
     actorUserId: string,
     actorRole: UserRole,
     requestedMerchantId?: string,
+  ): Promise<BulkResult>;
+  async processFile(
+    buffer: Buffer,
+    contextOrTenantId: BulkUploadContext | string,
+    actorUserId?: string,
+    actorRole?: UserRole,
+    requestedMerchantId?: string,
   ): Promise<BulkResult> {
-    const merchant = await this.prisma.merchant.findFirst({
-      where:
-        actorRole === UserRole.MERCHANT
-          ? { tenantId, userId: actorUserId, isActive: true }
-          : requestedMerchantId
-            ? { id: requestedMerchantId, tenantId, isActive: true }
-            : { tenantId, userId: actorUserId, isActive: true },
-      select: { id: true },
-    });
-    if (!merchant) throw new NotFoundException('Merchant not found');
+    let context: BulkUploadContext;
+
+    if (typeof contextOrTenantId === 'string') {
+      if (!actorUserId || !actorRole) {
+        throw new ForbiddenException('Invalid bulk upload identity context');
+      }
+
+      const tenantId = contextOrTenantId;
+      const merchant = await this.prisma.merchant.findFirst({
+        where:
+          actorRole === UserRole.MERCHANT
+            ? { tenantId, userId: actorUserId, isActive: true }
+            : requestedMerchantId
+              ? { id: requestedMerchantId, tenantId, isActive: true }
+              : { tenantId, userId: actorUserId, isActive: true },
+        select: { id: true },
+      });
+      if (!merchant) throw new NotFoundException('Merchant not found');
+
+      context = {
+        merchantId: merchant.id,
+        tenantId,
+        uploadedByUserId: actorUserId,
+        uploadedByRole: actorRole,
+      };
+    } else {
+      context = contextOrTenantId;
+    }
+
     const rows = this.parseFile(buffer);
-    return this.processRows(rows, merchant.id, tenantId);
+    return this.processRows(rows, context);
   }
 
   private parseFile(buffer: Buffer): BulkRow[] {
@@ -125,35 +152,47 @@ export class BulkUploadService {
         }
 
         return {
-          customerName: this.toCellString(
-            r['customerName'] || r['customer_name'],
-          ),
-          customerPhone: this.toCellString(
-            r['customerPhone'] || r['customer_phone'],
-          ),
-          customerPhone2: this.toCellString(
-            r['customerPhone2'] || r['customer_phone2'],
-          ),
-          addressText: this.toCellString(r['addressText'] || r['address_text']),
+          customerName: this.firstCellText(row, [
+            'customerName',
+            'customer_name',
+          ]),
+          customerPhone: this.firstCellText(row, [
+            'customerPhone',
+            'customer_phone',
+          ]),
+          customerPhone2: this.firstCellText(row, [
+            'customerPhone2',
+            'customer_phone2',
+          ]),
+          addressText: this.firstCellText(row, ['addressText', 'address_text']),
           address,
-          type: this.toCellString(r['type']),
-          codAmount: (r['codAmount'] || r['cod_amount'] || undefined) as
+          type: this.firstCellText(row, ['type']),
+          codAmount: this.firstCellValue(row, ['codAmount', 'cod_amount']) as
             | number
             | string
             | undefined,
-          productDescription: this.toCellString(
-            r['productDescription'] || r['product_description'],
-          ),
-          productValue: (r['productValue'] ||
-            r['product_value'] ||
-            undefined) as number | string | undefined,
-          weight: (r['weight'] || undefined) as number | string | undefined,
-          pieces: (r['pieces'] || undefined) as number | string | undefined,
-          notes: this.toCellString(r['notes']),
-          zone: this.toCellString(r['zone']),
-          preferredDeliveryDate: this.toCellString(
-            r['preferredDeliveryDate'] || r['preferred_delivery_date'],
-          ),
+          productDescription: this.firstCellText(row, [
+            'productDescription',
+            'product_description',
+          ]),
+          productValue: this.firstCellValue(row, [
+            'productValue',
+            'product_value',
+          ]) as number | string | undefined,
+          weight: this.firstCellValue(row, ['weight']) as
+            | number
+            | string
+            | undefined,
+          pieces: this.firstCellValue(row, ['pieces']) as
+            | number
+            | string
+            | undefined,
+          notes: this.firstCellText(row, ['notes']),
+          zone: this.firstCellText(row, ['zone']),
+          preferredDeliveryDate: this.firstCellText(row, [
+            'preferredDeliveryDate',
+            'preferred_delivery_date',
+          ]),
         };
       });
     } catch {
@@ -165,8 +204,7 @@ export class BulkUploadService {
 
   private async processRows(
     rows: BulkRow[],
-    merchantId: string,
-    tenantId: string,
+    context: BulkUploadContext,
   ): Promise<BulkResult> {
     this.assertAllowedContext(context);
     const merchant = await this.prisma.merchant.findUnique({
@@ -268,38 +306,7 @@ export class BulkUploadService {
       },
     );
 
-      return {
-        trackingNumber: trackingNumbers[idx],
-        tenantId,
-        merchantId,
-        status: ShipmentStatus.PENDING,
-        type,
-        customerName: String(vr.data.customerName),
-        customerPhone: String(vr.data.customerPhone),
-        customerPhone2: vr.data.customerPhone2?.trim() || null,
-        address,
-        addressText: String(vr.data.addressText),
-        codAmount,
-        productDescription: String(vr.data.productDescription),
-        productValue: Number(vr.data.productValue ?? 0),
-        weight: Number(vr.data.weight ?? 1),
-        pieces: Number(vr.data.pieces ?? 1),
-        notes: vr.data.notes?.trim() || null,
-        zoneId: vr.zoneId ?? null,
-        preferredDeliveryDate: vr.data.preferredDeliveryDate
-          ? new Date(vr.data.preferredDeliveryDate)
-          : null,
-        riskScore: this.fraudDetection.calculateRiskScore({
-          customerPhone: String(vr.data.customerPhone),
-          addressText: String(vr.data.addressText),
-          codAmount,
-          customerName: String(vr.data.customerName),
-        }),
-        deliveryAttempts: 0,
-        autoDispatchEligible: true,
-        addressVerified: false,
-      };
-    });
+    this.assertCreateDataContext(shipmentCreates, context);
 
     const batchSize = 100;
     const createdShipments: Shipment[] = [];
@@ -318,8 +325,11 @@ export class BulkUploadService {
 
         const shipments = await tx.shipment.findMany({
           where: {
-            tenantId,
-            trackingNumber: { in: batch.map((s) => s.trackingNumber) },
+            trackingNumber: {
+              in: batch.map((shipment) => shipment.trackingNumber),
+            },
+            merchantId: context.merchantId,
+            tenantId: context.tenantId,
           },
         });
 
@@ -644,16 +654,5 @@ export class BulkUploadService {
 
   private isValidEgyptianPhone(phone: string): boolean {
     return /^01[0-25]\d{8}$/.test(phone);
-  }
-
-  private toCellString(value: unknown): string {
-    if (
-      typeof value === 'string' ||
-      typeof value === 'number' ||
-      typeof value === 'boolean'
-    ) {
-      return String(value);
-    }
-    return '';
   }
 }

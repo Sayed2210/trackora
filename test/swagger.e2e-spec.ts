@@ -227,6 +227,56 @@ describe('Swagger & API Automation Tests (e2e)', () => {
       ]);
     });
 
+    it('should document tenant configuration cloning and its DTOs', async () => {
+      const res = await request(httpServer).get('/api/docs-json');
+      const operation =
+        res.body.paths[
+          '/v1/platform/tenants/{sourceTenantId}/clone-configuration'
+        ].post;
+
+      expect(operation.security).toEqual([{ bearer: [] }]);
+      expect(operation.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'sourceTenantId',
+            in: 'path',
+            required: true,
+            schema: expect.objectContaining({ format: 'uuid' }),
+          }),
+        ]),
+      );
+      expect(
+        operation.requestBody.content['application/json'].schema.$ref,
+      ).toBe('#/components/schemas/CloneTenantConfigurationDto');
+      expect(
+        operation.responses['201'].content['application/json'].schema.$ref,
+      ).toBe('#/components/schemas/CloneTenantConfigurationResponseDto');
+      expect(Object.keys(operation.responses).sort()).toEqual([
+        '201',
+        '400',
+        '401',
+        '403',
+        '404',
+        '409',
+      ]);
+
+      const requestSchema =
+        res.body.components.schemas.CloneTenantConfigurationDto;
+      expect(requestSchema.required.sort()).toEqual(['name', 'slug']);
+      expect(requestSchema.properties.copyMetadata.default).toBe(true);
+      expect(requestSchema.properties.copyFeatureFlagOverrides.default).toBe(
+        true,
+      );
+
+      const responseSchema =
+        res.body.components.schemas.CloneTenantConfigurationResponseDto;
+      expect(responseSchema.required.sort()).toEqual([
+        'cloned',
+        'clonedFromTenantId',
+        'tenant',
+      ]);
+    });
+
     it('should only require bearer auth for protected shipment endpoints', async () => {
       const res = await request(httpServer).get('/api/docs-json');
       const paths = res.body.paths;
